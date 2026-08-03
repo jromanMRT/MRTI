@@ -3,7 +3,7 @@ import './style.css';
 const app = document.querySelector('#app');
 const MODULES = [
   {
-    code: 'mrti-infra', title: 'IT Management', href: '/mrti-infra/',
+    code: 'mrti-infra', title: 'MRTI Infra', href: '/mrti-infra/',
     description: 'Administración, inventario y monitoreo centralizado de la infraestructura tecnológica.',
     features: ['Inventario', 'Monitoreo', 'Alertas'],
   },
@@ -60,9 +60,9 @@ function userIdentifier(userNumber) {
 }
 
 function brandMarkup() {
-  return `<a class="brand" href="/" aria-label="MRTI Core, inicio">
+  return `<a class="brand" href="/" aria-label="MRTI, inicio">
     <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M8 11.5 20 5l12 6.5v17L20 35 8 28.5v-17Z"/><path d="m14 15 6-3.2 6 3.2v10l-6 3.2-6-3.2V15Z"/></svg></span>
-    <span><strong>MRTI</strong><small>Core</small></span>
+    <span><strong>MRTI</strong><small>Portal</small></span>
   </a>`;
 }
 
@@ -79,7 +79,7 @@ function shellMarkup(profile, content) {
       </div>
     </header>
     <main>${content}</main>
-    <footer><span>MRTI Core</span><span class="footer-separator"></span><span>Infraestructura tecnológica</span><span class="copyright">© ${new Date().getFullYear()} MRTI</span></footer>
+    <footer><span>MRTI</span><span class="footer-separator"></span><span>Infraestructura tecnológica</span><span class="copyright">© ${new Date().getFullYear()} MRTI</span></footer>
   </div>`;
 }
 
@@ -127,7 +127,7 @@ function renderPortal(profile) {
 
 function renderAccount(profile) {
   app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel">
-    <button class="back-button" id="back-portal" type="button">← Volver al Core</button>
+    <button class="back-button" id="back-portal" type="button">← Volver al portal</button>
     <p class="section-label">Mi cuenta</p><h1>Cambiar contraseña</h1>
     <p class="panel-copy">Actualiza tu contraseña de acceso central. El cambio aplica automáticamente a todos los módulos.</p>
     <form class="control-form" id="password-form">
@@ -210,10 +210,10 @@ async function renderControlCenter(profile, flash = '') {
       </form></details>`;
     }).join('');
     app.innerHTML = shellMarkup(profile, `<section class="workspace-panel control-center">
-      <button class="back-button" id="back-portal" type="button">← Volver al Core</button><p class="section-label">Administración</p><h1>Centro de control</h1>
+      <button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Administración</p><h1>Centro de control</h1>
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
-      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créelas en <a href="/mrti-infra/sites"><strong>IT Management → Sitios</strong></a> y asigna un área a cada equipo del inventario.</div>'}
+      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créelas en <a href="/mrti-infra/sites"><strong>MRTI Infra → Sitios</strong></a> y asigna un área a cada equipo del inventario.</div>'}
       <div class="control-section"><h2>Crear usuario</h2><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="10" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" required></label>
@@ -296,7 +296,7 @@ async function renderControlCenter(profile, flash = '') {
       } catch (error) { window.alert(error.message); }
     });
   } catch (error) {
-    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel"><div class="notice error">${escapeHtml(error.message)}</div><button class="back-button" id="back-portal">← Volver al Core</button></section>`);
+    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel"><div class="notice error">${escapeHtml(error.message)}</div><button class="back-button" id="back-portal">← Volver al portal</button></section>`);
     bindShell(profile); document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
   }
 }
