@@ -1,4 +1,4 @@
-# Portal MRTI Core en / e IT Management en /it-management/.
+# Portal MRTI en / y MRTI Infra en /mrti-infra/.
 server {
     listen 80;
     server_name _;
@@ -6,10 +6,10 @@ server {
     client_max_body_size 30M;
 
     # Portal principal.
-    root /var/www/mrt/MRTI/Core/dist;
+    root /var/www/mrt/MRTI/MRTI/dist;
     index index.html;
 
-    # API y WebSocket de IT Management.
+    # API y WebSocket de MRTI Infra.
     location /socket.io/ {
         proxy_pass http://127.0.0.1:3002;
         proxy_http_version 1.1;
@@ -37,14 +37,14 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    location = /it-management {
-        return 301 /it-management/;
+    location = /mrti-infra {
+        return 301 /mrti-infra/;
     }
 
     # Aplicación de administración bajo su propia ruta.
-    location ^~ /it-management/ {
-        alias /var/www/mrt/MRTI/IT-Management/dist/;
-        try_files $uri $uri/ /it-management/index.html;
+    location ^~ /mrti-infra/ {
+        alias /var/www/mrt/MRTI/MRTI-Infra/dist/;
+        try_files $uri $uri/ /mrti-infra/index.html;
     }
 
     location = /tickets {

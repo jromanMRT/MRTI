@@ -1,4 +1,4 @@
-# MRTI Core
+# MRTI
 
 Portal principal para acceder a las aplicaciones internas de MRTI.
 
@@ -18,13 +18,13 @@ npm run build
 
 Nginx sirve `dist/` en la raíz `/` y centraliza los módulos:
 
-- **IT Management:** `/it-management/`
+- **MRTI Infra:** `/mrti-infra/`
 - **MRTI Tickets:** `/tickets/`
 - **MRTI Agent Core:** redirección al puerto `8477`
 
-El Core concentra el inicio y cierre de sesión. IT Management y MRTI Tickets
+MRTI concentra el inicio y cierre de sesión. MRTI Infra y MRTI Tickets
 comparten el token por estar publicados bajo el mismo origen; si se abre un
-módulo sin sesión, éste redirige al Core y conserva la ruta de retorno.
+módulo sin sesión, éste redirige a MRTI y conserva la ruta de retorno.
 
 La configuración conjunta para este servidor está en
 `deploy/nginx.conf.example`. El activador conserva un respaldo y restaura la

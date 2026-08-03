@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly SOURCE_CONFIG="/var/www/mrt/MRTI/Core/deploy/nginx.conf.example"
+readonly SOURCE_CONFIG="/var/www/mrt/MRTI/MRTI/deploy/nginx.conf.example"
 readonly TARGET_CONFIG="/etc/nginx/sites-available/it-infra"
 readonly BACKUP_CONFIG="/etc/nginx/sites-available/it-infra.bak"
 
@@ -11,13 +11,13 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-if [[ ! -f /var/www/mrt/MRTI/Core/dist/index.html ]]; then
-  echo "No existe el build de MRTI Core en Core/dist/." >&2
+if [[ ! -f /var/www/mrt/MRTI/MRTI/dist/index.html ]]; then
+  echo "No existe el build de MRTI en MRTI/dist/." >&2
   exit 1
 fi
 
-if [[ ! -f /var/www/mrt/MRTI/IT-Management/dist/index.html ]]; then
-  echo "No existe el build de IT Management en IT-Management/dist/." >&2
+if [[ ! -f /var/www/mrt/MRTI/MRTI-Infra/dist/index.html ]]; then
+  echo "No existe el build de MRTI Infra en MRTI-Infra/dist/." >&2
   exit 1
 fi
 
@@ -37,5 +37,5 @@ fi
 
 systemctl reload nginx
 
-echo "MRTI Core quedó publicado en http://192.168.1.203/"
-echo "IT Management continúa en http://192.168.1.203/it-management/"
+echo "MRTI quedó publicado en http://192.168.1.203/"
+echo "MRTI Infra continúa en http://192.168.1.203/mrti-infra/"

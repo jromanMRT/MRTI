@@ -3,7 +3,7 @@ import './style.css';
 const app = document.querySelector('#app');
 const MODULES = [
   {
-    code: 'it-management', title: 'IT Management', href: '/it-management/',
+    code: 'mrti-infra', title: 'IT Management', href: '/mrti-infra/',
     description: 'Administración, inventario y monitoreo centralizado de la infraestructura tecnológica.',
     features: ['Inventario', 'Monitoreo', 'Alertas'],
   },
@@ -213,7 +213,7 @@ async function renderControlCenter(profile, flash = '') {
       <button class="back-button" id="back-portal" type="button">← Volver al Core</button><p class="section-label">Administración</p><h1>Centro de control</h1>
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
-      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créelas en <a href="/it-management/sites"><strong>IT Management → Sitios</strong></a> y asigna un área a cada equipo del inventario.</div>'}
+      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créelas en <a href="/mrti-infra/sites"><strong>IT Management → Sitios</strong></a> y asigna un área a cada equipo del inventario.</div>'}
       <div class="control-section"><h2>Crear usuario</h2><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="10" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" required></label>
