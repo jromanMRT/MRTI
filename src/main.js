@@ -17,6 +17,11 @@ const MODULES = [
     description: 'Telemetría, estado en vivo y descargas para los agentes instalados en los equipos.',
     features: ['Agentes', 'Telemetría', 'Alertas'],
   },
+  {
+    code: 'activos', title: 'MRTI Activos', href: '/activos/',
+    description: 'Inventario de activos de TI: equipos, asignaciones, licencias y accesos.',
+    features: ['Inventario', 'Asignaciones', 'Licencias'],
+  },
 ];
 
 function escapeHtml(value) {
