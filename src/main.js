@@ -22,6 +22,11 @@ const MODULES = [
     description: 'Inventario de activos de TI: equipos, asignaciones, licencias y accesos.',
     features: ['Inventario', 'Asignaciones', 'Licencias'],
   },
+  {
+    code: 'rh', title: 'MRTI RH', href: '/rh/',
+    description: 'Directorio de empleados, organigrama, vacaciones y expedientes documentales.',
+    features: ['Directorio', 'Organigrama', 'Vacaciones'],
+  },
 ];
 
 function escapeHtml(value) {
