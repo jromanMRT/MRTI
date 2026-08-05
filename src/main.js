@@ -49,7 +49,12 @@ async function api(path, options = {}) {
     },
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Error ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(body.error || `Error ${response.status}`);
+    error.status = response.status;
+    error.code = body.code;
+    throw error;
+  }
   return body;
 }
 
@@ -128,11 +133,77 @@ function renderPortal(profile) {
   const empty = `<div class="empty-state"><h3>Aún no tienes módulos asignados</h3><p>Un administrador debe asignarte un área desde el Centro de control.</p></div>`;
   app.innerHTML = shellMarkup(profile, `
     ${banner}
-    <section class="hero"><div class="eyebrow"><span></span> Centro de operaciones</div><h1>Todo tu entorno TI,<br><em>en un solo lugar.</em></h1>
-      <p>${profile.access_area_name ? `Área asignada: ${escapeHtml(profile.access_area_name)}.` : 'Accede de forma centralizada a las herramientas internas de MRTI.'}</p></section>
+    <section class="hero personal-hero"><div class="eyebrow"><span></span> Portal personal</div><h1>Hola, ${escapeHtml(profile.full_name.split(' ')[0])}.<br><em>Este es tu espacio.</em></h1>
+      <p>Consulta tu información y realiza gestiones personales sin entrar a los módulos administrativos.</p></section>
+    <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi dashboard</p><h2>Información y acciones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
+      <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div></section>
     <section class="applications"><div class="section-heading"><div><p class="section-label">Aplicaciones</p><h2>Herramientas disponibles</h2></div><span class="app-count">${available.length} ${available.length === 1 ? 'aplicación' : 'aplicaciones'}</span></div>
       <div class="app-grid">${available.length ? available.map(cardMarkup).join('') : empty}</div></section>`);
   bindShell(profile);
+  void loadEmployeeDashboard(profile);
+}
+
+const LEAVE_STATUS = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada', cancelled: 'Cancelada' };
+
+function shortDate(value) {
+  return value ? String(value).slice(0, 10) : '—';
+}
+
+async function loadEmployeeDashboard(profile, flash = '') {
+  const container = document.querySelector('#employee-dashboard');
+  if (!container) return;
+  try {
+    const year = new Date().getFullYear();
+    const { data: employee } = await api('/rh-api/api/rh-self/me');
+    const [{ data: balances }, { data: requests }, { data: leaveTypes }] = await Promise.all([
+      api(`/rh-api/api/rh-self/me/leave-balances?year=${year}`),
+      api('/rh-api/api/rh-self/me/leave-requests'),
+      api('/rh-api/api/rh-self/leave-types'),
+    ]);
+    const balanceCards = balances.filter((item) => item.requires_balance).map((item) => `<div class="personal-metric"><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(item.days_available)} días</strong><small>${escapeHtml(item.days_used)} usados de ${escapeHtml(item.days_granted)}</small></div>`).join('');
+    const requestRows = requests.slice(0, 6).map((request) => `<tr><td><strong>${escapeHtml(request.leave_type_name)}</strong><small>${shortDate(request.start_date)} a ${shortDate(request.end_date)}</small></td><td>${escapeHtml(request.business_days)}</td><td><span class="request-status ${escapeHtml(request.status)}">${escapeHtml(LEAVE_STATUS[request.status] || request.status)}</span></td><td>${request.status === 'pending' ? `<button class="personal-link cancel-own-request" type="button" data-request-id="${request.id}">Cancelar</button>` : ''}</td></tr>`).join('');
+    container.className = 'personal-grid';
+    container.innerHTML = `
+      <article class="personal-card identity-card"><div class="personal-card-heading"><span class="personal-icon">ID</span><div><p>Mi información laboral</p><h3>${escapeHtml(employee.first_name)} ${escapeHtml(employee.last_name_p)} ${escapeHtml(employee.last_name_m || '')}</h3></div></div>
+        <dl class="identity-details"><div><dt>Número</dt><dd>${escapeHtml(employee.employee_number)}</dd></div><div><dt>Puesto</dt><dd>${escapeHtml(employee.job_title || '—')}</dd></div><div><dt>Departamento</dt><dd>${escapeHtml(employee.department_name || '—')}</dd></div><div><dt>Jefe directo</dt><dd>${escapeHtml(employee.manager_name || '—')}</dd></div><div><dt>Correo</dt><dd>${escapeHtml(employee.work_email || profile.email)}</dd></div><div><dt>Ingreso</dt><dd>${shortDate(employee.hire_date)}</dd></div></dl></article>
+      <article class="personal-card balance-card"><div class="personal-card-title"><div><p>Vacaciones y permisos</p><h3>Mis saldos ${year}</h3></div></div><div class="personal-metrics">${balanceCards || '<p class="personal-empty">RH aún no ha asignado saldos.</p>'}</div></article>
+      <article class="personal-card leave-form-card"><div class="personal-card-title"><div><p>Acción rápida</p><h3>Solicitar vacaciones o permiso</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}
+        <form id="employee-leave-form" class="personal-form"><label>Tipo<select name="leave_type_id" required><option value="">Selecciona…</option>${leaveTypes.map((type) => `<option value="${type.id}">${escapeHtml(type.name)}</option>`).join('')}</select></label><div class="personal-form-dates"><label>Desde<input name="start_date" type="date" required></label><label>Hasta<input name="end_date" type="date" required></label></div><label>Motivo<textarea name="reason" rows="2" placeholder="Opcional"></textarea></label><div class="personal-form-message" id="employee-leave-message" hidden></div><button class="personal-submit" type="submit">Enviar a Recursos Humanos</button></form></article>
+      <article class="personal-card requests-card"><div class="personal-card-title"><div><p>Seguimiento</p><h3>Mis solicitudes recientes</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Solicitud</th><th>Días</th><th>Estatus</th><th></th></tr></thead><tbody>${requestRows || '<tr><td colspan="4" class="personal-empty">Aún no tienes solicitudes.</td></tr>'}</tbody></table></div></article>`;
+    bindEmployeeDashboard(profile);
+  } catch (error) {
+    if (error.code === 'EMPLOYEE_NOT_LINKED' || error.status === 404) {
+      container.className = 'personal-unlinked';
+      container.innerHTML = `<div class="personal-unlinked-icon">RH</div><div><h3>Vinculación pendiente</h3><p>${escapeHtml(error.message)}</p><small>Tu acceso a las aplicaciones asignadas continúa disponible debajo.</small></div>`;
+      return;
+    }
+    container.className = 'notice error';
+    container.textContent = error.message;
+  }
+}
+
+function bindEmployeeDashboard(profile) {
+  const form = document.querySelector('#employee-leave-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const message = document.querySelector('#employee-leave-message');
+    const values = new FormData(form);
+    button.disabled = true; button.textContent = 'Enviando…'; message.hidden = true;
+    try {
+      await api('/rh-api/api/rh-self/me/leave-requests', { method: 'POST', body: JSON.stringify({ leave_type_id: values.get('leave_type_id'), start_date: values.get('start_date'), end_date: values.get('end_date'), reason: values.get('reason') }) });
+      await loadEmployeeDashboard(profile, 'Solicitud enviada correctamente. RH ya puede revisarla.');
+    } catch (error) {
+      message.textContent = error.message; message.hidden = false; button.disabled = false; button.textContent = 'Enviar a Recursos Humanos';
+    }
+  });
+  document.querySelectorAll('.cancel-own-request').forEach((button) => button.addEventListener('click', async () => {
+    if (!window.confirm('¿Cancelar esta solicitud pendiente?')) return;
+    try {
+      await api(`/rh-api/api/rh-self/me/leave-requests/${button.dataset.requestId}/cancel`, { method: 'PATCH', body: '{}' });
+      await loadEmployeeDashboard(profile, 'Solicitud cancelada.');
+    } catch (error) { window.alert(error.message); }
+  }));
 }
 
 function renderAccount(profile) {

@@ -21,6 +21,11 @@ if [[ ! -f /var/www/mrt/MRTI/MRTI-Infra/dist/index.html ]]; then
   exit 1
 fi
 
+if [[ ! -f /var/www/mrt/MRTI/MRTI-RH/dist/index.html ]]; then
+  echo "No existe el build de MRTI RH en MRTI-RH/dist/." >&2
+  exit 1
+fi
+
 if [[ -f "$TARGET_CONFIG" ]]; then
   cp --preserve=mode,ownership,timestamps "$TARGET_CONFIG" "$BACKUP_CONFIG"
 fi
@@ -39,3 +44,4 @@ systemctl reload nginx
 
 echo "MRTI quedó publicado en http://192.168.1.203/"
 echo "MRTI Infra continúa en http://192.168.1.203/mrti-infra/"
+echo "MRTI RH quedó publicado en http://192.168.1.203/rh/"

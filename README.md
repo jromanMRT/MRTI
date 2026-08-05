@@ -1,6 +1,8 @@
 # MRTI
 
-Portal principal para acceder a las aplicaciones internas de MRTI.
+Portal principal para acceder a las aplicaciones internas de MRTI. La portada
+también funciona como dashboard personal: muestra información laboral, saldos
+y solicitudes propias sin abrir el módulo administrativo de Recursos Humanos.
 
 ## Desarrollo
 
@@ -20,6 +22,8 @@ Nginx sirve `dist/` en la raíz `/` y centraliza los módulos:
 
 - **MRTI Infra:** `/mrti-infra/`
 - **MRTI Tickets:** `/tickets/`
+- **MRTI Activos:** `/activos/`
+- **MRTI RH:** `/rh/`
 - **MRTI Agent Core:** redirección al puerto `8477`
 
 MRTI concentra el inicio y cierre de sesión. MRTI Infra y MRTI Tickets
