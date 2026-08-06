@@ -113,12 +113,14 @@ consumidores usan contratos versionados con pruebas.
 - Mover tablas y proceso al mismo tiempo dificulta rollback.
 - Infra y Activos pueden duplicar asignaciones y atributos de dispositivos.
 - Cambiar el secreto JWT durante la extracción invalidaría todas las sesiones.
-- **Colisión de nombre "MRTI Core":** `MRTI-Agent` ya tiene un binario/servicio
-  llamado `mrti-core` (servidor de telemetría, systemd `mrti-core.service`,
-  puerto 8477, **corriendo en producción hoy**), sin relación con el backend
-  de identidad que planea crear la Fase 1 bajo el mismo nombre. Ver
-  `docs/architecture/phase0-baseline/BASELINE.md §5`. **Bloquea el inicio de
-  la Fase 1** hasta decidir un nombre sin ambigüedad para uno de los dos.
+- **Colisión de nombre "MRTI Core" — resuelta 2026-08-06:** se decidió
+  renombrar el servidor de telemetría de `MRTI-Agent` a "MRTI Monitor"
+  (`MRTI-Agent@8cb2064`), dejando "MRTI Core" libre para el backend de
+  identidad de la Fase 1. Ver `docs/architecture/phase0-baseline/BASELINE.md
+  §5` y el registro de decisiones (§10). **Pendiente:** el host de producción
+  sigue corriendo el `mrti-core.service`/binario viejo; el corte en vivo no
+  se ha hecho y requiere autorización explícita antes de tocar el servicio
+  real.
 
 ## 5. Arquitectura de transición
 
@@ -385,6 +387,7 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-05 | Dashboard personal vive en Core | Evita dar acceso administrativo al trabajador | Los módulos deben ofrecer APIs `*-self` |
 | 2026-08-05 | Vincular RH mediante UUID de Core | Evita confiar en `employee_id` del navegador | `employees.portal_user_id` es referencia lógica |
 | 2026-08-06 | Separar proceso antes de mover datos | Reduce el radio de fallo y facilita rollback | Core puede leer temporalmente tablas antiguas |
+| 2026-08-06 | Renombrar el servidor de telemetría de MRTI-Agent de "mrti-core" a "MRTI Monitor" (decisión de jroman) | Liberar el nombre "MRTI Core" para el backend de identidad de la Fase 1, sin ambigüedad con el servicio de telemetría ya en producción | `MRTI-Agent@8cb2064` renombra binario/servicio/docs en el repo. **Pendiente:** el host aún corre el `mrti-core.service`/binario viejo — el corte en vivo (detener el servicio actual, instalar `mrti-monitor.service`, actualizar cualquier referencia externa) es un paso de despliegue separado que requiere autorización explícita antes de ejecutarse. También se encontró y corrigió una API key real committeada en texto plano en `service/mrti-core.service`; sigue expuesta en el historial de git y debe rotarse |
 
 ## 11. Definición final de terminado
 
