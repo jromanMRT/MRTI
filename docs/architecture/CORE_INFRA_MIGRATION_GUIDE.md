@@ -113,6 +113,12 @@ consumidores usan contratos versionados con pruebas.
 - Mover tablas y proceso al mismo tiempo dificulta rollback.
 - Infra y Activos pueden duplicar asignaciones y atributos de dispositivos.
 - Cambiar el secreto JWT durante la extracción invalidaría todas las sesiones.
+- **Colisión de nombre "MRTI Core":** `MRTI-Agent` ya tiene un binario/servicio
+  llamado `mrti-core` (servidor de telemetría, systemd `mrti-core.service`,
+  puerto 8477, **corriendo en producción hoy**), sin relación con el backend
+  de identidad que planea crear la Fase 1 bajo el mismo nombre. Ver
+  `docs/architecture/phase0-baseline/BASELINE.md §5`. **Bloquea el inicio de
+  la Fase 1** hasta decidir un nombre sin ambigüedad para uno de los dos.
 
 ## 5. Arquitectura de transición
 
@@ -360,7 +366,7 @@ Actualizar una fila solo con evidencia verificable.
 
 | Fase | Estado | Fecha | Evidencia / commits |
 |---|---|---|---|
-| 0. Línea base y contratos | Pendiente | — | Falta inventario formal y suite de contratos |
+| 0. Línea base y contratos | Completa | 2026-08-06 | `docs/architecture/phase0-baseline/BASELINE.md`; pruebas de contrato `MRTI-Infra/server/test/auth-contract.test.js` (9/9 OK); commits pendientes de registrar hash |
 | 1. Backend propio de Core | Pendiente | — | — |
 | 2. Corte de tráfico auth | Pendiente | — | — |
 | 3. Base `mrti_core` | Pendiente | — | — |

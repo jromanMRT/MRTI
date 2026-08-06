@@ -1,0 +1,6 @@
+tabla	filas
+user_profiles	3
+access_areas	2
+access_area_modules	3
+areas	0
+devices	24
