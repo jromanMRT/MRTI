@@ -366,7 +366,7 @@ Actualizar una fila solo con evidencia verificable.
 
 | Fase | Estado | Fecha | Evidencia / commits |
 |---|---|---|---|
-| 0. Línea base y contratos | Completa | 2026-08-06 | `docs/architecture/phase0-baseline/BASELINE.md`; pruebas de contrato `MRTI-Infra/server/test/auth-contract.test.js` (9/9 OK); commits pendientes de registrar hash |
+| 0. Línea base y contratos | Completa | 2026-08-06 | `docs/architecture/phase0-baseline/BASELINE.md`; pruebas de contrato `MRTI-Infra/server/test/auth-contract.test.js` (9/9 OK); MRTI `cf91087`; MRTI-Infra `b45f21e` |
 | 1. Backend propio de Core | Pendiente | — | — |
 | 2. Corte de tráfico auth | Pendiente | — | — |
 | 3. Base `mrti_core` | Pendiente | — | — |
