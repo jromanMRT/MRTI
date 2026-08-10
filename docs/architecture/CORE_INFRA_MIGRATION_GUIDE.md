@@ -251,19 +251,53 @@ Objetivo: que todos los módulos reconozcan a Core como autoridad.
 
 Checklist:
 
-- [ ] Introducir `MRTI_CORE_URL` en Infra, RH, Activos, Tickets y Agent.
-- [ ] Mantener fallback temporal a `MRTI_INFRA_URL` con advertencia.
-- [ ] Cambiar documentación y ejemplos de entorno.
-- [ ] Validar módulo autorizado, prohibido, sesión expirada y Core no disponible.
-- [ ] Añadir timeouts y mensajes `503` consistentes.
+- [x] Introducir `MRTI_CORE_URL` en RH y Activos (`server/src/auth.js`) y en
+      Tickets (variables `AUTH_PROFILE_URL`/`AUTH_TICKET_CONTEXT_URL`/
+      `AUTH_ASSIGNEES_URL`, ya genéricas, repuntadas a `:3005`).
+      **Parcial en Agent:** la plantilla del repo
+      (`MRTI-Agent/service/mrti-monitor.service`) ya fija
+      `MRTI_AUTH_MODULE_URL` hacia Core; la unidad systemd real en
+      `/etc/systemd/system/` sigue sin aplicar el cambio — paso root
+      pendiente, requiere que jroman ejecute `daemon-reload` + `restart`.
+      Infra no necesitó esta variable: no tiene ninguna llamada HTTP a su
+      propio `/api/auth/*` (valida localmente), así que no es consumidor de
+      identidad en ese sentido — sí se resolvió ahí el hallazgo de nombres
+      (ver abajo).
+- [x] Mantener fallback temporal a `MRTI_INFRA_URL` con advertencia (RH y
+      Activos emiten `console.warn` una sola vez al arrancar si
+      `MRTI_CORE_URL` no está definida; Tickets no necesitó fallback porque
+      sus variables ya eran genéricas).
+- [x] Cambiar documentación y ejemplos de entorno (`.env.example` de RH y
+      Activos; comentarios en `docker-compose.yml` de Tickets).
+- [x] Validar módulo autorizado, prohibido, sesión expirada y Core no
+      disponible — **verificado en Tickets** end-to-end: sin token → 401,
+      token inválido → 401 (confirma que sí llega a Core, no es un fallo de
+      red), Core inalcanzable (contenedor descartable con
+      `AUTH_PROFILE_URL` apuntando a un puerto cerrado) → 503. **Verificado
+      parcialmente en RH/Activos:** sin token → 401 contra el proceso real
+      con `MRTI_CORE_URL` activa; los casos "sesión válida sin módulo" (403)
+      y "administrador activo" (204/200) no se probaron con cuentas reales
+      desechables como en la Fase 2 — pendiente si se quiere el mismo nivel
+      de evidencia.
+- [x] Añadir timeouts y mensajes `503` consistentes — RH y Activos ya los
+      tenían (5s); Tickets no tenía timeout ni distinguía "Core no
+      disponible" de "token inválido" y se corrigió
+      (`coreClient.ts`/`auth.ts`) para igualar el patrón de RH/Activos/Agent.
 
 Criterio de terminado:
 
-- Ningún código nuevo describe Infra como proveedor de identidad.
+- Ningún código nuevo describe Infra como proveedor de identidad. **Aún no
+  cumplido del todo:** el corte real de tráfico en Agent depende del paso
+  systemd pendiente arriba; hasta que se aplique, Agent sigue validando
+  contra Infra en producción.
 
 Rollback:
 
 - Reponer la variable anterior; el contrato de rutas continúa compatible.
+  RH/Activos: borrar `MRTI_CORE_URL` del `.env` y reiniciar con pm2. Tickets:
+  revertir `docker-compose.yml` y `docker compose up -d --build backend`.
+  Agent: quitar la línea `Environment=` del systemd real, `daemon-reload` +
+  `restart`.
 
 ### Fase 5 — Limpiar identidad de Infra
 
@@ -386,7 +420,7 @@ Actualizar una fila solo con evidencia verificable.
 | 1. Backend propio de Core | Completa | 2026-08-10 | `MRTI/server/` (Express, `type:"module"`); 9 archivos de auth copiados verbatim de `MRTI-Infra/server` (`diff -q` sin diferencias); `/api/health` propio; pruebas de contrato `server/test/auth-contract.test.js` 9/9 OK contra Infra:3002 (línea base) y Core:3005; token emitido por Core aceptado por Infra `GET /me` → 200 mismo `profile.id`; pm2/nginx **no** tocados (pendiente de aprobación explícita para Fase 2); MRTI `3abc691` |
 | 2. Corte de tráfico auth | Completa | 2026-08-10 | `mrti-core-api` registrado en pm2 (`pm2 save`, 0 reinicios); `MRTI/deploy/nginx.conf.example` con location `/api/auth/` → `127.0.0.1:3005` antes de `/api/`; aplicado en vivo con `sudo deploy/activate.sh` (backup automático en `it-infra.bak`, `nginx -t` OK, reload OK); verificado con el header `Content-Security-Policy` (`connect-src` sin `ws:`/`wss:` = Core, confirmado distinto del de Infra:3002 que sí los tiene); login/`/me`/`module-access`/`access-control` probados de punta a punta por Nginx (puerto 80) con usuarios desechables, mismos status codes que en Fase 0/1; tráfico real de navegador observado en `access.log` sin 5xx ni 401 inesperados; `error.log` de Nginx vacío; MRTI `40ae8a0` |
 | 3. Base `mrti_core` | Pendiente | — | — |
-| 4. Consumidores a Core | Pendiente | — | — |
+| 4. Consumidores a Core | En progreso | 2026-08-10 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd apunta a Core, **corte real pendiente**: la unidad en `/etc/systemd/system/mrti-monitor.service` sigue sin la variable, requiere `daemon-reload`+`restart` que solo puede ejecutar jroman). Verificado: `pm2 restart` de infra/rh/activos sin errores nuevos; 401/403/503 confirmados vía curl (ver detalle en Fase 4 §6) |
 | 5. Limpiar identidad de Infra | Pendiente | — | — |
 | 6. Frontera Infra/Activos | Pendiente | — | — |
 | 7. Dashboard personal extensible | En progreso | 2026-08-05 | Core `3d929ab`; RH `67455b5`; falta Activos/Tickets |
@@ -405,6 +439,7 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-10 | El backend de Core en Fase 1 monta deliberadamente solo `/api/health` y `/api/auth/*`; no incluye `dbRouter`, `uploads`, `monitoring`, sockets, engine ni UPS (todo eso es específico de infraestructura/monitoreo y sigue viviendo en Infra) | El contrato a replicar en esta fase es exclusivamente identidad; añadir código de monitoreo aquí duplicaría propiedad de datos antes de tiempo | Core queda intencionalmente incompleto como espejo de Infra — no debe usarse para nada más que autenticación/perfiles hasta las fases correspondientes (3, 6) |
 | 2026-08-10 | `JWT_SECRET`, `JWT_EXPIRES_IN` y credenciales MySQL de `server/.env` de Core se copiaron literalmente del `.env` real de Infra (no se generó un secreto nuevo) | La guía (§5) exige el mismo secreto/algoritmo/claims mientras existan consumidores validando contra Infra, para que los tokens sean intercambiables durante la transición | Confirmado con una prueba real: un token emitido por Core (login con cuenta real) fue aceptado por `GET /api/auth/me` en Infra devolviendo el mismo `profile.id`. Si se rota el `JWT_SECRET` en Infra, debe rotarse igual en Core el mismo día, o las sesiones existentes se invalidarán de forma inconsistente entre ambos procesos |
 | 2026-08-10 | Fase 2 solo mueve el tráfico de **navegador** (mismo origen vía Nginx) hacia Core; Activos/RH/Agent siguen validando contra Infra directo por variable de entorno o URL hardcodeada | Esos consumidores nunca pasaron por Nginx — no había nada que cortar ahí sin además cambiar su configuración, que es explícitamente el alcance de la Fase 4 | Infra sigue recibiendo tráfico real de `module-access`/`me` de Activos, RH y Agent; no puede apagarse ni limpiarse (Fase 5) hasta que la Fase 4 actualice esos tres consumidores a `MRTI_CORE_URL` |
+| 2026-08-10 | Antes de introducir `MRTI_CORE_URL` (identidad, Fase 4) se renombró `MRTI_CORE_URL`/`MRTI_CORE_API_KEY`/`MRTI_CORE_API_KEY_FILE` en `MRTI-Infra/server/src/mrti.js` a `MRTI_MONITOR_URL`/`MRTI_MONITOR_API_KEY`/`MRTI_MONITOR_API_KEY_FILE` | Ese archivo ya usaba el nombre `MRTI_CORE_URL` desde antes del rename de 2026-08-06, pero para algo distinto (el proxy de telemetría hacia el servidor Go, hoy "MRTI Monitor", puerto 8477) — se quedó fuera de aquel rename porque solo tocó el repo `MRTI-Agent` (binario/systemd), no los *consumidores* de ese nombre en otros repos. Sin este arreglo, el mismo nombre de variable significaría dos cosas distintas en el mismo workspace (identidad en RH/Activos/Tickets, telemetría en Infra), con alto riesgo de que alguien copie/pegue el valor equivocado | No reabre la decisión de 2026-08-06 (Agent sigue llamándose "MRTI Monitor"), solo termina de aplicarla en el archivo que quedó pendiente. `MRTI-Infra@97a00e3`. Conserva fallback a los nombres viejos con `console.warn`; el valor real en `server/.env` ya se renombró (`MRTI_MONITOR_API_KEY`), sin rotar la key todavía (pendiente de seguridad ya conocido, no relacionado con este cambio) |
 
 ## 11. Definición final de terminado
 
