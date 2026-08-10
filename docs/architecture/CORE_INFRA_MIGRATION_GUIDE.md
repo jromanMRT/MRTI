@@ -170,13 +170,18 @@ Objetivo: levantar un proceso Core sin cambiar todavía la base propietaria.
 
 Checklist:
 
-- [ ] Crear `MRTI/server/` con Express, health check y configuración validada.
-- [ ] Copiar/adaptar autenticación y control de acceso desde Infra.
-- [ ] Conectar temporalmente a las tablas actuales de `mrti_infra`.
-- [ ] Conservar exactamente `/api/auth/*` y respuestas existentes.
-- [ ] Añadir `ecosystem.config.cjs` y puerto dedicado documentado.
-- [ ] Ejecutar pruebas de contrato contra Infra y Core y comparar resultados.
+- [x] Crear `MRTI/server/` con Express, health check y configuración validada.
+- [x] Copiar/adaptar autenticación y control de acceso desde Infra.
+- [x] Conectar temporalmente a las tablas actuales de `mrti_infra`.
+- [x] Conservar exactamente `/api/auth/*` y respuestas existentes.
+- [x] Añadir `ecosystem.config.cjs` y puerto dedicado documentado.
+- [x] Ejecutar pruebas de contrato contra Infra y Core y comparar resultados.
 - [ ] Probar tokens emitidos por Core en Infra, RH, Activos, Tickets y Agent.
+      **Parcial:** verificado contra Infra (`GET /me` → 200, mismo `profile.id`,
+      2026-08-10) con una cuenta real. RH/Activos/Tickets/Agent validan hoy
+      contra Infra vía `MRTI_INFRA_URL`/URLs propias (ver BASELINE §3), no
+      contra Core — no había un endpoint propio que probar todavía; queda
+      pendiente para la Fase 4 (actualización de consumidores).
 
 Criterio de terminado:
 
@@ -369,7 +374,7 @@ Actualizar una fila solo con evidencia verificable.
 | Fase | Estado | Fecha | Evidencia / commits |
 |---|---|---|---|
 | 0. Línea base y contratos | Completa | 2026-08-06 | `docs/architecture/phase0-baseline/BASELINE.md`; pruebas de contrato `MRTI-Infra/server/test/auth-contract.test.js` (9/9 OK); MRTI `cf91087`; MRTI-Infra `b45f21e` |
-| 1. Backend propio de Core | Pendiente | — | — |
+| 1. Backend propio de Core | Completa | 2026-08-10 | `MRTI/server/` (Express, `type:"module"`); 9 archivos de auth copiados verbatim de `MRTI-Infra/server` (`diff -q` sin diferencias); `/api/health` propio; pruebas de contrato `server/test/auth-contract.test.js` 9/9 OK contra Infra:3002 (línea base) y Core:3005; token emitido por Core aceptado por Infra `GET /me` → 200 mismo `profile.id`; pm2/nginx **no** tocados (pendiente de aprobación explícita para Fase 2); MRTI `<pendiente registrar hash>` |
 | 2. Corte de tráfico auth | Pendiente | — | — |
 | 3. Base `mrti_core` | Pendiente | — | — |
 | 4. Consumidores a Core | Pendiente | — | — |
@@ -388,6 +393,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-05 | Vincular RH mediante UUID de Core | Evita confiar en `employee_id` del navegador | `employees.portal_user_id` es referencia lógica |
 | 2026-08-06 | Separar proceso antes de mover datos | Reduce el radio de fallo y facilita rollback | Core puede leer temporalmente tablas antiguas |
 | 2026-08-06 | Renombrar el servidor de telemetría de MRTI-Agent de "mrti-core" a "MRTI Monitor" (decisión de jroman) | Liberar el nombre "MRTI Core" para el backend de identidad de la Fase 1, sin ambigüedad con el servicio de telemetría ya en producción | `MRTI-Agent@8cb2064` renombra binario/servicio/docs en el repo. **Pendiente:** el host aún corre el `mrti-core.service`/binario viejo — el corte en vivo (detener el servicio actual, instalar `mrti-monitor.service`, actualizar cualquier referencia externa) es un paso de despliegue separado que requiere autorización explícita antes de ejecutarse. También se encontró y corrigió una API key real committeada en texto plano en `service/mrti-core.service`; sigue expuesta en el historial de git y debe rotarse |
+| 2026-08-10 | El backend de Core en Fase 1 monta deliberadamente solo `/api/health` y `/api/auth/*`; no incluye `dbRouter`, `uploads`, `monitoring`, sockets, engine ni UPS (todo eso es específico de infraestructura/monitoreo y sigue viviendo en Infra) | El contrato a replicar en esta fase es exclusivamente identidad; añadir código de monitoreo aquí duplicaría propiedad de datos antes de tiempo | Core queda intencionalmente incompleto como espejo de Infra — no debe usarse para nada más que autenticación/perfiles hasta las fases correspondientes (3, 6) |
+| 2026-08-10 | `JWT_SECRET`, `JWT_EXPIRES_IN` y credenciales MySQL de `server/.env` de Core se copiaron literalmente del `.env` real de Infra (no se generó un secreto nuevo) | La guía (§5) exige el mismo secreto/algoritmo/claims mientras existan consumidores validando contra Infra, para que los tokens sean intercambiables durante la transición | Confirmado con una prueba real: un token emitido por Core (login con cuenta real) fue aceptado por `GET /api/auth/me` en Infra devolviendo el mismo `profile.id`. Si se rota el `JWT_SECRET` en Infra, debe rotarse igual en Core el mismo día, o las sesiones existentes se invalidarán de forma inconsistente entre ambos procesos |
 
 ## 11. Definición final de terminado
 
