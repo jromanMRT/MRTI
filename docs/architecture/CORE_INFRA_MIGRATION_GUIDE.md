@@ -198,12 +198,21 @@ Objetivo: hacer que Core atienda autenticación en producción.
 
 Checklist:
 
-- [ ] Añadir una ubicación Nginx específica para `/api/auth/` antes de `/api/`.
-- [ ] Apuntar `/api/auth/` al puerto de Core.
-- [ ] Validar `nginx -t`, recargar y ejecutar smoke tests autenticados.
-- [ ] Confirmar login, `/me`, Centro de control y permisos en cada módulo.
-- [ ] Vigilar códigos 5xx/401 inesperados y logs durante el periodo acordado.
-- [ ] Mantener Infra listo para recuperar tráfico sin redeploy.
+- [x] Añadir una ubicación Nginx específica para `/api/auth/` antes de `/api/`.
+- [x] Apuntar `/api/auth/` al puerto de Core.
+- [x] Validar `nginx -t`, recargar y ejecutar smoke tests autenticados.
+- [x] Confirmar login, `/me`, Centro de control y permisos en cada módulo.
+      **Nota de alcance:** "cada módulo" aquí es el tráfico de navegador
+      (portal principal y el admin de Infra en `/mrti-infra/`, ambos mismo
+      origen vía Nginx) — Activos, RH y Agent llaman a Infra directo por
+      `MRTI_INFRA_URL`/URL hardcodeada, sin pasar por Nginx, así que no se
+      vieron afectados por este corte y siguen sin validar contra Core
+      (eso es Fase 4).
+- [x] Vigilar códigos 5xx/401 inesperados y logs durante el periodo acordado.
+- [x] Mantener Infra listo para recuperar tráfico sin redeploy (backup
+      automático de `activate.sh` en `/etc/nginx/sites-available/it-infra.bak`,
+      restaurable con `cp` + `nginx -t` + `systemctl reload nginx`, sin volver
+      a compilar ni desplegar nada).
 
 Criterio de terminado:
 
@@ -375,7 +384,7 @@ Actualizar una fila solo con evidencia verificable.
 |---|---|---|---|
 | 0. Línea base y contratos | Completa | 2026-08-06 | `docs/architecture/phase0-baseline/BASELINE.md`; pruebas de contrato `MRTI-Infra/server/test/auth-contract.test.js` (9/9 OK); MRTI `cf91087`; MRTI-Infra `b45f21e` |
 | 1. Backend propio de Core | Completa | 2026-08-10 | `MRTI/server/` (Express, `type:"module"`); 9 archivos de auth copiados verbatim de `MRTI-Infra/server` (`diff -q` sin diferencias); `/api/health` propio; pruebas de contrato `server/test/auth-contract.test.js` 9/9 OK contra Infra:3002 (línea base) y Core:3005; token emitido por Core aceptado por Infra `GET /me` → 200 mismo `profile.id`; pm2/nginx **no** tocados (pendiente de aprobación explícita para Fase 2); MRTI `3abc691` |
-| 2. Corte de tráfico auth | Pendiente | — | — |
+| 2. Corte de tráfico auth | Completa | 2026-08-10 | `mrti-core-api` registrado en pm2 (`pm2 save`, 0 reinicios); `MRTI/deploy/nginx.conf.example` con location `/api/auth/` → `127.0.0.1:3005` antes de `/api/`; aplicado en vivo con `sudo deploy/activate.sh` (backup automático en `it-infra.bak`, `nginx -t` OK, reload OK); verificado con el header `Content-Security-Policy` (`connect-src` sin `ws:`/`wss:` = Core, confirmado distinto del de Infra:3002 que sí los tiene); login/`/me`/`module-access`/`access-control` probados de punta a punta por Nginx (puerto 80) con usuarios desechables, mismos status codes que en Fase 0/1; tráfico real de navegador observado en `access.log` sin 5xx ni 401 inesperados; `error.log` de Nginx vacío; MRTI `40ae8a0` |
 | 3. Base `mrti_core` | Pendiente | — | — |
 | 4. Consumidores a Core | Pendiente | — | — |
 | 5. Limpiar identidad de Infra | Pendiente | — | — |
@@ -395,6 +404,7 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-06 | Renombrar el servidor de telemetría de MRTI-Agent de "mrti-core" a "MRTI Monitor" (decisión de jroman) | Liberar el nombre "MRTI Core" para el backend de identidad de la Fase 1, sin ambigüedad con el servicio de telemetría ya en producción | `MRTI-Agent@8cb2064` renombra binario/servicio/docs en el repo. **Pendiente:** el host aún corre el `mrti-core.service`/binario viejo — el corte en vivo (detener el servicio actual, instalar `mrti-monitor.service`, actualizar cualquier referencia externa) es un paso de despliegue separado que requiere autorización explícita antes de ejecutarse. También se encontró y corrigió una API key real committeada en texto plano en `service/mrti-core.service`; sigue expuesta en el historial de git y debe rotarse |
 | 2026-08-10 | El backend de Core en Fase 1 monta deliberadamente solo `/api/health` y `/api/auth/*`; no incluye `dbRouter`, `uploads`, `monitoring`, sockets, engine ni UPS (todo eso es específico de infraestructura/monitoreo y sigue viviendo en Infra) | El contrato a replicar en esta fase es exclusivamente identidad; añadir código de monitoreo aquí duplicaría propiedad de datos antes de tiempo | Core queda intencionalmente incompleto como espejo de Infra — no debe usarse para nada más que autenticación/perfiles hasta las fases correspondientes (3, 6) |
 | 2026-08-10 | `JWT_SECRET`, `JWT_EXPIRES_IN` y credenciales MySQL de `server/.env` de Core se copiaron literalmente del `.env` real de Infra (no se generó un secreto nuevo) | La guía (§5) exige el mismo secreto/algoritmo/claims mientras existan consumidores validando contra Infra, para que los tokens sean intercambiables durante la transición | Confirmado con una prueba real: un token emitido por Core (login con cuenta real) fue aceptado por `GET /api/auth/me` en Infra devolviendo el mismo `profile.id`. Si se rota el `JWT_SECRET` en Infra, debe rotarse igual en Core el mismo día, o las sesiones existentes se invalidarán de forma inconsistente entre ambos procesos |
+| 2026-08-10 | Fase 2 solo mueve el tráfico de **navegador** (mismo origen vía Nginx) hacia Core; Activos/RH/Agent siguen validando contra Infra directo por variable de entorno o URL hardcodeada | Esos consumidores nunca pasaron por Nginx — no había nada que cortar ahí sin además cambiar su configuración, que es explícitamente el alcance de la Fase 4 | Infra sigue recibiendo tráfico real de `module-access`/`me` de Activos, RH y Agent; no puede apagarse ni limpiarse (Fase 5) hasta que la Fase 4 actualice esos tres consumidores a `MRTI_CORE_URL` |
 
 ## 11. Definición final de terminado
 
