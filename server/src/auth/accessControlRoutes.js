@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { authRequired, findProfile, MODULE_CODES } from './shared.js';
+import { getPhysicalArea, listPhysicalAreas, listDevices, setPrimaryDevice } from '../infraClient.js';
 
 export const accessControlRouter = Router();
 
@@ -35,7 +36,7 @@ async function replaceAreaModules(connection, areaId, modules) {
   }
 }
 
-accessControlRouter.get('/access-control', authRequired, administratorOnly, async (_req, res, next) => {
+accessControlRouter.get('/access-control', authRequired, administratorOnly, async (req, res, next) => {
   try {
     const [areas] = await pool.query(
       `SELECT a.id, a.name, a.description, a.is_active, a.created_at, a.updated_at,
@@ -47,31 +48,21 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
     );
     const [users] = await pool.query(
       `SELECT p.id, p.user_number, p.email, p.full_name, p.role, p.access_area_id,
-              p.physical_area_id, p.is_active, a.name AS access_area_name,
-              pa.name AS physical_area_name
+              p.physical_area_id, p.is_active, a.name AS access_area_name
          FROM user_profiles p
          LEFT JOIN access_areas a ON a.id = p.access_area_id
-         LEFT JOIN areas pa ON pa.id = p.physical_area_id
         ORDER BY p.user_number`
     );
-    const [physicalAreas] = await pool.query(
-      `SELECT a.id, a.name, f.name AS floor_name, b.name AS building_name,
-              s.id AS site_id, s.name AS site_name
-         FROM areas a
-         INNER JOIN floors f ON f.id = a.floor_id
-         INNER JOIN buildings b ON b.id = f.building_id
-         INNER JOIN sites s ON s.id = b.site_id
-        WHERE a.is_active = 1 AND f.is_active = 1 AND b.is_active = 1 AND s.is_active = 1
-        ORDER BY s.name, b.name, f.floor_number, a.name`
-    );
-    const [devices] = await pool.query(
-      `SELECT d.id, d.internal_id, d.name, d.area_id, d.assigned_user_id,
-              d.is_primary_user_device, a.name AS area_name
-         FROM devices d
-         LEFT JOIN areas a ON a.id = d.area_id
-        WHERE d.is_active = 1
-        ORDER BY d.internal_id, d.name`
-    );
+    // Topología física y dispositivos son de MRTI-Infra (Fase 3 de
+    // CORE_INFRA_MIGRATION_GUIDE.md): se piden por su API de autoservicio en
+    // vez de por SQL directo. physical_area_name se resuelve en memoria para
+    // no hacer una llamada HTTP por usuario.
+    const authorizationHeader = req.headers.authorization;
+    const [physicalAreas, devices] = await Promise.all([
+      listPhysicalAreas(authorizationHeader),
+      listDevices({ authorizationHeader }),
+    ]);
+    const physicalAreaNameById = new Map(physicalAreas.map((area) => [area.id, area.name]));
     res.json({
       modules: MODULE_CATALOG,
       areas: areas.map((area) => ({
@@ -79,12 +70,13 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
         is_active: Boolean(area.is_active),
         module_codes: area.module_codes ? area.module_codes.split(',') : [],
       })),
-      users: users.map((user) => ({ ...user, is_active: Boolean(user.is_active) })),
-      physical_areas: physicalAreas,
-      devices: devices.map((device) => ({
-        ...device,
-        is_primary_user_device: Boolean(device.is_primary_user_device),
+      users: users.map((user) => ({
+        ...user,
+        is_active: Boolean(user.is_active),
+        physical_area_name: physicalAreaNameById.get(user.physical_area_id) ?? null,
       })),
+      physical_areas: physicalAreas,
+      devices,
     });
   } catch (error) {
     next(error);
@@ -92,48 +84,50 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
 });
 
 accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly, async (req, res, next) => {
-  const connection = await pool.getConnection();
   try {
-    const target = await findProfile(req.params.id);
+    const authorizationHeader = req.headers.authorization;
+    const target = await findProfile(req.params.id, authorizationHeader);
     if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
     const physicalAreaId = req.body?.physical_area_id || null;
     const primaryDeviceId = req.body?.primary_device_id || null;
+
     if (physicalAreaId) {
-      const [[area]] = await connection.query('SELECT id FROM areas WHERE id = ? AND is_active = 1', [physicalAreaId]);
+      const area = await getPhysicalArea(physicalAreaId, authorizationHeader);
       if (!area) return res.status(400).json({ error: 'El área física no existe o está inactiva' });
     }
     if (primaryDeviceId) {
-      const [[device]] = await connection.query(
-        'SELECT id, area_id, assigned_user_id FROM devices WHERE id = ? AND is_active = 1',
-        [primaryDeviceId]
-      );
-      if (!device) return res.status(400).json({ error: 'El equipo habitual no existe o está inactivo' });
-      if (!physicalAreaId || device.area_id !== physicalAreaId) {
+      if (!physicalAreaId) {
         return res.status(400).json({ error: 'El equipo habitual debe pertenecer al área física del usuario' });
+      }
+      const areaDevices = await listDevices({ areaId: physicalAreaId, authorizationHeader });
+      const device = areaDevices.find((d) => d.id === primaryDeviceId);
+      if (!device) {
+        return res.status(400).json({ error: 'El equipo habitual no existe, está inactivo o no pertenece al área' });
       }
       if (device.assigned_user_id && device.assigned_user_id !== target.id) {
         return res.status(409).json({ error: 'Ese equipo ya está vinculado a otro usuario' });
       }
     }
-    await connection.beginTransaction();
-    await connection.query('UPDATE user_profiles SET physical_area_id = ? WHERE id = ?', [physicalAreaId, target.id]);
-    await connection.query(
-      'UPDATE devices SET assigned_user_id = NULL, assigned_user = NULL, is_primary_user_device = 0 WHERE assigned_user_id = ? AND is_primary_user_device = 1',
-      [target.id]
-    );
-    if (primaryDeviceId) {
-      await connection.query(
-        'UPDATE devices SET assigned_user_id = ?, assigned_user = ?, is_primary_user_device = 1 WHERE id = ?',
-        [target.id, target.full_name, primaryDeviceId]
-      );
+
+    await pool.query('UPDATE user_profiles SET physical_area_id = ? WHERE id = ?', [physicalAreaId, target.id]);
+    try {
+      await setPrimaryDevice({
+        userId: target.id,
+        deviceId: primaryDeviceId,
+        userName: target.full_name,
+        authorizationHeader,
+      });
+    } catch (deviceError) {
+      // El área (Core) y el equipo (Infra) ya no se pueden actualizar en una
+      // sola transacción al vivir en sistemas distintos: si Infra rechaza el
+      // equipo, se revierte el área para no dejar al usuario a medio mover.
+      await pool.query('UPDATE user_profiles SET physical_area_id = ? WHERE id = ?', [target.physical_area_id, target.id]);
+      if (deviceError.status) return res.status(deviceError.status).json({ error: deviceError.message });
+      throw deviceError;
     }
-    await connection.commit();
-    res.json({ profile: await findProfile(target.id) });
+    res.json({ profile: await findProfile(target.id, authorizationHeader) });
   } catch (error) {
-    await connection.rollback();
     next(error);
-  } finally {
-    connection.release();
   }
 });
 

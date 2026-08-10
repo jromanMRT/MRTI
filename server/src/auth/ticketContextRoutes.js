@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { pool } from '../db.js';
 import { authRequired } from './shared.js';
+import { listDevices } from '../infraClient.js';
 
 export const ticketContextRouter = Router();
 
@@ -14,20 +14,9 @@ ticketContextRouter.get('/ticket-context', authRequired, async (req, res, next) 
       site_id: req.user.physical_site_id,
       site_name: req.user.physical_site_name,
     } : null;
-    const [devices] = req.user.physical_area_id
-      ? await pool.query(
-        `SELECT id, internal_id, name, inventory_tag, ip_address, assigned_user_id,
-                is_primary_user_device
-           FROM devices
-          WHERE area_id = ? AND is_active = 1
-          ORDER BY internal_id, name`,
-        [req.user.physical_area_id]
-      )
-      : [[]];
-    const normalizedDevices = devices.map((device) => ({
-      ...device,
-      is_primary_user_device: Boolean(device.is_primary_user_device),
-    }));
+    const normalizedDevices = req.user.physical_area_id
+      ? await listDevices({ areaId: req.user.physical_area_id, authorizationHeader: req.headers.authorization })
+      : [];
     res.json({
       requester_number: req.user.user_number,
       location,

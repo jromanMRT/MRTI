@@ -25,7 +25,7 @@ profileRouter.patch('/profile', authRequired, async (req, res, next) => {
       'UPDATE user_profiles SET full_name = ?, email = ? WHERE id = ?',
       [fullName, email, req.user.id]
     );
-    res.json({ profile: await findProfile(req.user.id) });
+    res.json({ profile: await findProfile(req.user.id, req.headers.authorization) });
   } catch (err) {
     if (err?.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Ese correo electrónico ya pertenece a otro usuario' });

@@ -36,7 +36,7 @@ userAdminRouter.post('/users', authRequired, async (req, res, next) => {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, email, await bcrypt.hash(password, 10), fullName, role, areaId, req.body?.is_active !== false]
     );
-    res.status(201).json({ profile: await findProfile(id) });
+    res.status(201).json({ profile: await findProfile(id, req.headers.authorization) });
   } catch (err) {
     if (err?.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Ya existe un usuario con ese correo electrónico' });
@@ -78,7 +78,7 @@ userAdminRouter.patch('/users/:id', authRequired, async (req, res, next) => {
       return res.status(403).json({ error: 'No tienes permiso para administrar usuarios' });
     }
 
-    const target = await findProfile(req.params.id);
+    const target = await findProfile(req.params.id, req.headers.authorization);
     if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
     if (target.id === req.user.id) {
       return res.status(400).json({ error: 'Usa Mi cuenta para modificar tus propios datos' });
@@ -162,7 +162,7 @@ userAdminRouter.patch('/users/:id', authRequired, async (req, res, next) => {
       `UPDATE user_profiles SET ${columns.map((column) => `\`${column}\` = ?`).join(', ')} WHERE id = ?`,
       [...columns.map((column) => updates[column]), target.id]
     );
-    res.json({ profile: await findProfile(target.id) });
+    res.json({ profile: await findProfile(target.id, req.headers.authorization) });
   } catch (err) {
     if (err?.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Ese correo electrónico ya pertenece a otro usuario' });

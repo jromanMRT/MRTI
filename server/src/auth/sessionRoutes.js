@@ -76,7 +76,8 @@ sessionRouter.post('/register', registerLimiter, async (req, res, next) => {
       [id, normalizedEmail, passwordHash, String(fullName).trim(), role, isActive]
     );
 
-    res.status(201).json({ token: signToken(id), profile: await findProfile(id), pendingApproval: false });
+    const token = signToken(id);
+    res.status(201).json({ token, profile: await findProfile(id, `Bearer ${token}`), pendingApproval: false });
   } catch (err) {
     next(err);
   }
@@ -98,7 +99,8 @@ sessionRouter.post('/login', loginLimiter, async (req, res, next) => {
     if (!valid) return res.status(401).json({ error: 'Credenciales incorrectas' });
     if (!user.is_active) return res.status(403).json({ error: 'La cuenta está desactivada' });
 
-    res.json({ token: signToken(user.id), profile: await findProfile(user.id) });
+    const token = signToken(user.id);
+    res.json({ token, profile: await findProfile(user.id, `Bearer ${token}`) });
   } catch (err) {
     next(err);
   }
