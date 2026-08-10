@@ -226,6 +226,25 @@ Rollback:
 
 Objetivo: mover identidad fuera del esquema de Infra.
 
+**Prerrequisito descubierto y resuelto 2026-08-10 (antes de tocar el
+esquema):** `MRTI/server/src/auth/shared.js`, `accessControlRoutes.js` y
+`ticketContextRoutes.js` hacían SQL directo contra `areas`/`floors`/
+`buildings`/`sites`/`devices` de Infra — y uno de ellos **escribía**
+`devices.assigned_user_id` desde Core. Mover `user_profiles` a otra base sin
+resolver esto rompía login (`/me`), el panel de administración de
+ubicación/equipo y `ticket-context` de inmediato. Se resolvió construyendo
+`GET /api/self/physical-areas(/:id)`, `GET /api/self/devices` y
+`POST /api/self/users/:userId/primary-device` en Infra
+(`MRTI-Infra@16073b6`), y reescribiendo esos 3 archivos de Core para
+consumirlos por HTTP en vez de SQL directo (`MRTI@1d63093`) — con
+degradación a `null` si Infra no responde (no debe tumbar el login de
+nadie) y un rollback compensatorio si Infra rechaza la asignación de
+equipo después de que Core ya guardó el área física. Probado end-to-end
+con datos desechables (sitio/edificio/piso/área/equipo/2 usuarios, borrados
+al terminar): asignar, reasignar con conflicto (409), liberar equipo, y
+apagar Infra a la mitad de la prueba para confirmar la degradación. Detalle
+completo de la investigación y el diseño en el plan de esa sesión.
+
 Checklist:
 
 - [ ] Crear migraciones idempotentes para `mrti_core`.
@@ -237,6 +256,23 @@ Checklist:
 - [ ] Repetir contratos, login, permisos y pruebas de todos los consumidores.
 - [ ] Conservar las tablas antiguas en modo solo lectura durante compatibilidad.
 
+**Bloqueo conocido para el siguiente paso:** el usuario MySQL `mrtops` (el
+único que usan los `.env` de los backends) sólo tiene `ALL PRIVILEGES` sobre
+las bases ya existentes (`mrti_infra`, `mrti_activos`, `mrti_rh`, `mrtops`,
+`it_management`), no el privilegio global `CREATE DATABASE`. Alguien con
+acceso root a MySQL debe correr `CREATE DATABASE mrti_core ...; GRANT ALL
+PRIVILEGES ON mrti_core.* TO 'mrtops'@'localhost';` antes de que esta fase
+pueda continuar.
+
+**Otro pendiente para esa continuación:** `user_profiles.physical_area_id`
+y 8 tablas de Infra (`alert_notification_reads`, `device_connections`,
+`device_history`, `device_positions`, `devices` ×2, `floor_plans`,
+`movement_history`) tienen FK reales hacia `user_profiles.id`/`areas.id`.
+Esas FKs sólo se pueden dejar de tener sentido (o convertirse en
+referencias no forzadas por la base) cuando `user_profiles` realmente
+cambie de servidor/base — no se tocaron hoy porque la tabla sigue en
+`mrti_infra`.
+
 Criterio de terminado:
 
 - Core opera exclusivamente con `mrti_core` y los datos conciliados coinciden.
@@ -244,6 +280,9 @@ Criterio de terminado:
 Rollback:
 
 - Volver la conexión de Core a las tablas antiguas. No borrar ninguna copia.
+  El prerrequisito de esta sesión (endpoints `/api/self/*`) es aditivo y no
+  requiere rollback aunque Fase 3 no continúe: Core seguiría funcionando
+  igual apuntando a `mrti_infra` a través de esa misma API.
 
 ### Fase 4 — Consumidores y nombres de configuración
 
@@ -419,7 +458,7 @@ Actualizar una fila solo con evidencia verificable.
 | 0. Línea base y contratos | Completa | 2026-08-06 | `docs/architecture/phase0-baseline/BASELINE.md`; pruebas de contrato `MRTI-Infra/server/test/auth-contract.test.js` (9/9 OK); MRTI `cf91087`; MRTI-Infra `b45f21e` |
 | 1. Backend propio de Core | Completa | 2026-08-10 | `MRTI/server/` (Express, `type:"module"`); 9 archivos de auth copiados verbatim de `MRTI-Infra/server` (`diff -q` sin diferencias); `/api/health` propio; pruebas de contrato `server/test/auth-contract.test.js` 9/9 OK contra Infra:3002 (línea base) y Core:3005; token emitido por Core aceptado por Infra `GET /me` → 200 mismo `profile.id`; pm2/nginx **no** tocados (pendiente de aprobación explícita para Fase 2); MRTI `3abc691` |
 | 2. Corte de tráfico auth | Completa | 2026-08-10 | `mrti-core-api` registrado en pm2 (`pm2 save`, 0 reinicios); `MRTI/deploy/nginx.conf.example` con location `/api/auth/` → `127.0.0.1:3005` antes de `/api/`; aplicado en vivo con `sudo deploy/activate.sh` (backup automático en `it-infra.bak`, `nginx -t` OK, reload OK); verificado con el header `Content-Security-Policy` (`connect-src` sin `ws:`/`wss:` = Core, confirmado distinto del de Infra:3002 que sí los tiene); login/`/me`/`module-access`/`access-control` probados de punta a punta por Nginx (puerto 80) con usuarios desechables, mismos status codes que en Fase 0/1; tráfico real de navegador observado en `access.log` sin 5xx ni 401 inesperados; `error.log` de Nginx vacío; MRTI `40ae8a0` |
-| 3. Base `mrti_core` | Pendiente | — | — |
+| 3. Base `mrti_core` | En progreso | 2026-08-10 | Prerrequisito resuelto: `MRTI-Infra@16073b6` (nuevo `/api/self/*`), `MRTI@1d63093` (Core deja de hacer SQL directo contra `areas`/`devices`, con degradación a null y rollback compensatorio). Probado end-to-end con datos desechables (ver detalle arriba). **Aún no iniciado:** crear `mrti_core` — bloqueado porque `mrtops` no tiene `CREATE DATABASE`, requiere un paso root de jroman; y resolver las 8 FKs de Infra hacia `user_profiles` |
 | 4. Consumidores a Core | En progreso | 2026-08-10 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd apunta a Core, **corte real pendiente**: la unidad en `/etc/systemd/system/mrti-monitor.service` sigue sin la variable, requiere `daemon-reload`+`restart` que solo puede ejecutar jroman). Verificado: `pm2 restart` de infra/rh/activos sin errores nuevos; 401/403/503 confirmados vía curl (ver detalle en Fase 4 §6) |
 | 5. Limpiar identidad de Infra | Pendiente | — | — |
 | 6. Frontera Infra/Activos | Pendiente | — | — |
@@ -440,6 +479,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-10 | `JWT_SECRET`, `JWT_EXPIRES_IN` y credenciales MySQL de `server/.env` de Core se copiaron literalmente del `.env` real de Infra (no se generó un secreto nuevo) | La guía (§5) exige el mismo secreto/algoritmo/claims mientras existan consumidores validando contra Infra, para que los tokens sean intercambiables durante la transición | Confirmado con una prueba real: un token emitido por Core (login con cuenta real) fue aceptado por `GET /api/auth/me` en Infra devolviendo el mismo `profile.id`. Si se rota el `JWT_SECRET` en Infra, debe rotarse igual en Core el mismo día, o las sesiones existentes se invalidarán de forma inconsistente entre ambos procesos |
 | 2026-08-10 | Fase 2 solo mueve el tráfico de **navegador** (mismo origen vía Nginx) hacia Core; Activos/RH/Agent siguen validando contra Infra directo por variable de entorno o URL hardcodeada | Esos consumidores nunca pasaron por Nginx — no había nada que cortar ahí sin además cambiar su configuración, que es explícitamente el alcance de la Fase 4 | Infra sigue recibiendo tráfico real de `module-access`/`me` de Activos, RH y Agent; no puede apagarse ni limpiarse (Fase 5) hasta que la Fase 4 actualice esos tres consumidores a `MRTI_CORE_URL` |
 | 2026-08-10 | Antes de introducir `MRTI_CORE_URL` (identidad, Fase 4) se renombró `MRTI_CORE_URL`/`MRTI_CORE_API_KEY`/`MRTI_CORE_API_KEY_FILE` en `MRTI-Infra/server/src/mrti.js` a `MRTI_MONITOR_URL`/`MRTI_MONITOR_API_KEY`/`MRTI_MONITOR_API_KEY_FILE` | Ese archivo ya usaba el nombre `MRTI_CORE_URL` desde antes del rename de 2026-08-06, pero para algo distinto (el proxy de telemetría hacia el servidor Go, hoy "MRTI Monitor", puerto 8477) — se quedó fuera de aquel rename porque solo tocó el repo `MRTI-Agent` (binario/systemd), no los *consumidores* de ese nombre en otros repos. Sin este arreglo, el mismo nombre de variable significaría dos cosas distintas en el mismo workspace (identidad en RH/Activos/Tickets, telemetría en Infra), con alto riesgo de que alguien copie/pegue el valor equivocado | No reabre la decisión de 2026-08-06 (Agent sigue llamándose "MRTI Monitor"), solo termina de aplicarla en el archivo que quedó pendiente. `MRTI-Infra@97a00e3`. Conserva fallback a los nombres viejos con `console.warn`; el valor real en `server/.env` ya se renombró (`MRTI_MONITOR_API_KEY`), sin rotar la key todavía (pendiente de seguridad ya conocido, no relacionado con este cambio) |
+| 2026-08-10 | Fase 3 se divide en dos sesiones: primero desacoplar a Core de las tablas de Infra (endpoints `/api/self/*` + reescribir `shared.js`/`accessControlRoutes.js`/`ticketContextRoutes.js`), y sólo después crear `mrti_core` y copiar datos (decisión de jroman, opción "separar primero, mudar después") | Al investigar se encontró que Core hacía SQL directo (lectura y escritura) contra `areas`/`floors`/`buildings`/`sites`/`devices` de Infra en 3 archivos; mover `user_profiles` de base sin resolver eso primero rompía login, el panel de administración de ubicación/equipo y `ticket-context` de inmediato. Intentar las dos cosas en una sola sesión acumulaba demasiado riesgo antes de verificar nada en producción | El prerrequisito ya se completó y se probó end-to-end esta misma sesión (`MRTI-Infra@16073b6`, `MRTI@1d63093`). Efecto colateral aceptado: `PATCH /users/:id/location` ya no es una transacción SQL atómica (el área vive en Core, el equipo en Infra); se compensa con un rollback manual del área si Infra rechaza el equipo, documentado en el código |
+| 2026-08-10 | Para resolver el `LEFT JOIN areas` que hacía `findProfile` en cada request autenticado, se optó por una API de autoservicio nueva en Infra (`GET /api/self/physical-areas(/:id)`) en vez de (a) un JOIN entre bases en el mismo servidor MySQL o (b) quitarle a Core el dato de ubicación física por ahora — decisión de jroman | Un JOIN entre bases viola el principio #6 de esta guía ("sin llaves foráneas entre módulos") aunque MySQL lo soporte técnicamente en el mismo servidor; quitar el dato rompía `ticket-context`, que ya lo usa en producción (Tickets, migrado a Core en la Fase 4 de esta misma sesión) | El autoservicio corre en el camino crítico de cada login/`/me` (vía `authRequired`) — se le puso timeout de 3s y degradación a `null` para que Infra caída nunca tumbe una sesión, solo oculte temporalmente el dato de ubicación |
 
 ## 11. Definición final de terminado
 
