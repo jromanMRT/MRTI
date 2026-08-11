@@ -136,11 +136,17 @@ function renderPortal(profile) {
     <section class="hero personal-hero"><div class="eyebrow"><span></span> Portal personal</div><h1>Hola, ${escapeHtml(profile.full_name.split(' ')[0])}.<br><em>Este es tu espacio.</em></h1>
       <p>Consulta tu información y realiza gestiones personales sin entrar a los módulos administrativos.</p></section>
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi dashboard</p><h2>Información y acciones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
-      <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div></section>
+      <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
+      <div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>
+      <div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div></section>
     <section class="applications"><div class="section-heading"><div><p class="section-label">Aplicaciones</p><h2>Herramientas disponibles</h2></div><span class="app-count">${available.length} ${available.length === 1 ? 'aplicación' : 'aplicaciones'}</span></div>
       <div class="app-grid">${available.length ? available.map(cardMarkup).join('') : empty}</div></section>`);
   bindShell(profile);
+  // Cada widget corre por separado: si Activos o Tickets no responden, el
+  // dashboard de RH y el resto de la página no se ven afectados.
   void loadEmployeeDashboard(profile);
+  void loadAssetsDashboard(profile);
+  void loadTicketsDashboard(profile);
 }
 
 const LEAVE_STATUS = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada', cancelled: 'Cancelada' };
@@ -206,6 +212,44 @@ function bindEmployeeDashboard(profile) {
   }));
 }
 
+async function loadAssetsDashboard() {
+  const container = document.querySelector('#assets-dashboard');
+  if (!container) return;
+  try {
+    const { data: assets } = await api('/activos-api/api/activos-self/me');
+    container.className = 'personal-grid';
+    if (!assets.length) {
+      container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><p class="personal-empty">Aún no tienes equipo asignado en MRTI Activos.</p></article>`;
+      return;
+    }
+    const rows = assets.map((asset) => `<tr><td><strong>${escapeHtml(asset.cod_activo_fijo || asset.numero_serie || '—')}</strong><small>${escapeHtml(asset.descripcion || asset.tipo || '')}</small></td><td>${escapeHtml(asset.marca || '—')} ${escapeHtml(asset.modelo || '')}</td><td><span class="request-status ${asset.estado === 'Activo' ? 'approved' : 'pending'}">${escapeHtml(asset.estado || '—')}</span></td></tr>`).join('');
+    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Equipo</th><th>Marca/modelo</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div></article>`;
+  } catch (error) {
+    container.className = 'notice error';
+    container.textContent = error.message;
+  }
+}
+
+const TICKET_STATUS_CLASS = { open: 'pending', in_progress: 'pending', resolved: 'approved', closed: 'approved', cancelled: 'rejected' };
+
+async function loadTicketsDashboard() {
+  const container = document.querySelector('#tickets-dashboard');
+  if (!container) return;
+  try {
+    const { data: tickets } = await api('/tickets-api/api/tickets-self/me');
+    container.className = 'personal-grid';
+    if (!tickets.length) {
+      container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
+      return;
+    }
+    const rows = tickets.slice(0, 6).map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td></tr>`).join('');
+    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Prioridad</th><th>Estatus</th></tr></thead><tbody>${rows}</tbody></table></div><a class="personal-link" href="/tickets/">Ver todos en MRTI Tickets →</a></article>`;
+  } catch (error) {
+    container.className = 'notice error';
+    container.textContent = error.message;
+  }
+}
+
 function renderAccount(profile) {
   app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel">
     <button class="back-button" id="back-portal" type="button">← Volver al portal</button>
@@ -264,23 +308,15 @@ async function renderControlCenter(profile, flash = '') {
       .map((area) => `<option value="${area.id}" ${area.id === selected ? 'selected' : ''}>${escapeHtml(`${area.site_name} · ${area.building_name} · ${area.floor_name} · ${area.name}`)}</option>`).join('')}`;
     const deviceOptions = (selected = '', ownerId = '') => `<option value="">Sin equipo habitual</option>${data.devices
       .map((device) => `<option value="${device.id}" data-area-id="${device.area_id || ''}" data-owner-id="${device.assigned_user_id || ''}" ${device.id === selected ? 'selected' : ''} ${device.assigned_user_id && device.assigned_user_id !== ownerId ? 'disabled' : ''}>${escapeHtml(`${device.internal_id} · ${device.name}${device.assigned_user_id && device.assigned_user_id !== ownerId ? ' · asignado' : ''}`)}</option>`).join('')}`;
-    const userItems = data.users.map((user) => {
+    function ownUserFormMarkup(user) {
+      return `<form class="own-user own-location-editor" data-user-id="${user.id}"><p>Modifica tus datos personales y contraseña desde “Mi cuenta”. Aquí puedes mantener tu contexto físico.</p><div class="user-fields">
+        <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions(user.physical_area_id || '')}</select></label>
+        <label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '', user.id)}</select></label>
+      </div><button class="secondary-button" type="submit">Guardar ubicación</button></form>`;
+    }
+    function otherUserFormMarkup(user) {
       const identifier = userIdentifier(user.user_number);
-      const searchValue = `${identifier} ${user.full_name} ${user.email} ${roleName(user.role)} ${user.access_area_name || ''}`.toLocaleLowerCase('es-MX');
-      if (user.id === profile.id) {
-        return `<details class="user-list-item" data-user-search="${escapeHtml(searchValue)}" data-user-status="active"><summary>
-          <span class="user-number">${identifier}</span><span class="user-summary-name"><strong>${escapeHtml(user.full_name)}</strong><small>${escapeHtml(user.email)}</small></span>
-          <span class="user-summary-meta">${escapeHtml(roleName(user.role))}</span><span class="user-summary-meta">Acceso total</span><span class="status-badge active">Activo</span><span class="summary-chevron">⌄</span>
-        </summary><form class="own-user own-location-editor" data-user-id="${user.id}"><p>Modifica tus datos personales y contraseña desde “Mi cuenta”. Aquí puedes mantener tu contexto físico.</p><div class="user-fields">
-          <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions(user.physical_area_id || '')}</select></label>
-          <label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '', user.id)}</select></label>
-        </div><button class="secondary-button" type="submit">Guardar ubicación</button></form></details>`;
-      }
-      return `<details class="user-list-item" data-user-search="${escapeHtml(searchValue)}" data-user-status="${user.is_active ? 'active' : 'inactive'}"><summary>
-        <span class="user-number">${identifier}</span><span class="user-summary-name"><strong>${escapeHtml(user.full_name)}</strong><small>${escapeHtml(user.email)}</small></span>
-        <span class="user-summary-meta">${escapeHtml(roleName(user.role))}</span><span class="user-summary-meta">${escapeHtml(user.physical_area_name || 'Sin ubicación')}</span>
-        <span class="status-badge ${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">⌄</span>
-      </summary><form class="user-editor" data-user-id="${user.id}">
+      return `<form class="user-editor" data-user-id="${user.id}">
         <div class="user-detail-heading"><strong>Datos de ${identifier}</strong><small>ID interno: ${escapeHtml(user.id)}</small></div>
         <div class="user-fields"><label>Nombre<input name="full_name" value="${escapeHtml(user.full_name)}" required></label><label>Correo<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
           <label>Rol<select name="role">${roleOptions(user.role)}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions(user.access_area_id || '')}</select></label>
@@ -288,7 +324,22 @@ async function renderControlCenter(profile, flash = '') {
           <label>Nueva contraseña <small>(opcional)</small><input name="password" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Mínimo 10 caracteres"></label>
           <label>Confirmar contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" autocomplete="new-password"></label></div>
         <div class="user-actions"><label class="active-toggle"><input name="is_active" type="checkbox" ${user.is_active ? 'checked' : ''}> Cuenta activa</label><button class="secondary-button" type="submit">Guardar usuario</button></div>
-      </form></details>`;
+      </form>`;
+    }
+    // El cuerpo (formulario + <select> de equipos/áreas) de cada usuario se construye
+    // bajo demanda al abrir su <details> — con listas grandes de usuarios/equipos,
+    // pre-renderizarlas todas de una vez es O(usuarios × equipos) de DOM inútil.
+    const userItems = data.users.map((user) => {
+      const identifier = userIdentifier(user.user_number);
+      const searchValue = `${identifier} ${user.full_name} ${user.email} ${roleName(user.role)} ${user.access_area_name || ''}`.toLocaleLowerCase('es-MX');
+      const isSelf = user.id === profile.id;
+      const status = isSelf ? 'active' : (user.is_active ? 'active' : 'inactive');
+      const locationMeta = isSelf ? 'Acceso total' : escapeHtml(user.physical_area_name || 'Sin ubicación');
+      return `<details class="user-list-item" data-user-id="${user.id}" data-user-search="${escapeHtml(searchValue)}" data-user-status="${status}"><summary>
+        <span class="user-number">${identifier}</span><span class="user-summary-name"><strong>${escapeHtml(user.full_name)}</strong><small>${escapeHtml(user.email)}</small></span>
+        <span class="user-summary-meta">${escapeHtml(roleName(user.role))}</span><span class="user-summary-meta">${locationMeta}</span>
+        <span class="status-badge ${status}">${status === 'active' ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">⌄</span>
+      </summary><div class="details-body"></div></details>`;
     }).join('');
     app.innerHTML = shellMarkup(profile, `<section class="workspace-panel control-center">
       <button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Administración</p><h1>Centro de control</h1>
@@ -334,9 +385,41 @@ async function renderControlCenter(profile, flash = '') {
         if (!matchesArea && option.selected) deviceSelect.value = '';
       });
     };
-    document.querySelectorAll('#create-user, .user-editor, .own-location-editor').forEach((container) => {
-      syncDeviceOptions(container);
-      container.querySelector('.physical-area-select')?.addEventListener('change', () => syncDeviceOptions(container));
+    const createUserForm = document.querySelector('#create-user');
+    syncDeviceOptions(createUserForm);
+    createUserForm.querySelector('.physical-area-select')?.addEventListener('change', () => syncDeviceOptions(createUserForm));
+    async function handleUserEditorSubmit(event) {
+      event.preventDefault(); const form = event.currentTarget; const values = new FormData(form); const password = String(values.get('password') || '');
+      if (password !== String(values.get('confirmation') || '')) return window.alert('Las contraseñas no coinciden.');
+      const payload = { full_name: values.get('full_name'), email: values.get('email'), role: values.get('role'), is_active: values.get('is_active') === 'on' };
+      if (password) payload.password = password;
+      try {
+        await api(`/api/auth/users/${form.dataset.userId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+        await api(`/api/auth/users/${form.dataset.userId}/access-area`, { method: 'PATCH', body: JSON.stringify({ access_area_id: values.get('access_area_id') || null }) });
+        await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
+        await renderControlCenter(profile, 'Usuario actualizado correctamente.');
+      } catch (error) { window.alert(error.message); }
+    }
+    async function handleOwnLocationSubmit(event) {
+      event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
+      try {
+        await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
+        await renderControlCenter(profile, 'Ubicación actualizada correctamente.');
+      } catch (error) { window.alert(error.message); }
+    }
+    document.querySelectorAll('.user-list-item').forEach((details) => {
+      details.addEventListener('toggle', () => {
+        if (!details.open || details.dataset.built) return;
+        details.dataset.built = '1';
+        const user = data.users.find((item) => item.id === details.dataset.userId);
+        if (!user) return;
+        const isSelf = user.id === profile.id;
+        const body = details.querySelector('.details-body');
+        body.innerHTML = isSelf ? ownUserFormMarkup(user) : otherUserFormMarkup(user);
+        syncDeviceOptions(body);
+        body.querySelector('.physical-area-select')?.addEventListener('change', () => syncDeviceOptions(body));
+        body.querySelector('form').addEventListener('submit', isSelf ? handleOwnLocationSubmit : handleUserEditorSubmit);
+      });
     });
     document.querySelector('#create-user').addEventListener('submit', async (event) => {
       event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
@@ -357,25 +440,6 @@ async function renderControlCenter(profile, flash = '') {
       try { await api(`/api/auth/access-areas/${form.dataset.areaId}`, { method: 'PATCH', body: JSON.stringify({ name: values.get('name'), description: values.get('description'), is_active: values.get('is_active') === 'on', module_codes: [...form.querySelectorAll('.module-options input:checked')].map((item) => item.value) }) }); await renderControlCenter(profile, 'Área actualizada.'); }
       catch (error) { window.alert(error.message); }
     }));
-    document.querySelectorAll('.user-editor').forEach((form) => form.addEventListener('submit', async (event) => {
-      event.preventDefault(); const values = new FormData(form); const password = String(values.get('password') || '');
-      if (password !== String(values.get('confirmation') || '')) return window.alert('Las contraseñas no coinciden.');
-      const payload = { full_name: values.get('full_name'), email: values.get('email'), role: values.get('role'), is_active: values.get('is_active') === 'on' };
-      if (password) payload.password = password;
-      try {
-        await api(`/api/auth/users/${form.dataset.userId}`, { method: 'PATCH', body: JSON.stringify(payload) });
-        await api(`/api/auth/users/${form.dataset.userId}/access-area`, { method: 'PATCH', body: JSON.stringify({ access_area_id: values.get('access_area_id') || null }) });
-        await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
-        await renderControlCenter(profile, 'Usuario actualizado correctamente.');
-      } catch (error) { window.alert(error.message); }
-    }));
-    document.querySelector('.own-location-editor')?.addEventListener('submit', async (event) => {
-      event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
-      try {
-        await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
-        await renderControlCenter(profile, 'Ubicación actualizada correctamente.');
-      } catch (error) { window.alert(error.message); }
-    });
   } catch (error) {
     app.innerHTML = shellMarkup(profile, `<section class="workspace-panel"><div class="notice error">${escapeHtml(error.message)}</div><button class="back-button" id="back-portal">← Volver al portal</button></section>`);
     bindShell(profile); document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
