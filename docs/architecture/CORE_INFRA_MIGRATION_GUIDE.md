@@ -365,21 +365,75 @@ Rollback:
 
 Objetivo: dejar MRTI Infra enfocado en infraestructura.
 
-Checklist:
+**Corrección urgente resuelta 2026-08-11 (antes de empezar la fase formal):**
+al planear esta fase se encontró que la Fase 3 (mudar `user_profiles` a
+`mrti_core`) dejó una regresión activa, no sólo trabajo de limpieza
+pendiente: `MRTI-Infra/server/src/auth/shared.js` (`authRequired`) y
+`socket.js` seguían resolviendo la sesión de **todas** las rutas reales de
+Infra (`/api/db`, `/api/monitoring`, `/api/discovery`, `/api/ups`,
+`/api/mrti`, `/api/notifications`, `/api/credentials`, `/api/uploads`,
+`/api/self/*`, y el WebSocket del dashboard en vivo) con SQL local contra
+la copia de `user_profiles`/`access_areas`/`access_area_modules` que quedó
+congelada en el corte de la Fase 3. Un usuario creado en Core después de
+ese corte no podía entrar a ninguna ruta real de Infra; un cambio de rol o
+una baja hecha en Core tampoco se reflejaba ahí. Se corrigió repuntando
+`authRequired` y el middleware de `socket.io` a `GET
+{MRTI_CORE_URL}/api/auth/me` (mismo patrón que RH/Activos), con 503 si Core
+no responde. `findProfile`/`signToken` **no se tocaron** — el router
+`/api/auth` de Infra que los usa se mantiene montado como respaldo de
+rollback de la Fase 4 (ver checklist abajo, sigue sin hacerse). También se
+quitó `user_profiles` del navegador genérico `/api/db/:table`
+(`meta.js`) para que nadie edite por accidente la copia muerta.
 
-- [ ] Confirmar tráfico cero a los handlers de autenticación de Infra.
-- [ ] Retirar montaje de rutas, imports y dependencias de JWT/contraseñas.
+**Bug propio encontrado en el camino:** `mrti.js` (proxy de telemetría a
+MRTI Monitor) todavía aceptaba `MRTI_CORE_URL` como fallback de su propia
+URL, herencia del rename de la Fase 4. Al agregar `MRTI_CORE_URL` en el
+mismo `.env` para el fix de arriba, el proxy habría empezado a apuntar al
+puerto de Core (3005) en vez del de Monitor (8477) — se detectó por los
+logs de error (`SyntaxError: Unexpected token '<'`, HTML de un 404 de
+Express donde se esperaba JSON de Monitor) segundos después de aplicarlo,
+y se corrigió quitando ese fallback en el mismo commit. Ventana real de
+exposición: menos de dos minutos, sin evidencia de que un usuario real la
+haya visto (los hits en el log coinciden con pollers internos, no con
+tráfico de navegador).
+
+Evidencia: `MRTI-Infra@bed41ff`. Verificado con usuarios/tokens creados
+únicamente en `mrti_core` (no en `mrti_infra`): rutas HTTP de Infra,
+proxy de Monitor, `dbRouter` (tabla ya no expuesta), y una conexión de
+WebSocket real vía `socket.io-client` (aceptada con token válido,
+rechazada sin token/con uno inválido). Core apagado a propósito → 503 en
+vez de 500 sin manejar.
+
+Checklist (la fase formal, aún pendiente):
+
+- [ ] Confirmar tráfico cero a los handlers de autenticación de Infra —
+      **aún no iniciado**: requiere un período observado (revisar
+      `access.log`/`error.log` de Infra por varios días) antes de retirar
+      nada, ver razón abajo.
+- [ ] Retirar montaje de rutas, imports y dependencias de JWT/contraseñas —
+      **deliberadamente no hecho todavía**: el router `/api/auth` de Infra
+      (login/registro/administración de usuarios/control de acceso) sigue
+      siendo el camino de rollback de la Fase 4 para RH/Activos/Tickets
+      (`MRTI_INFRA_URL` como fallback). Retirarlo ahora rompería esa red de
+      seguridad antes de que la Fase 4 lleve tiempo estable.
 - [ ] Eliminar del frontend de Infra la administración de usuarios/permisos.
 - [ ] Mantener únicamente referencias `user_id` externas necesarias.
 - [ ] No borrar tablas antiguas hasta completar el periodo de retención.
 
 Criterio de terminado:
 
-- Infra inicia y opera sin código de autenticación propio ni escritura de usuarios.
+- Infra inicia y opera sin código de autenticación propio ni escritura de
+  usuarios. **Parcialmente cumplido:** sus rutas reales ya no dependen de
+  su propia copia de identidad (corrección de arriba); el router
+  `/api/auth` propio todavía existe como respaldo, a propósito.
 
 Rollback:
 
-- Revertir el commit de limpieza; las tablas antiguas siguen disponibles.
+- De la corrección de hoy: revertir `MRTI-Infra@bed41ff` — `authRequired`/
+  `socket.js` vuelven a leer local (mismas filas, nada se borró) y
+  `user_profiles` reaparece en `meta.js`.
+- De la fase formal (cuando se ejecute): revertir el commit de limpieza;
+  las tablas antiguas siguen disponibles.
 
 ### Fase 6 — Frontera Infra / Activos
 
@@ -483,7 +537,7 @@ Actualizar una fila solo con evidencia verificable.
 | 2. Corte de tráfico auth | Completa | 2026-08-10 | `mrti-core-api` registrado en pm2 (`pm2 save`, 0 reinicios); `MRTI/deploy/nginx.conf.example` con location `/api/auth/` → `127.0.0.1:3005` antes de `/api/`; aplicado en vivo con `sudo deploy/activate.sh` (backup automático en `it-infra.bak`, `nginx -t` OK, reload OK); verificado con el header `Content-Security-Policy` (`connect-src` sin `ws:`/`wss:` = Core, confirmado distinto del de Infra:3002 que sí los tiene); login/`/me`/`module-access`/`access-control` probados de punta a punta por Nginx (puerto 80) con usuarios desechables, mismos status codes que en Fase 0/1; tráfico real de navegador observado en `access.log` sin 5xx ni 401 inesperados; `error.log` de Nginx vacío; MRTI `40ae8a0` |
 | 3. Base `mrti_core` | Completa | 2026-08-11 | Prerrequisito: `MRTI-Infra@16073b6` (`/api/self/*`), `MRTI@1d63093` (Core deja de hacer SQL directo contra `areas`/`devices`). Migración+copia+corte: `MRTI@f73ccd6` — conteos y checksums MD5 idénticos en las 3 tablas antes del corte; `MYSQL_DATABASE=mrti_core` en Core; verificado con usuario creado solo en `mrti_core` (login, `module-access/rh`, y tokens aceptados por RH/Tickets); `mrti_infra` conserva sus filas originales intactas, solo lectura. jroman creó `mrti_core`/otorgó permisos fuera de esta sesión (root) |
 | 4. Consumidores a Core | Completa | 2026-08-11 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd) + corte real aplicado por jroman en `/etc/systemd/system/mrti-monitor.service` el 2026-08-11 (`daemon-reload`+`restart`), verificado con token real de Core: `module-access/agent-core` → 204, `GET /api/v1/agents` → 200 con datos reales. Los cinco consumidores (RH, Activos, Tickets, Agent, Core) validan contra Core |
-| 5. Limpiar identidad de Infra | Pendiente | — | — |
+| 5. Limpiar identidad de Infra | En progreso | 2026-08-11 | Corrección urgente (no la fase formal): `MRTI-Infra@bed41ff` — `authRequired`/`socket.js` ya no leen la copia congelada de identidad, le preguntan a Core; de paso se corrigió un bug propio (fallback `MRTI_CORE_URL` en `mrti.js` apuntando mal) y se quitó `user_profiles` de `meta.js`. **Pendiente lo formal:** retirar el router `/api/auth` propio de Infra (sigue como respaldo de rollback de la Fase 4) y el frontend de administración de usuarios — requiere confirmar primero un período de tráfico cero |
 | 6. Frontera Infra/Activos | Pendiente | — | — |
 | 7. Dashboard personal extensible | En progreso | 2026-08-05 | Core `3d929ab`; RH `67455b5`; falta Activos/Tickets |
 
@@ -506,6 +560,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-10 | Para resolver el `LEFT JOIN areas` que hacía `findProfile` en cada request autenticado, se optó por una API de autoservicio nueva en Infra (`GET /api/self/physical-areas(/:id)`) en vez de (a) un JOIN entre bases en el mismo servidor MySQL o (b) quitarle a Core el dato de ubicación física por ahora — decisión de jroman | Un JOIN entre bases viola el principio #6 de esta guía ("sin llaves foráneas entre módulos") aunque MySQL lo soporte técnicamente en el mismo servidor; quitar el dato rompía `ticket-context`, que ya lo usa en producción (Tickets, migrado a Core en la Fase 4 de esta misma sesión) | El autoservicio corre en el camino crítico de cada login/`/me` (vía `authRequired`) — se le puso timeout de 3s y degradación a `null` para que Infra caída nunca tumbe una sesión, solo oculte temporalmente el dato de ubicación |
 | 2026-08-11 | La copia de `mrti_infra`→`mrti_core` (Fase 3) no usó un mecanismo de doble escritura ni un modo de mantenimiento formal — solo se verificaron los conteos justo antes de copiar y se copió de inmediato en una transacción | Con 3 usuarios/2 áreas/3 asignaciones reales, construir doble escritura era sobre-ingeniería para el riesgo real; el principio #8 exige "nunca copiar mientras se aceptan escrituras no replicadas", que se cumplió verificando en vez de bloqueando | Si la plataforma crece de escala, este mismo procedimiento manual dejaría de ser suficiente y sí habría que construir la ventana de solo lectura o doble escritura que este checklist original describía |
 | 2026-08-11 | Las 8 FKs de tablas de Infra hacia `user_profiles.id` no se tocaron al mover la tabla a `mrti_core` — se dejaron resolviendo contra la copia congelada que quedó en `mrti_infra.user_profiles` | Los UUID son idénticos entre la copia congelada y la tabla real en `mrti_core` (se copiaron literalmente, no se regeneraron), así que esas FKs siguen siendo válidas mientras Infra no cree usuarios por su cuenta — y no puede, no tiene rutas de escritura de identidad montadas | Deuda documentada, no bloqueo: si en el futuro se borra un usuario en `mrti_core`, la fila equivalente en la copia congelada de `mrti_infra` NO se borra sola (son bases distintas) y esas 8 FKs seguirán apuntando a un id que ya no existe en el sistema real de identidad — hay que recordar borrar manualmente o resolver esto en la Fase 5 |
+| 2026-08-11 | Se corrigió de inmediato (el mismo día, sin esperar a la Fase 5 formal) que `authRequired`/`socket.js` de Infra siguieran resolviendo `req.user` con SQL local contra la copia congelada de identidad | No era deuda técnica esperando su turno: era una regresión activa de la Fase 3 — cualquier usuario creado en Core después del corte de ayer no podía usar ninguna ruta real de Infra, y los cambios de rol/baja hechos en Core no se reflejaban ahí (riesgo de permisos desactualizados) | `MRTI-Infra@bed41ff`. Se dejó **sin tocar** el router `/api/auth` propio de Infra (login/administración de usuarios) y su `findProfile`/`signToken` locales — siguen siendo el respaldo de rollback de la Fase 4; desmontarlos es la Fase 5 real, pendiente de un período observado de tráfico cero |
+| 2026-08-11 | Se quitó el fallback a `MRTI_CORE_URL`/`MRTI_CORE_API_KEY*` en `mrti.js` (el proxy de telemetría a Monitor), dejando sólo `MRTI_MONITOR_*` | Al agregar `MRTI_CORE_URL` en el `.env` de Infra para la corrección de arriba, ese fallback (heredado del rename de la Fase 4) habría hecho que el proxy de Monitor apuntara por error al puerto de Core — se detectó por logs de error (`SyntaxError` al parsear HTML como JSON) segundos después de aplicar el cambio, ventana real de exposición menor a dos minutos | Mismo commit `MRTI-Infra@bed41ff`. `MRTI_MONITOR_API_KEY` ya estaba fijada en el `.env` real desde el rename de ayer, así que quitar el fallback no requirió ningún otro cambio de configuración |
 
 ## 11. Definición final de terminado
 
