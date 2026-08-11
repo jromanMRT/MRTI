@@ -247,42 +247,62 @@ completo de la investigación y el diseño en el plan de esa sesión.
 
 Checklist:
 
-- [ ] Crear migraciones idempotentes para `mrti_core`.
-- [ ] Copiar tablas preservando UUID, timestamps, hashes y relaciones.
-- [ ] Comparar conteos y checksums por tabla.
-- [ ] Definir una ventana breve de solo lectura o un mecanismo temporal de doble
-      escritura; nunca copiar mientras se aceptan escrituras no replicadas.
-- [ ] Cambiar únicamente Core a `mrti_core`.
-- [ ] Repetir contratos, login, permisos y pruebas de todos los consumidores.
-- [ ] Conservar las tablas antiguas en modo solo lectura durante compatibilidad.
+- [x] Crear migraciones idempotentes para `mrti_core`
+      (`mysql/migrations/001_core_identity.sql` + `server/scripts/migrate.js`,
+      mismo patrón que `MRTI-Infra`).
+- [x] Copiar tablas preservando UUID, timestamps, hashes y relaciones
+      (`user_profiles`, `access_areas`, `access_area_modules`; la FK de
+      `user_profiles` hacia `areas` se omitió a propósito — ya se resolvió
+      por API en el prerrequisito de esta misma fase, ver arriba).
+- [x] Comparar conteos y checksums por tabla — MD5 idéntico en las 3 tablas
+      entre `mrti_infra` y `mrti_core` justo antes del corte.
+- [x] Ventana de solo lectura: no se implementó un mecanismo de software —
+      dado el volumen real (3 usuarios, 2 áreas, 3 asignaciones de módulo),
+      se verificaron los conteos inmediatamente antes de copiar y se copió
+      en una sola transacción; no se detectaron cambios entre esa
+      verificación y el corte.
+- [x] Cambiar únicamente Core a `mrti_core` (`MRTI/server/.env`,
+      `MYSQL_DATABASE=mrti_core`; `mrti-core-api` reiniciado en pm2).
+- [x] Repetir contratos, login, permisos y pruebas de todos los
+      consumidores — ver evidencia abajo.
+- [x] Conservar las tablas antiguas en modo solo lectura durante
+      compatibilidad — `mrti_infra.user_profiles`/`access_areas`/
+      `access_area_modules` siguen con sus filas originales intactas, nada
+      las escribe ya.
 
-**Bloqueo conocido para el siguiente paso:** el usuario MySQL `mrtops` (el
-único que usan los `.env` de los backends) sólo tiene `ALL PRIVILEGES` sobre
-las bases ya existentes (`mrti_infra`, `mrti_activos`, `mrti_rh`, `mrtops`,
-`it_management`), no el privilegio global `CREATE DATABASE`. Alguien con
-acceso root a MySQL debe correr `CREATE DATABASE mrti_core ...; GRANT ALL
-PRIVILEGES ON mrti_core.* TO 'mrtops'@'localhost';` antes de que esta fase
-pueda continuar.
+**Bloqueo de `CREATE DATABASE` resuelto:** jroman creó `mrti_core` y otorgó
+`GRANT ALL PRIVILEGES` a `mrtops` sobre ella fuera de esta sesión (paso
+root, confirmado con `SHOW GRANTS`).
 
-**Otro pendiente para esa continuación:** `user_profiles.physical_area_id`
-y 8 tablas de Infra (`alert_notification_reads`, `device_connections`,
-`device_history`, `device_positions`, `devices` ×2, `floor_plans`,
-`movement_history`) tienen FK reales hacia `user_profiles.id`/`areas.id`.
-Esas FKs sólo se pueden dejar de tener sentido (o convertirse en
-referencias no forzadas por la base) cuando `user_profiles` realmente
-cambie de servidor/base — no se tocaron hoy porque la tabla sigue en
-`mrti_infra`.
+**Las 8 FKs de Infra hacia `user_profiles`** (`alert_notification_reads`,
+`device_connections`, `device_history`, `device_positions`, `devices` ×2,
+`floor_plans`, `movement_history`) siguen intactas y resolviendo
+correctamente: apuntan a la copia congelada en `mrti_infra.user_profiles`,
+que conserva los mismos UUID que la copia real en `mrti_core` (nunca se
+borran ni se regeneran los ids). Mientras Infra no cree usuarios nuevos por
+su cuenta — y no puede, no monta rutas de escritura de identidad — esas FKs
+seguirán resolviendo sin error. Quedan como deuda documentada, no como
+bloqueo: se retiran en la Fase 5 (limpiar identidad de Infra).
 
 Criterio de terminado:
 
-- Core opera exclusivamente con `mrti_core` y los datos conciliados coinciden.
+- Core opera exclusivamente con `mrti_core` y los datos conciliados
+  coinciden. **Cumplido** 2026-08-11.
+
+Evidencia: `MRTI@f73ccd6` (migración + copia + corte). Verificado con un
+usuario creado únicamente en `mrti_core` (no en `mrti_infra`): login vía
+Core, `module-access/rh` → 204, `GET /api/rh-self` en RH y `GET
+/api/tickets` en Tickets aceptaron el token emitido contra `mrti_core` —
+prueba de que ya no hay ninguna dependencia oculta de `mrti_infra` en el
+camino de autenticación. Usuario de prueba borrado al terminar. Login real
+a través de Nginx (puerto 80) probado con credenciales inválidas → 401
+esperado, sin 5xx en `error.log`.
 
 Rollback:
 
-- Volver la conexión de Core a las tablas antiguas. No borrar ninguna copia.
-  El prerrequisito de esta sesión (endpoints `/api/self/*`) es aditivo y no
-  requiere rollback aunque Fase 3 no continúe: Core seguiría funcionando
-  igual apuntando a `mrti_infra` a través de esa misma API.
+- Volver `MYSQL_DATABASE` de Core a `mrti_infra` en su `.env` y `pm2 restart
+  mrti-core-api` — las tablas antiguas siguen ahí, completas, nada se
+  borró.
 
 ### Fase 4 — Consumidores y nombres de configuración
 
@@ -458,7 +478,7 @@ Actualizar una fila solo con evidencia verificable.
 | 0. Línea base y contratos | Completa | 2026-08-06 | `docs/architecture/phase0-baseline/BASELINE.md`; pruebas de contrato `MRTI-Infra/server/test/auth-contract.test.js` (9/9 OK); MRTI `cf91087`; MRTI-Infra `b45f21e` |
 | 1. Backend propio de Core | Completa | 2026-08-10 | `MRTI/server/` (Express, `type:"module"`); 9 archivos de auth copiados verbatim de `MRTI-Infra/server` (`diff -q` sin diferencias); `/api/health` propio; pruebas de contrato `server/test/auth-contract.test.js` 9/9 OK contra Infra:3002 (línea base) y Core:3005; token emitido por Core aceptado por Infra `GET /me` → 200 mismo `profile.id`; pm2/nginx **no** tocados (pendiente de aprobación explícita para Fase 2); MRTI `3abc691` |
 | 2. Corte de tráfico auth | Completa | 2026-08-10 | `mrti-core-api` registrado en pm2 (`pm2 save`, 0 reinicios); `MRTI/deploy/nginx.conf.example` con location `/api/auth/` → `127.0.0.1:3005` antes de `/api/`; aplicado en vivo con `sudo deploy/activate.sh` (backup automático en `it-infra.bak`, `nginx -t` OK, reload OK); verificado con el header `Content-Security-Policy` (`connect-src` sin `ws:`/`wss:` = Core, confirmado distinto del de Infra:3002 que sí los tiene); login/`/me`/`module-access`/`access-control` probados de punta a punta por Nginx (puerto 80) con usuarios desechables, mismos status codes que en Fase 0/1; tráfico real de navegador observado en `access.log` sin 5xx ni 401 inesperados; `error.log` de Nginx vacío; MRTI `40ae8a0` |
-| 3. Base `mrti_core` | En progreso | 2026-08-10 | Prerrequisito resuelto: `MRTI-Infra@16073b6` (nuevo `/api/self/*`), `MRTI@1d63093` (Core deja de hacer SQL directo contra `areas`/`devices`, con degradación a null y rollback compensatorio). Probado end-to-end con datos desechables (ver detalle arriba). **Aún no iniciado:** crear `mrti_core` — bloqueado porque `mrtops` no tiene `CREATE DATABASE`, requiere un paso root de jroman; y resolver las 8 FKs de Infra hacia `user_profiles` |
+| 3. Base `mrti_core` | Completa | 2026-08-11 | Prerrequisito: `MRTI-Infra@16073b6` (`/api/self/*`), `MRTI@1d63093` (Core deja de hacer SQL directo contra `areas`/`devices`). Migración+copia+corte: `MRTI@f73ccd6` — conteos y checksums MD5 idénticos en las 3 tablas antes del corte; `MYSQL_DATABASE=mrti_core` en Core; verificado con usuario creado solo en `mrti_core` (login, `module-access/rh`, y tokens aceptados por RH/Tickets); `mrti_infra` conserva sus filas originales intactas, solo lectura. jroman creó `mrti_core`/otorgó permisos fuera de esta sesión (root) |
 | 4. Consumidores a Core | En progreso | 2026-08-10 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd apunta a Core, **corte real pendiente**: la unidad en `/etc/systemd/system/mrti-monitor.service` sigue sin la variable, requiere `daemon-reload`+`restart` que solo puede ejecutar jroman). Verificado: `pm2 restart` de infra/rh/activos sin errores nuevos; 401/403/503 confirmados vía curl (ver detalle en Fase 4 §6) |
 | 5. Limpiar identidad de Infra | Pendiente | — | — |
 | 6. Frontera Infra/Activos | Pendiente | — | — |
@@ -481,6 +501,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-10 | Antes de introducir `MRTI_CORE_URL` (identidad, Fase 4) se renombró `MRTI_CORE_URL`/`MRTI_CORE_API_KEY`/`MRTI_CORE_API_KEY_FILE` en `MRTI-Infra/server/src/mrti.js` a `MRTI_MONITOR_URL`/`MRTI_MONITOR_API_KEY`/`MRTI_MONITOR_API_KEY_FILE` | Ese archivo ya usaba el nombre `MRTI_CORE_URL` desde antes del rename de 2026-08-06, pero para algo distinto (el proxy de telemetría hacia el servidor Go, hoy "MRTI Monitor", puerto 8477) — se quedó fuera de aquel rename porque solo tocó el repo `MRTI-Agent` (binario/systemd), no los *consumidores* de ese nombre en otros repos. Sin este arreglo, el mismo nombre de variable significaría dos cosas distintas en el mismo workspace (identidad en RH/Activos/Tickets, telemetría en Infra), con alto riesgo de que alguien copie/pegue el valor equivocado | No reabre la decisión de 2026-08-06 (Agent sigue llamándose "MRTI Monitor"), solo termina de aplicarla en el archivo que quedó pendiente. `MRTI-Infra@97a00e3`. Conserva fallback a los nombres viejos con `console.warn`; el valor real en `server/.env` ya se renombró (`MRTI_MONITOR_API_KEY`), sin rotar la key todavía (pendiente de seguridad ya conocido, no relacionado con este cambio) |
 | 2026-08-10 | Fase 3 se divide en dos sesiones: primero desacoplar a Core de las tablas de Infra (endpoints `/api/self/*` + reescribir `shared.js`/`accessControlRoutes.js`/`ticketContextRoutes.js`), y sólo después crear `mrti_core` y copiar datos (decisión de jroman, opción "separar primero, mudar después") | Al investigar se encontró que Core hacía SQL directo (lectura y escritura) contra `areas`/`floors`/`buildings`/`sites`/`devices` de Infra en 3 archivos; mover `user_profiles` de base sin resolver eso primero rompía login, el panel de administración de ubicación/equipo y `ticket-context` de inmediato. Intentar las dos cosas en una sola sesión acumulaba demasiado riesgo antes de verificar nada en producción | El prerrequisito ya se completó y se probó end-to-end esta misma sesión (`MRTI-Infra@16073b6`, `MRTI@1d63093`). Efecto colateral aceptado: `PATCH /users/:id/location` ya no es una transacción SQL atómica (el área vive en Core, el equipo en Infra); se compensa con un rollback manual del área si Infra rechaza el equipo, documentado en el código |
 | 2026-08-10 | Para resolver el `LEFT JOIN areas` que hacía `findProfile` en cada request autenticado, se optó por una API de autoservicio nueva en Infra (`GET /api/self/physical-areas(/:id)`) en vez de (a) un JOIN entre bases en el mismo servidor MySQL o (b) quitarle a Core el dato de ubicación física por ahora — decisión de jroman | Un JOIN entre bases viola el principio #6 de esta guía ("sin llaves foráneas entre módulos") aunque MySQL lo soporte técnicamente en el mismo servidor; quitar el dato rompía `ticket-context`, que ya lo usa en producción (Tickets, migrado a Core en la Fase 4 de esta misma sesión) | El autoservicio corre en el camino crítico de cada login/`/me` (vía `authRequired`) — se le puso timeout de 3s y degradación a `null` para que Infra caída nunca tumbe una sesión, solo oculte temporalmente el dato de ubicación |
+| 2026-08-11 | La copia de `mrti_infra`→`mrti_core` (Fase 3) no usó un mecanismo de doble escritura ni un modo de mantenimiento formal — solo se verificaron los conteos justo antes de copiar y se copió de inmediato en una transacción | Con 3 usuarios/2 áreas/3 asignaciones reales, construir doble escritura era sobre-ingeniería para el riesgo real; el principio #8 exige "nunca copiar mientras se aceptan escrituras no replicadas", que se cumplió verificando en vez de bloqueando | Si la plataforma crece de escala, este mismo procedimiento manual dejaría de ser suficiente y sí habría que construir la ventana de solo lectura o doble escritura que este checklist original describía |
+| 2026-08-11 | Las 8 FKs de tablas de Infra hacia `user_profiles.id` no se tocaron al mover la tabla a `mrti_core` — se dejaron resolviendo contra la copia congelada que quedó en `mrti_infra.user_profiles` | Los UUID son idénticos entre la copia congelada y la tabla real en `mrti_core` (se copiaron literalmente, no se regeneraron), así que esas FKs siguen siendo válidas mientras Infra no cree usuarios por su cuenta — y no puede, no tiene rutas de escritura de identidad montadas | Deuda documentada, no bloqueo: si en el futuro se borra un usuario en `mrti_core`, la fila equivalente en la copia congelada de `mrti_infra` NO se borra sola (son bases distintas) y esas 8 FKs seguirán apuntando a un id que ya no existe en el sistema real de identidad — hay que recordar borrar manualmente o resolver esto en la Fase 5 |
 
 ## 11. Definición final de terminado
 
