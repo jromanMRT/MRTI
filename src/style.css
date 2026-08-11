@@ -380,6 +380,20 @@ main {
 .request-status.cancelled { color: #94a3b8; background: rgba(71, 85, 105, .2); }
 .personal-link { padding: 0; border: 0; color: #fca5a5; background: transparent; cursor: pointer; font-size: .7rem; }
 .personal-empty { color: #71899e; font-size: .78rem; text-align: center; }
+.notifications-section { margin-bottom: 26px; }
+.notifications-card { grid-column: 1 / -1; }
+.notification-list { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+.notification-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(111, 157, 194, .14);
+  border-radius: 11px;
+  background: rgba(13, 148, 136, .05);
+}
+.notification-item span:nth-child(2) { flex: 1; min-width: 0; color: #c2d4e2; font-size: .8rem; }
+.notification-item .personal-link { flex: 0 0 auto; }
 
 .applications {
   margin-top: 82px;

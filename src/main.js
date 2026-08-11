@@ -135,6 +135,7 @@ function renderPortal(profile) {
     ${banner}
     <section class="hero personal-hero"><div class="eyebrow"><span></span> Portal personal</div><h1>Hola, ${escapeHtml(profile.full_name.split(' ')[0])}.<br><em>Este es tu espacio.</em></h1>
       <p>Consulta tu información y realiza gestiones personales sin entrar a los módulos administrativos.</p></section>
+    <section class="personal-dashboard notifications-section"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi dashboard</p><h2>Información y acciones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
       <div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>
@@ -147,6 +148,7 @@ function renderPortal(profile) {
   void loadEmployeeDashboard(profile);
   void loadAssetsDashboard(profile);
   void loadTicketsDashboard(profile);
+  void loadNotifications(profile);
 }
 
 const LEAVE_STATUS = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada', cancelled: 'Cancelada' };
@@ -230,7 +232,12 @@ async function loadAssetsDashboard() {
   }
 }
 
-const TICKET_STATUS_CLASS = { open: 'pending', in_progress: 'pending', resolved: 'approved', closed: 'approved', cancelled: 'rejected' };
+const TICKET_STATUS_CLASS = {
+  NEW: 'pending', OPEN: 'pending', ASSIGNED: 'pending', IN_DIAGNOSIS: 'pending',
+  IN_PROGRESS: 'pending', ON_HOLD_USER: 'pending', ON_HOLD_VENDOR: 'pending', REOPENED: 'pending',
+  RESOLVED: 'approved', CLOSED: 'approved', CANCELLED: 'rejected',
+};
+const TICKET_OPEN_STATUSES = ['NEW', 'OPEN', 'ASSIGNED', 'IN_DIAGNOSIS', 'IN_PROGRESS', 'ON_HOLD_USER', 'ON_HOLD_VENDOR', 'REOPENED'];
 
 async function loadTicketsDashboard() {
   const container = document.querySelector('#tickets-dashboard');
@@ -248,6 +255,55 @@ async function loadTicketsDashboard() {
     container.className = 'notice error';
     container.textContent = error.message;
   }
+}
+
+// Notificaciones consolidadas (Fase 7, último ítem del checklist): no hay
+// tabla ni estado de leído/no leído — se derivan al vuelo de los mismos
+// datos que ya muestran los widgets de RH/Tickets, con un enlace a la app
+// correspondiente sólo si el usuario tiene permiso de abrirla. Cada fuente
+// se resuelve con Promise.allSettled: si una falla, la otra igual se
+// muestra (mismo principio de widgets independientes).
+async function loadNotifications(profile) {
+  const container = document.querySelector('#notifications-dashboard');
+  if (!container) return;
+  const [leaveResult, ticketsResult] = await Promise.allSettled([
+    api('/rh-api/api/rh-self/me/leave-requests'),
+    api('/tickets-api/api/tickets-self/me'),
+  ]);
+
+  const items = [];
+  if (leaveResult.status === 'fulfilled') {
+    leaveResult.value.data
+      .filter((request) => request.status === 'approved' || request.status === 'rejected')
+      .slice(0, 3)
+      .forEach((request) => {
+        items.push({
+          icon: 'RH',
+          text: `Tu solicitud de <strong>${escapeHtml(request.leave_type_name)}</strong> (${shortDate(request.start_date)} a ${shortDate(request.end_date)}) fue <strong>${escapeHtml(LEAVE_STATUS[request.status] || request.status).toLowerCase()}</strong>.`,
+          href: null,
+        });
+      });
+  }
+  if (ticketsResult.status === 'fulfilled') {
+    ticketsResult.value.data
+      .filter((ticket) => ticket.assigned_to === profile.id && TICKET_OPEN_STATUSES.includes(ticket.status_code))
+      .slice(0, 3)
+      .forEach((ticket) => {
+        items.push({
+          icon: 'TK',
+          text: `Tienes asignado el ticket <strong>${escapeHtml(ticket.folio)}</strong>: ${escapeHtml(ticket.title)} (${escapeHtml(ticket.status_name)}).`,
+          href: canOpen(profile, 'tickets') ? '/tickets/' : null,
+        });
+      });
+  }
+
+  container.className = 'personal-grid';
+  if (!items.length) {
+    container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Novedades</p><h3>Notificaciones</h3></div></div><p class="personal-empty">Sin novedades por ahora.</p></article>`;
+    return;
+  }
+  const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">${item.icon}</span><span>${item.text}</span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
+  container.innerHTML = `<article class="personal-card notifications-card"><div class="personal-card-title"><div><p>Novedades</p><h3>Notificaciones</h3></div></div><ul class="notification-list">${rows}</ul></article>`;
 }
 
 function renderAccount(profile) {
