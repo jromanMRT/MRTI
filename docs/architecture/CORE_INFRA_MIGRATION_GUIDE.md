@@ -466,10 +466,22 @@ Checklist:
 
 - [x] RH ofrece `/api/rh-self` con aislamiento por identidad.
 - [x] Core muestra ficha, saldos y solicitudes de RH.
-- [ ] Activos ofrece `/api/activos-self` para equipo y asignaciones propias.
-- [ ] Tickets ofrece `/api/tickets-self` para tickets creados o asignados al usuario.
-- [ ] Core maneja widgets caídos de forma independiente; un módulo no debe tumbar
-      todo el dashboard.
+- [x] Activos ofrece `/api/activos-self` para equipo y asignaciones propias
+      — completado 2026-08-11. A diferencia de RH (1 empleado = 1 ficha),
+      la relación es 1:N (un usuario puede tener varios activos) y el
+      esquema no tenía columna de vínculo: se agregó `portal_user_id` vía
+      migración nueva (`MRTI-Activos@f6db4c9`, primera migración del
+      repo) con auto-link por `correo_corporativo`. Devuelve lista vacía
+      (no 404) sin equipo asignado, porque eso es un estado normal.
+- [x] Tickets ofrece `/api/tickets-self` para tickets creados o asignados
+      al usuario — completado 2026-08-11 (`MRTI-Tickets@6ba7022`). No
+      necesitó migración: `requester_id`/`assigned_to` ya eran
+      `VARCHAR(64)` con el UUID de Core desde la Fase 4.
+- [x] Core maneja widgets caídos de forma independiente; un módulo no debe
+      tumbar todo el dashboard — cada widget (RH/Activos/Tickets) tiene su
+      propio contenedor y su propio `try/catch` en `MRTI/src/main.js`
+      (`loadEmployeeDashboard`/`loadAssetsDashboard`/`loadTicketsDashboard`,
+      llamados sin `await` desde `renderPortal`, en paralelo). `MRTI@8b5d289`.
 - [ ] Añadir notificaciones consolidadas con enlaces a acciones permitidas.
 
 Criterio de terminado:
@@ -539,7 +551,7 @@ Actualizar una fila solo con evidencia verificable.
 | 4. Consumidores a Core | Completa | 2026-08-11 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd) + corte real aplicado por jroman en `/etc/systemd/system/mrti-monitor.service` el 2026-08-11 (`daemon-reload`+`restart`), verificado con token real de Core: `module-access/agent-core` → 204, `GET /api/v1/agents` → 200 con datos reales. Los cinco consumidores (RH, Activos, Tickets, Agent, Core) validan contra Core |
 | 5. Limpiar identidad de Infra | En progreso | 2026-08-11 | Corrección urgente (no la fase formal): `MRTI-Infra@bed41ff` — `authRequired`/`socket.js` ya no leen la copia congelada de identidad, le preguntan a Core; de paso se corrigió un bug propio (fallback `MRTI_CORE_URL` en `mrti.js` apuntando mal) y se quitó `user_profiles` de `meta.js`. **Pendiente lo formal:** retirar el router `/api/auth` propio de Infra (sigue como respaldo de rollback de la Fase 4) y el frontend de administración de usuarios — requiere confirmar primero un período de tráfico cero |
 | 6. Frontera Infra/Activos | Pendiente | — | — |
-| 7. Dashboard personal extensible | En progreso | 2026-08-05 | Core `3d929ab`; RH `67455b5`; falta Activos/Tickets |
+| 7. Dashboard personal extensible | En progreso | 2026-08-11 | Core `3d929ab`; RH `67455b5`; Activos `MRTI-Activos@f6db4c9`; Tickets `MRTI-Tickets@6ba7022`; widgets independientes en Core `MRTI@8b5d289`. Falta: notificaciones consolidadas |
 
 ## 10. Registro de decisiones
 
