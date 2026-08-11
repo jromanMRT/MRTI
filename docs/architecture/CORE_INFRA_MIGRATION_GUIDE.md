@@ -312,12 +312,13 @@ Checklist:
 
 - [x] Introducir `MRTI_CORE_URL` en RH y Activos (`server/src/auth.js`) y en
       Tickets (variables `AUTH_PROFILE_URL`/`AUTH_TICKET_CONTEXT_URL`/
-      `AUTH_ASSIGNEES_URL`, ya genéricas, repuntadas a `:3005`).
-      **Parcial en Agent:** la plantilla del repo
-      (`MRTI-Agent/service/mrti-monitor.service`) ya fija
-      `MRTI_AUTH_MODULE_URL` hacia Core; la unidad systemd real en
-      `/etc/systemd/system/` sigue sin aplicar el cambio — paso root
-      pendiente, requiere que jroman ejecute `daemon-reload` + `restart`.
+      `AUTH_ASSIGNEES_URL`, ya genéricas, repuntadas a `:3005`). **Agent:**
+      completado 2026-08-11 — jroman aplicó `Environment=
+      MRTI_AUTH_MODULE_URL=http://127.0.0.1:3005/api/auth/module-access/
+      agent-core` a la unidad real (`/etc/systemd/system/mrti-monitor.service`)
+      y corrió `daemon-reload`+`restart`; verificado con un token real
+      emitido por Core (`module-access/agent-core` → 204, `GET
+      /api/v1/agents` en Monitor → 200 con datos reales de un agente).
       Infra no necesitó esta variable: no tiene ninguna llamada HTTP a su
       propio `/api/auth/*` (valida localmente), así que no es consumidor de
       identidad en ese sentido — sí se resolvió ahí el hallazgo de nombres
@@ -345,10 +346,12 @@ Checklist:
 
 Criterio de terminado:
 
-- Ningún código nuevo describe Infra como proveedor de identidad. **Aún no
-  cumplido del todo:** el corte real de tráfico en Agent depende del paso
-  systemd pendiente arriba; hasta que se aplique, Agent sigue validando
-  contra Infra en producción.
+- Ningún código nuevo describe Infra como proveedor de identidad.
+  **Cumplido** 2026-08-11: con el corte de systemd de Agent aplicado, los
+  cinco consumidores (RH, Activos, Tickets, Agent, y el propio Core) validan
+  contra Core. Infra sigue recibiendo tráfico de identidad únicamente si
+  alguien vuelve a fijar `MRTI_INFRA_URL`/quita la variable de Agent — es
+  decir, solo por rollback explícito.
 
 Rollback:
 
@@ -479,7 +482,7 @@ Actualizar una fila solo con evidencia verificable.
 | 1. Backend propio de Core | Completa | 2026-08-10 | `MRTI/server/` (Express, `type:"module"`); 9 archivos de auth copiados verbatim de `MRTI-Infra/server` (`diff -q` sin diferencias); `/api/health` propio; pruebas de contrato `server/test/auth-contract.test.js` 9/9 OK contra Infra:3002 (línea base) y Core:3005; token emitido por Core aceptado por Infra `GET /me` → 200 mismo `profile.id`; pm2/nginx **no** tocados (pendiente de aprobación explícita para Fase 2); MRTI `3abc691` |
 | 2. Corte de tráfico auth | Completa | 2026-08-10 | `mrti-core-api` registrado en pm2 (`pm2 save`, 0 reinicios); `MRTI/deploy/nginx.conf.example` con location `/api/auth/` → `127.0.0.1:3005` antes de `/api/`; aplicado en vivo con `sudo deploy/activate.sh` (backup automático en `it-infra.bak`, `nginx -t` OK, reload OK); verificado con el header `Content-Security-Policy` (`connect-src` sin `ws:`/`wss:` = Core, confirmado distinto del de Infra:3002 que sí los tiene); login/`/me`/`module-access`/`access-control` probados de punta a punta por Nginx (puerto 80) con usuarios desechables, mismos status codes que en Fase 0/1; tráfico real de navegador observado en `access.log` sin 5xx ni 401 inesperados; `error.log` de Nginx vacío; MRTI `40ae8a0` |
 | 3. Base `mrti_core` | Completa | 2026-08-11 | Prerrequisito: `MRTI-Infra@16073b6` (`/api/self/*`), `MRTI@1d63093` (Core deja de hacer SQL directo contra `areas`/`devices`). Migración+copia+corte: `MRTI@f73ccd6` — conteos y checksums MD5 idénticos en las 3 tablas antes del corte; `MYSQL_DATABASE=mrti_core` en Core; verificado con usuario creado solo en `mrti_core` (login, `module-access/rh`, y tokens aceptados por RH/Tickets); `mrti_infra` conserva sus filas originales intactas, solo lectura. jroman creó `mrti_core`/otorgó permisos fuera de esta sesión (root) |
-| 4. Consumidores a Core | En progreso | 2026-08-10 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd apunta a Core, **corte real pendiente**: la unidad en `/etc/systemd/system/mrti-monitor.service` sigue sin la variable, requiere `daemon-reload`+`restart` que solo puede ejecutar jroman). Verificado: `pm2 restart` de infra/rh/activos sin errores nuevos; 401/403/503 confirmados vía curl (ver detalle en Fase 4 §6) |
+| 4. Consumidores a Core | Completa | 2026-08-11 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd) + corte real aplicado por jroman en `/etc/systemd/system/mrti-monitor.service` el 2026-08-11 (`daemon-reload`+`restart`), verificado con token real de Core: `module-access/agent-core` → 204, `GET /api/v1/agents` → 200 con datos reales. Los cinco consumidores (RH, Activos, Tickets, Agent, Core) validan contra Core |
 | 5. Limpiar identidad de Infra | Pendiente | — | — |
 | 6. Frontera Infra/Activos | Pendiente | — | — |
 | 7. Dashboard personal extensible | En progreso | 2026-08-05 | Core `3d929ab`; RH `67455b5`; falta Activos/Tickets |
