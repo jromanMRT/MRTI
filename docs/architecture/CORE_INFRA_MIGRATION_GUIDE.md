@@ -545,6 +545,15 @@ Checklist:
       resueltas, tickets asignados que siguen abiertos), con enlace a la
       app sólo si `canOpen(profile, moduleCode)`. `Promise.allSettled`
       para que RH sin vincular no oculte las novedades de Tickets.
+- [x] Evolucionar la portada hacia un portal de trabajo sin cambiar la
+      propiedad de datos — completado 2026-08-12 (`MRTI@8a64f92`). El login
+      incorpora identidad visual reemplazable, estados accesibles y orientación
+      de acceso; Inicio prioriza solicitudes, ausencias, activos y novedades,
+      manteniendo las aplicaciones como acceso secundario. Los contadores se
+      derivan exclusivamente de los contratos `*-self` existentes y conservan
+      degradación independiente. El diseño de catálogo, anuncios, RBAC,
+      auditoría y widgets configurables queda documentado en
+      `CORE_PORTAL_EVOLUTION_PLAN.md` para fases aditivas posteriores.
 
 Criterio de terminado:
 
@@ -613,7 +622,7 @@ Actualizar una fila solo con evidencia verificable.
 | 4. Consumidores a Core | Completa | 2026-08-11 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd) + corte real aplicado por jroman en `/etc/systemd/system/mrti-monitor.service` el 2026-08-11 (`daemon-reload`+`restart`), verificado con token real de Core: `module-access/agent-core` → 204, `GET /api/v1/agents` → 200 con datos reales. Los cinco consumidores (RH, Activos, Tickets, Agent, Core) validan contra Core |
 | 5. Limpiar identidad de Infra | En progreso | 2026-08-11 | Corrección urgente (no la fase formal): `MRTI-Infra@bed41ff` — `authRequired`/`socket.js` ya no leen la copia congelada de identidad, le preguntan a Core; de paso se corrigió un bug propio (fallback `MRTI_CORE_URL` en `mrti.js` apuntando mal) y se quitó `user_profiles` de `meta.js`. **Pendiente lo formal:** retirar el router `/api/auth` propio de Infra (sigue como respaldo de rollback de la Fase 4) y el frontend de administración de usuarios — requiere confirmar primero un período de tráfico cero |
 | 6. Frontera MRTI-Obs/Activos | En progreso | 2026-08-12 | Activos `1ef90d8`; MRTI-Obs (repo aún llamado `MRTI-Infra`) `06ea319`; Core `42cb7fc`. Migraciones aplicadas; Core 10/10, Obs 10/10, Activos 2/2; builds OK; PM2 `mrti-core-api`, `mrti-activos-api`, `mrti-obs-api` online; health checks 200. Nginx activo: `/mrti-obs/` 200 y compatibilidad `/mrti-infra/*` 301. Preparación de fuente externa: Activos `1d83670`, 5/5 pruebas, build y audit OK, health 200; no hubo conexión ni escrituras externas. Corrección de Sitios: Obs `9c9fb1a`, 10/10 pruebas, typecheck/build OK, API sin token 401; topología real 8/1/0/0 sin huérfanos. Pantalla en blanco: Obs `cee63ef`, URL heredada 301 conservando `/sites`, ruta/JS/CSS/chunk 200. Pendiente: conciliar manualmente 24 dispositivos, completar la jerarquía física con datos reales y diseñar la importación al recibir el catálogo real |
-| 7. Dashboard personal extensible | Completa | 2026-08-11 | Core `3d929ab`; RH `67455b5`; Activos `MRTI-Activos@f6db4c9`; Tickets `MRTI-Tickets@6ba7022`; widgets independientes `MRTI@8b5d289`; notificaciones consolidadas `MRTI@473a43f` |
+| 7. Dashboard personal extensible | Completa | 2026-08-12 | Core `3d929ab`; RH `67455b5`; Activos `MRTI-Activos@f6db4c9`; Tickets `MRTI-Tickets@6ba7022`; widgets independientes `MRTI@8b5d289`; notificaciones consolidadas `MRTI@473a43f`; evolución visual y portada orientada a tareas `MRTI@8a64f92`: contratos Core 10/10, `node --check`, build y `npm audit --omit=dev` (0 vulnerabilidades) OK; smoke Nginx `/`, JS, CSS, logo y fuentes 200, `/api/health` 200, `/api/auth/me` sin token 401. Sin migraciones ni datos temporales. Rollback validado: revertir el commit y reconstruir `dist`; no cambia APIs ni base de datos |
 
 ## 10. Registro de decisiones
 
@@ -641,6 +650,7 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-12 | Preparar el acceso futuro a la base externa con una cuenta exclusiva de lectura y ejecutar primero sólo verificación de permisos y catálogo | El repositorio no conserva el importador original ni el esquema de la fuente; asumir tablas o copiar todo mezclaría dominios y podría extraer secretos | `MRTI-Activos@1d83670` incorpora `source:check` y `source:catalog`; el primer acceso no descarga filas. El mapeo, respaldo e importación idempotente se harán en una fase posterior, con autorización, después de clasificar cada tabla por módulo propietario |
 | 2026-08-12 | No completar automáticamente la jerarquía de Sitios a partir de nombres de dispositivos o supuestos | Sitio, edificio, piso y área física son datos maestros de MRTI-Obs; una inferencia incorrecta afectaría Activos, Core, RH, mapas y monitoreo | La pantalla informa jerarquías vacías y errores reales. Los 7 sitios sin edificio y el edificio sin pisos permanecen pendientes hasta recibir información física confirmada |
 | 2026-08-12 | Dejar la canonicalización de `/mrti-infra/*` exclusivamente en Nginx y montar siempre React en el entrypoint | `import.meta.env.BASE_URL` vale `./` en el build compatible; no es un prefijo de pathname y usarlo como tal causó una recarga infinita | `MRTI-Infra@cee63ef` elimina el redirect duplicado del cliente. Nginx mantiene el 301 preservando rutas profundas y `BrowserRouter` usa `/mrti-obs/` como base canónica |
+| 2026-08-12 | Evolucionar Core por etapas hacia portal empresarial, reutilizando los contratos actuales y sin inventar datos corporativos | El prompt objetivo incluye catálogo dinámico, anuncios, aprobaciones, auditoría y personalización, pero implementarlos juntos mezclaría propietarios, requeriría nuevos contratos y elevaría el riesgo. Tampoco existe un archivo de marca oficial en el workspace | `MRTI@8a64f92` entrega primero login, contexto personal, resumen y acciones rápidas con datos reales ya autorizados. `public/company-logo.svg` es un emblema interno reemplazable, no el logotipo legal definitivo. Las tablas y rutas futuras están propuestas en `CORE_PORTAL_EVOLUTION_PLAN.md` y deberán añadirse mediante migraciones idempotentes, con compatibilidad y pruebas por fase |
 
 ## 11. Definición final de terminado
 
