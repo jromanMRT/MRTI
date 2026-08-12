@@ -1,7 +1,7 @@
 # Evolución de MRTI Core a portal empresarial
 
 Fecha base: 2026-08-12
-Estado: implementación incremental
+Estado: implementación incremental — Etapas 1 y 2 publicadas
 
 ## 1. Diagnóstico de la arquitectura actual
 
@@ -107,10 +107,16 @@ antes de consultar o devolver información.
 
 ### Etapa 2 — Catálogo dinámico y auditoría
 
-- migración `applications` con datos actuales;
-- API filtrada con fallback compatible;
-- administración de catálogo;
-- auditoría de login, permisos y cambios administrativos.
+- [x] migración `applications` con datos actuales;
+- [x] API filtrada con fallback compatible;
+- [x] administración de catálogo;
+- [x] auditoría de login, permisos y cambios administrativos.
+
+Completada el 2026-08-12 en `MRTI@3e3a9be`. La ruta pública
+`/api/portal/v1/*` se dirige a Core mediante una ubicación específica de Nginx;
+`/api/*` continúa perteneciendo a MRTI-Obs. La auditoría excluye campos cuyo
+nombre indique contraseña, token o secreto y nunca bloquea la operación
+principal si el registro falla.
 
 ### Etapa 3 — Comunicados y notificaciones persistentes
 
@@ -131,7 +137,22 @@ antes de consultar o devolver información.
 - configuración de Home por rol/departamento/usuario;
 - preparación para una interfaz futura de “Pregúntale a MRTI”.
 
-## 7. Identidad visual
+## 7. Inventario funcional después de la Etapa 2
+
+| Función | Estado | Propietario / siguiente contrato |
+|---|---|---|
+| Login, cierre de sesión y cambio de contraseña | Funcional | Core; recuperación autónoma requiere definir correo/SSO |
+| Home, RH, activos y solicitudes personales | Funcional | APIs `*-self` de cada módulo |
+| Catálogo, permisos y administración de aplicaciones | Funcional y dinámico | Core `/api/portal/v1/applications` |
+| Auditoría de sesión, perfiles, usuarios, áreas y aplicaciones | Funcional | Core `audit_events` |
+| Comunicados y estado leído de notificaciones | Pendiente, Etapa 3 | Core, con audiencia y vigencia propias |
+| Aprobaciones | Pendiente, Etapa 4 | Resumen de APIs de RH/Solicitudes; Core no decide el workflow |
+| Documentos | Pendiente de módulo propietario | No almacenar expedientes o archivos sensibles en Core |
+| Directorio | Pendiente, Etapa 5 | Contrato de RH limitado a datos corporativos autorizados |
+| Búsqueda global | Pendiente, Etapa 5 | Federación con permiso y timeout por fuente |
+| Widgets administrables | Pendiente, Etapa 5 | Configuración en Core; datos maestros permanecen fuera |
+
+## 8. Identidad visual
 
 `public/company-logo.svg` es un emblema interno reemplazable creado para esta
 etapa porque no existe un archivo oficial en el workspace. Cuando la empresa
