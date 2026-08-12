@@ -3,7 +3,7 @@ import './style.css';
 const app = document.querySelector('#app');
 const MODULES = [
   {
-    code: 'mrti-obs', title: 'MRTI-Obs', href: '/mrti-infra/',
+    code: 'mrti-obs', title: 'MRTI-Obs', href: '/mrti-obs/',
     description: 'Observabilidad, topología, disponibilidad y alertas de la infraestructura tecnológica.',
     features: ['Monitoreo', 'Topología', 'Alertas'],
   },
@@ -75,30 +75,62 @@ function userIdentifier(userNumber) {
 }
 
 function brandMarkup() {
-  return `<a class="brand" href="/" aria-label="MRTI, inicio">
-    <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M8 11.5 20 5l12 6.5v17L20 35 8 28.5v-17Z"/><path d="m14 15 6-3.2 6 3.2v10l-6 3.2-6-3.2V15Z"/></svg></span>
-    <span><strong>MRTI</strong><small>Portal</small></span>
+  return `<a class="brand" href="/" aria-label="Minera Río Tinto, inicio">
+    <span class="brand-mark"><img src="/company-logo.svg" alt=""></span>
+    <span><strong>MRTI</strong><small>Minera Río Tinto</small></span>
   </a>`;
 }
 
+function longDate(date = new Date()) {
+  const value = new Intl.DateTimeFormat('es-MX', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(date);
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function greeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return 'Buenos días';
+  if (hour < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
+function setHomeStat(id, value, detail, state = '') {
+  const card = document.querySelector(`#${id}`);
+  if (!card) return;
+  card.className = `home-stat ${state}`.trim();
+  card.querySelector('strong').textContent = value;
+  card.querySelector('small').textContent = detail;
+}
+
 function shellMarkup(profile, content) {
+  const ticketsAllowed = canOpen(profile, 'tickets');
   return `<div class="page-shell">
     <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
     <header class="topbar">
       ${brandMarkup()}
+      <nav class="primary-nav" aria-label="Navegación principal">
+        <button class="primary-nav-link active" id="home-button" type="button">Inicio</button>
+        ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new">Nueva solicitud</a><a class="primary-nav-link" href="/tickets/tickets">Mis solicitudes</a>' : ''}
+        <button class="primary-nav-link" id="applications-button" type="button">Aplicaciones</button>
+      </nav>
       <div class="topbar-actions">
-        <button class="nav-button" id="account-button" type="button">Mi cuenta</button>
+        <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-dot" id="notification-dot" hidden></span></button>
+        <button class="nav-button" id="account-button" type="button">Perfil</button>
         ${isAdministrator(profile) ? '<button class="nav-button" id="control-button" type="button">Centro de control</button>' : ''}
         <span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span>
         <button class="logout-button" id="logout-button" type="button">Cerrar sesión</button>
       </div>
     </header>
     <main>${content}</main>
-    <footer><span>MRTI</span><span class="footer-separator"></span><span>Infraestructura tecnológica</span><span class="copyright">© ${new Date().getFullYear()} MRTI</span></footer>
+    <footer><span>MRTI</span><span class="footer-separator"></span><span>La puerta de entrada digital de Minera Río Tinto</span><span class="copyright">© ${new Date().getFullYear()} MRTI</span></footer>
   </div>`;
 }
 
 function bindShell(profile) {
+  document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile));
+  document.querySelector('#applications-button')?.addEventListener('click', () => document.querySelector('#applications')?.scrollIntoView({ behavior: 'smooth' }));
+  document.querySelector('#notifications-button')?.addEventListener('click', () => document.querySelector('#notifications')?.scrollIntoView({ behavior: 'smooth' }));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
   document.querySelector('#control-button')?.addEventListener('click', () => renderControlCenter(profile));
   document.querySelector('#logout-button')?.addEventListener('click', () => {
@@ -113,7 +145,7 @@ function cardMarkup(module) {
   const target = module.code === 'agent-core'
     ? `${module.href}#token=${encodeURIComponent(token() || '')}`
     : module.href;
-  return `<article class="app-card">
+  return `<article class="app-card" data-search="${escapeHtml(`${module.title} ${module.description} ${module.features.join(' ')}`.toLocaleLowerCase('es-MX'))}">
     <div class="card-glow" aria-hidden="true"></div>
     <div class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h7M7 17h4"/></svg></div>
     <div class="card-copy"><div class="card-title-row"><h3>${module.title}</h3><span class="available">Disponible</span></div>
@@ -131,24 +163,55 @@ function renderPortal(profile) {
     ? `<div class="notice error">Tu área no tiene permiso para entrar a <strong>${deniedModule.title}</strong>. Si lo necesitas, solicítalo a un administrador.</div>`
     : '';
   const empty = `<div class="empty-state"><h3>Aún no tienes módulos asignados</h3><p>Un administrador debe asignarte un área desde el Centro de control.</p></div>`;
+  const firstName = profile.full_name.split(' ')[0];
+  const location = [profile.physical_site_name, profile.physical_area_name].filter(Boolean).join(' · ') || 'Ubicación pendiente';
+  const quickActions = [
+    canOpen(profile, 'tickets') ? { href: '/tickets/tickets/new', icon: '+', title: 'Nueva solicitud', copy: 'Reporta una necesidad o solicita apoyo.' } : null,
+    canOpen(profile, 'tickets') ? { href: '/tickets/tickets', icon: 'S', title: 'Mis solicitudes', copy: 'Consulta avances y respuestas.' } : null,
+    { href: '#employee-dashboard', icon: 'RH', title: 'Solicitar ausencia', copy: 'Vacaciones y permisos desde tu Home.' },
+    { href: '#assets-dashboard', icon: 'A', title: 'Mis activos', copy: 'Consulta el equipo que tienes asignado.' },
+  ].filter(Boolean);
   app.innerHTML = shellMarkup(profile, `
     ${banner}
-    <section class="hero personal-hero"><div class="eyebrow"><span></span> Portal personal</div><h1>Hola, ${escapeHtml(profile.full_name.split(' ')[0])}.<br><em>Este es tu espacio.</em></h1>
-      <p>Consulta tu información y realiza gestiones personales sin entrar a los módulos administrativos.</p></section>
-    <section class="personal-dashboard notifications-section"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>
-    <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi dashboard</p><h2>Información y acciones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
+    <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> MRTI Home</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>¿Qué necesitas hacer hoy?</em></h1>
+      <p>Solicita, consulta e infórmate desde un solo lugar. MRTI conecta tus servicios internos sin que tengas que conocer qué sistema los atiende.</p>
+      <dl class="home-context"><div><dt>Fecha</dt><dd>${escapeHtml(longDate())}</dd></div><div><dt>Área</dt><dd id="home-department">${escapeHtml(profile.access_area_name || 'Sin área asignada')}</dd></div><div><dt>Puesto</dt><dd id="home-position">Consultando RH…</dd></div><div><dt>Ubicación</dt><dd>${escapeHtml(location)}</dd></div></dl></div>
+      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats"><article class="home-stat" id="requests-stat"><span>Solicitudes abiertas</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="leave-stat"><span>Ausencias pendientes</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="notifications-stat"><span>Novedades</span><strong>—</strong><small>Consultando…</small></article></div></aside></section>
+    <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
+    <section class="personal-dashboard notifications-section" id="notifications"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>
+    <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
       <div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>
       <div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div></section>
-    <section class="applications"><div class="section-heading"><div><p class="section-label">Aplicaciones</p><h2>Herramientas disponibles</h2></div><span class="app-count">${available.length} ${available.length === 1 ? 'aplicación' : 'aplicaciones'}</span></div>
+    <section class="applications" id="applications"><div class="section-heading"><div><p class="section-label">Aplicaciones</p><h2>Herramientas especializadas</h2><p class="panel-copy" style="margin:8px 0 0;">Úsalas cuando necesites funciones administrativas o técnicas avanzadas.</p></div><span class="app-count">${available.length} ${available.length === 1 ? 'aplicación' : 'aplicaciones'}</span></div>
+      <form class="application-search" id="application-search"><label for="application-search-input">Buscar en mis aplicaciones</label><div><input id="application-search-input" type="search" placeholder="Buscar por nombre o función…"><button type="submit">Buscar</button></div><small id="application-search-feedback"></small></form>
       <div class="app-grid">${available.length ? available.map(cardMarkup).join('') : empty}</div></section>`);
   bindShell(profile);
+  bindPortalSearch();
   // Cada widget corre por separado: si Activos o Tickets no responden, el
   // dashboard de RH y el resto de la página no se ven afectados.
   void loadEmployeeDashboard(profile);
   void loadAssetsDashboard(profile);
   void loadTicketsDashboard(profile);
   void loadNotifications(profile);
+}
+
+function bindPortalSearch() {
+  const form = document.querySelector('#application-search');
+  const input = document.querySelector('#application-search-input');
+  const feedback = document.querySelector('#application-search-feedback');
+  if (!form || !input || !feedback) return;
+  const filter = () => {
+    const term = input.value.trim().toLocaleLowerCase('es-MX');
+    let visible = 0;
+    document.querySelectorAll('.app-card').forEach((card) => {
+      card.hidden = Boolean(term) && !card.dataset.search.includes(term);
+      if (!card.hidden) visible += 1;
+    });
+    feedback.textContent = term ? `${visible} ${visible === 1 ? 'resultado' : 'resultados'}` : '';
+  };
+  form.addEventListener('submit', (event) => { event.preventDefault(); filter(); });
+  input.addEventListener('input', filter);
 }
 
 const LEAVE_STATUS = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada', cancelled: 'Cancelada' };
@@ -168,6 +231,12 @@ async function loadEmployeeDashboard(profile, flash = '') {
       api('/rh-api/api/rh-self/me/leave-requests'),
       api('/rh-api/api/rh-self/leave-types'),
     ]);
+    const pendingRequests = requests.filter((request) => request.status === 'pending').length;
+    setHomeStat('leave-stat', String(pendingRequests), pendingRequests === 1 ? 'Solicitud pendiente' : 'Solicitudes pendientes', pendingRequests ? 'attention' : 'ok');
+    const department = document.querySelector('#home-department');
+    const position = document.querySelector('#home-position');
+    if (department) department.textContent = employee.department_name || profile.access_area_name || 'Sin área asignada';
+    if (position) position.textContent = employee.job_title || 'Sin puesto registrado';
     const balanceCards = balances.filter((item) => item.requires_balance).map((item) => `<div class="personal-metric"><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(item.days_available)} días</strong><small>${escapeHtml(item.days_used)} usados de ${escapeHtml(item.days_granted)}</small></div>`).join('');
     const requestRows = requests.slice(0, 6).map((request) => `<tr><td><strong>${escapeHtml(request.leave_type_name)}</strong><small>${shortDate(request.start_date)} a ${shortDate(request.end_date)}</small></td><td>${escapeHtml(request.business_days)}</td><td><span class="request-status ${escapeHtml(request.status)}">${escapeHtml(LEAVE_STATUS[request.status] || request.status)}</span></td><td>${request.status === 'pending' ? `<button class="personal-link cancel-own-request" type="button" data-request-id="${request.id}">Cancelar</button>` : ''}</td></tr>`).join('');
     container.className = 'personal-grid';
@@ -180,11 +249,16 @@ async function loadEmployeeDashboard(profile, flash = '') {
       <article class="personal-card requests-card"><div class="personal-card-title"><div><p>Seguimiento</p><h3>Mis solicitudes recientes</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Solicitud</th><th>Días</th><th>Estatus</th><th></th></tr></thead><tbody>${requestRows || '<tr><td colspan="4" class="personal-empty">Aún no tienes solicitudes.</td></tr>'}</tbody></table></div></article>`;
     bindEmployeeDashboard(profile);
   } catch (error) {
+    const position = document.querySelector('#home-position');
     if (error.code === 'EMPLOYEE_NOT_LINKED' || error.status === 404) {
+      setHomeStat('leave-stat', '0', 'Sin vinculación con RH', 'unavailable');
+      if (position) position.textContent = 'Sin ficha laboral vinculada';
       container.className = 'personal-unlinked';
       container.innerHTML = `<div class="personal-unlinked-icon">RH</div><div><h3>Vinculación pendiente</h3><p>${escapeHtml(error.message)}</p><small>Tu acceso a las aplicaciones asignadas continúa disponible debajo.</small></div>`;
       return;
     }
+    setHomeStat('leave-stat', '—', 'RH no disponible', 'unavailable');
+    if (position) position.textContent = 'Información no disponible';
     container.className = 'notice error';
     container.textContent = error.message;
   }
@@ -219,6 +293,7 @@ async function loadAssetsDashboard() {
   if (!container) return;
   try {
     const { data: assets } = await api('/activos-api/api/activos-self/me');
+    setHomeStat('assets-stat', String(assets.length), assets.length === 1 ? 'Activo bajo tu resguardo' : 'Activos bajo tu resguardo', 'ok');
     container.className = 'personal-grid';
     if (!assets.length) {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><p class="personal-empty">Aún no tienes equipo asignado en MRTI Activos.</p></article>`;
@@ -227,6 +302,7 @@ async function loadAssetsDashboard() {
     const rows = assets.map((asset) => `<tr><td><strong>${escapeHtml(asset.cod_activo_fijo || asset.numero_serie || '—')}</strong><small>${escapeHtml(asset.descripcion || asset.tipo || '')}</small></td><td>${escapeHtml(asset.marca || '—')} ${escapeHtml(asset.modelo || '')}</td><td><span class="request-status ${asset.estado === 'Activo' ? 'approved' : 'pending'}">${escapeHtml(asset.estado || '—')}</span></td></tr>`).join('');
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Equipo</th><th>Marca/modelo</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div></article>`;
   } catch (error) {
+    setHomeStat('assets-stat', '—', 'Activos no disponible', 'unavailable');
     container.className = 'notice error';
     container.textContent = error.message;
   }
@@ -244,6 +320,8 @@ async function loadTicketsDashboard() {
   if (!container) return;
   try {
     const { data: tickets } = await api('/tickets-api/api/tickets-self/me');
+    const openTickets = tickets.filter((ticket) => TICKET_OPEN_STATUSES.includes(ticket.status_code)).length;
+    setHomeStat('requests-stat', String(openTickets), `${tickets.length} ${tickets.length === 1 ? 'solicitud total' : 'solicitudes totales'}`, openTickets ? 'attention' : 'ok');
     container.className = 'personal-grid';
     if (!tickets.length) {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
@@ -252,6 +330,7 @@ async function loadTicketsDashboard() {
     const rows = tickets.slice(0, 6).map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td></tr>`).join('');
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Prioridad</th><th>Estatus</th></tr></thead><tbody>${rows}</tbody></table></div><a class="personal-link" href="/tickets/">Ver todos en MRTI Tickets →</a></article>`;
   } catch (error) {
+    setHomeStat('requests-stat', '—', 'Solicitudes no disponible', 'unavailable');
     container.className = 'notice error';
     container.textContent = error.message;
   }
@@ -270,6 +349,13 @@ async function loadNotifications(profile) {
     api('/rh-api/api/rh-self/me/leave-requests'),
     api('/tickets-api/api/tickets-self/me'),
   ]);
+
+  if (leaveResult.status === 'rejected' && ticketsResult.status === 'rejected') {
+    setHomeStat('notifications-stat', '—', 'Novedades no disponibles', 'unavailable');
+    container.className = 'notice error';
+    container.textContent = 'No fue posible consultar las novedades en este momento.';
+    return;
+  }
 
   const items = [];
   if (leaveResult.status === 'fulfilled') {
@@ -298,6 +384,9 @@ async function loadNotifications(profile) {
   }
 
   container.className = 'personal-grid';
+  setHomeStat('notifications-stat', String(items.length), items.length === 1 ? 'Novedad reciente' : 'Novedades recientes', items.length ? 'attention' : 'ok');
+  const notificationDot = document.querySelector('#notification-dot');
+  if (notificationDot) notificationDot.hidden = items.length === 0;
   if (!items.length) {
     container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Novedades</p><h3>Notificaciones</h3></div></div><p class="personal-empty">Sin novedades por ahora.</p></article>`;
     return;
@@ -401,7 +490,7 @@ async function renderControlCenter(profile, flash = '') {
       <button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Administración</p><h1>Centro de control</h1>
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
-      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créelas en <a href="/mrti-infra/sites"><strong>MRTI Infra → Sitios</strong></a> y asigna un área a cada equipo del inventario.</div>'}
+      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI-Obs → Sitios</strong></a> y asigna un área a cada activo.</div>'}
       <div class="control-section"><h2>Crear usuario</h2><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="10" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" required></label>
@@ -414,10 +503,6 @@ async function renderControlCenter(profile, flash = '') {
       <div class="control-section"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div>
     </section>`);
     bindShell(profile);
-    const legacyLocationNotice = document.querySelector('.notice a[href="/mrti-infra/sites"]')?.parentElement;
-    if (legacyLocationNotice) {
-      legacyLocationNotice.innerHTML = 'Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-infra/sites"><strong>MRTI-Obs → Sitios</strong></a> y asigna un área a cada activo.';
-    }
     document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
     const filterUsers = () => {
       const term = document.querySelector('#user-search').value.trim().toLocaleLowerCase('es-MX');
@@ -507,11 +592,18 @@ async function renderControlCenter(profile, flash = '') {
 }
 
 function loginMarkup() {
-  return `<main class="core-login"><div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><section class="login-panel">
-    <div class="brand login-brand">${brandMarkup().replace('<a ', '<span ').replace('</a>', '</span>')}</div>
-    <p class="login-eyebrow">Acceso central</p><h1>Inicia sesión una sola vez.</h1><p class="login-copy">Tu sesión se comparte con todos los módulos autorizados.</p>
-    <form id="login-form" class="login-form"><label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label><label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label><div class="login-error" id="login-error" hidden></div><button class="login-button" type="submit">Iniciar sesión</button></form>
-    <p class="register-link">Las cuentas nuevas son creadas por un administrador.</p></section></main>`;
+  return `<main class="core-login"><section class="login-shell" aria-label="Acceso a MRTI">
+    <aside class="login-story"><div class="login-company"><img src="/company-logo.svg" alt="Emblema de Minera Río Tinto"><div><span>Minera Río Tinto</span><strong>MRTI</strong></div></div>
+      <div class="login-story-copy"><p class="login-eyebrow">Portal empresarial</p><h1>Tu entrada digital a la empresa.</h1><p>Solicita, consulta e infórmate desde un solo lugar, con acceso personalizado según tu función.</p></div>
+      <div class="login-story-footer"><span>${escapeHtml(longDate())}</span><small>Acceso interno protegido</small></div></aside>
+    <section class="login-panel"><div class="login-mobile-brand"><img src="/company-logo.svg" alt=""><span><strong>MRTI</strong><small>Minera Río Tinto</small></span></div>
+      <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para continuar al MRTI Home.</p>
+      <form id="login-form" class="login-form"><label>Correo o usuario<input name="email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="nombre@empresa.com" required></label>
+        <label>Contraseña<div class="password-field"><input name="password" id="login-password" type="password" autocomplete="current-password" required><button id="toggle-password" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div></label>
+        <div class="login-assistance" id="login-assistance" hidden>La recuperación todavía es administrada por Sistemas. Solicita el restablecimiento con el responsable de MRTI.</div>
+        <div class="login-error" id="login-error" role="alert" hidden></div><button class="login-button" type="submit">Iniciar sesión</button></form>
+      <div class="login-links"><button id="forgot-password" type="button">¿Olvidaste tu contraseña?</button><span>Las cuentas son creadas por un administrador.</span></div>
+    </section></section></main>`;
 }
 
 function requestedDestination() {
@@ -526,15 +618,26 @@ function requestedDestination() {
 function renderLogin(message = '') {
   app.innerHTML = loginMarkup();
   const form = document.querySelector('#login-form'); const errorElement = document.querySelector('#login-error');
+  const passwordInput = document.querySelector('#login-password');
+  const togglePassword = document.querySelector('#toggle-password');
+  const assistance = document.querySelector('#login-assistance');
   if (message) { errorElement.textContent = message; errorElement.hidden = false; }
+  togglePassword.addEventListener('click', () => {
+    const visible = passwordInput.type === 'text';
+    passwordInput.type = visible ? 'password' : 'text';
+    togglePassword.textContent = visible ? 'Mostrar' : 'Ocultar';
+    togglePassword.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+    togglePassword.setAttribute('aria-pressed', String(!visible));
+  });
+  document.querySelector('#forgot-password').addEventListener('click', () => { assistance.hidden = !assistance.hidden; });
   form.addEventListener('submit', async (event) => {
-    event.preventDefault(); const button = form.querySelector('button'); const data = new FormData(form); button.disabled = true; button.textContent = 'Ingresando…'; errorElement.hidden = true;
+    event.preventDefault(); const button = form.querySelector('.login-button'); const data = new FormData(form); button.disabled = true; button.setAttribute('aria-busy', 'true'); button.textContent = 'Validando acceso…'; errorElement.hidden = true;
     try {
       const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) });
       const body = await response.json(); if (!response.ok || !body.token) throw new Error(body.error || 'No se pudo iniciar sesión');
       localStorage.setItem('auth_token', body.token); localStorage.setItem('auth_profile', JSON.stringify(body.profile || {}));
       const destination = requestedDestination(); if (destination && destination !== '/') window.location.replace(destination); else renderPortal(body.profile);
-    } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.textContent = 'Iniciar sesión'; }
+    } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Iniciar sesión'; }
   });
 }
 
