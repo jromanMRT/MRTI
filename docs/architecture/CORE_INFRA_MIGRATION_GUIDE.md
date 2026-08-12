@@ -1,4 +1,4 @@
-# Guía operativa de evolución MRTI Core / MRTI Infra
+# Guía operativa de evolución MRTI Core / MRTI-Obs (antes MRTI Infra)
 
 Estado de la guía: activa  
 Fecha base: 2026-08-06  
@@ -14,7 +14,7 @@ El resultado deseado es:
 
 - **MRTI Core** es propietario de identidad, sesiones, usuarios, permisos,
   catálogo de módulos y experiencia personal del trabajador.
-- **MRTI Infra** administra infraestructura técnica, topología, monitoreo,
+- **MRTI-Obs** administra infraestructura técnica, topología, monitoreo,
   disponibilidad, mapas y alertas.
 - **MRTI Activos** administra el ciclo de vida patrimonial y operativo de los
   activos, asignaciones, garantías, mantenimiento y licencias.
@@ -23,7 +23,7 @@ El resultado deseado es:
 - **MRTI Agent** recolecta telemetría y ejecuta funciones autorizadas en equipos;
   no es propietario de usuarios ni de inventario patrimonial.
 
-La migración está terminada cuando Infra ya no contiene autenticación ni control
+La migración está terminada cuando MRTI-Obs ya no contiene autenticación ni control
 de acceso, no existen dos módulos editando el mismo dato maestro y todos los
 consumidores usan contratos versionados con pruebas.
 
@@ -59,10 +59,10 @@ consumidores usan contratos versionados con pruebas.
 | Dashboard personal y composición de widgets | Core | Trabajadores | Core compone; no duplica datos maestros |
 | Ficha laboral y `portal_user_id` | RH | Core | RH enlaza empleado con UUID de Core |
 | Departamentos y jefe laboral | RH | Core, Tickets | No confundir con ubicación física |
-| Sitios, edificios, pisos, áreas físicas y planos | Infra | Core, RH, Activos | Infra es dueño de la topología |
-| Monitores, estado de red, disponibilidad y alertas | Infra | Core, Agent | Infra almacena estado operacional |
-| Telemetría cruda y ejecución en endpoint | Agent | Infra | Infra consume eventos; Agent no asigna activos |
-| Activo, serie, compra, garantía y mantenimiento | Activos | Infra, Core, RH | Activos es el inventario maestro |
+| Sitios, edificios, pisos, áreas físicas y planos | MRTI-Obs | Core, RH, Activos | MRTI-Obs es dueño de la topología |
+| Monitores, estado de red, disponibilidad y alertas | MRTI-Obs | Core, Agent | MRTI-Obs almacena estado operacional |
+| Telemetría cruda y ejecución en endpoint | Agent | MRTI-Obs | MRTI-Obs consume eventos; Agent no asigna activos |
+| Activo, serie, compra, garantía y mantenimiento | Activos | MRTI-Obs, Core, RH | Activos es el inventario maestro |
 | Asignación patrimonial persona-activo | Activos | Core, RH, Tickets | Referencia `user_id` de Core |
 | Ticket, SLA, comentarios y estado | Tickets | Core, módulos | Core solo muestra el resumen personal |
 | Vacaciones, permisos, saldos y expediente | RH | Core | Core usa `/rh-self`; RH conserva administración |
@@ -70,9 +70,9 @@ consumidores usan contratos versionados con pruebas.
 ### Diferencias que deben respetarse
 
 - Un **departamento laboral** pertenece a RH.
-- Un **área física** pertenece a Infra.
+- Un **área física** pertenece a MRTI-Obs.
 - Un **activo patrimonial** pertenece a Activos.
-- Un **dispositivo monitoreado** pertenece a Infra y referencia, cuando aplique,
+- Un **dispositivo monitoreado** pertenece a MRTI-Obs y referencia, cuando aplique,
   el activo patrimonial mediante un identificador estable.
 - El **equipo habitual del usuario** debe derivarse de una asignación en Activos;
   Core puede mostrarlo, pero no debe mantener una segunda asignación maestra.
@@ -435,28 +435,60 @@ Rollback:
 - De la fase formal (cuando se ejecute): revertir el commit de limpieza;
   las tablas antiguas siguen disponibles.
 
-### Fase 6 — Frontera Infra / Activos
+### Fase 6 — Frontera MRTI-Obs / Activos
 
 Objetivo: eliminar duplicidad de inventario y asignaciones.
 
 Checklist:
 
-- [ ] Inventariar columnas y endpoints equivalentes en ambos módulos.
-- [ ] Clasificar cada campo como patrimonial, operacional o topológico.
-- [ ] Designar en Activos un ID estable para el activo.
-- [ ] Añadir en Infra una referencia opcional `asset_id` al dispositivo monitoreado.
-- [ ] Mover asignación persona-activo y equipo habitual a Activos.
-- [ ] Hacer que Core consulte el resumen mediante una API de autoservicio.
+- [x] Inventariar columnas y endpoints equivalentes en ambos módulos.
+- [x] Clasificar cada campo como patrimonial, operacional o topológico.
+- [x] Designar en Activos un ID estable para el activo (`asset_uid`).
+- [x] Añadir en MRTI-Obs una referencia opcional `asset_id` al dispositivo monitoreado.
+- [x] Mover asignación persona-activo y equipo habitual a Activos.
+- [x] Hacer que Core consulte el resumen mediante una API de autoservicio.
 - [ ] Conciliar registros huérfanos, duplicados y dispositivos no patrimoniales.
+
+Avance 2026-08-12: `MRTI-Activos@1ef90d8` agregó UUID patrimonial,
+historial de asignaciones, mantenimientos, retiro lógico y la vista operacional
+de solo lectura. `MRTI-Infra@06ea319` se presenta y ejecuta como MRTI-Obs,
+bloquea escrituras patrimoniales en `devices`, expone la consulta por
+`asset_id` y delega toda asignación a Activos. `MRTI@42cb7fc` usa el permiso
+`mrti-obs` con alias compatible `mrti-infra`, obtiene el equipo habitual desde
+Activos y conserva topología/estado desde MRTI-Obs.
+
+Las migraciones `002_asset_master.sql`, `010_asset_reference.sql` y
+`002_mrti_obs_module.sql` se aplicaron correctamente. Verificación de datos:
+263/263 activos tienen `asset_uid` único y ninguno nulo; existen 24 dispositivos
+de observabilidad y 0 enlaces automáticos. El ensayo de conciliación reportó
+`matched=0`, `ambiguous=0`, `unmatched=24`; no se forzaron coincidencias por
+nombre/modelo. La ficha de Activos permite vincular y desvincular manualmente
+esos dispositivos.
+
+Evidencia de ejecución: Core 10/10 contratos, MRTI-Obs 10/10 contratos
+(incluye `/api/obs/assets/unlinked/devices`), Activos 2/2 pruebas de
+conciliación; `npm run build` en los tres frontends y `npm run typecheck` en
+Obs; `npm audit --omit=dev` sin vulnerabilidades en las dos APIs modificadas;
+health checks 200 en puertos 3005/3002/3003, protecciones sin token 401,
+PM2 sin errores nuevos y smoke publicado por la ruta compatible
+`/mrti-infra/` → 200 con título MRTI-Obs. Los fixtures contractuales se
+eliminaron al finalizar. La activación Nginx de `/mrti-obs/` no se ejecutó
+porque `sudo` solicitó una terminal interactiva.
 
 Criterio de terminado:
 
 - Solo Activos puede modificar asignaciones y datos patrimoniales.
-- Solo Infra puede modificar estado de monitoreo y topología.
+- Solo MRTI-Obs puede modificar estado de monitoreo y topología.
 
 Rollback:
 
 - Mantener lecturas del modelo anterior mediante adaptador durante compatibilidad.
+- Revertir los tres commits de esta fase y reiniciar Core/Activos/Obs. Las
+  migraciones son sólo aditivas: no es necesario eliminar `asset_uid` ni
+  `asset_id` para recuperar el código anterior. Para recuperar el nombre PM2:
+  detener `mrti-obs-api`, iniciar el commit anterior como `mrti-infra-api` y
+  ejecutar `pm2 save`. Nginx conserva su respaldo en
+  `/etc/nginx/sites-available/it-infra.bak` cuando se ejecute `activate.sh`.
 
 ### Fase 7 — Dashboard personal extensible
 
@@ -556,7 +588,7 @@ Actualizar una fila solo con evidencia verificable.
 | 3. Base `mrti_core` | Completa | 2026-08-11 | Prerrequisito: `MRTI-Infra@16073b6` (`/api/self/*`), `MRTI@1d63093` (Core deja de hacer SQL directo contra `areas`/`devices`). Migración+copia+corte: `MRTI@f73ccd6` — conteos y checksums MD5 idénticos en las 3 tablas antes del corte; `MYSQL_DATABASE=mrti_core` en Core; verificado con usuario creado solo en `mrti_core` (login, `module-access/rh`, y tokens aceptados por RH/Tickets); `mrti_infra` conserva sus filas originales intactas, solo lectura. jroman creó `mrti_core`/otorgó permisos fuera de esta sesión (root) |
 | 4. Consumidores a Core | Completa | 2026-08-11 | `MRTI-RH@2077ad9`, `MRTI-Activos@f78508b` (`MRTI_CORE_URL` con fallback+warning en `auth.js`); `MRTI-Tickets@9442de3` (`docker-compose.yml` repuntado a `:3005`, timeouts y 503 en `coreClient.ts`/`auth.ts`, probado con contenedor descartable → 503 real); `MRTI-Infra@97a00e3` (rename `MRTI_CORE_URL`→`MRTI_MONITOR_URL` en `mrti.js`, prerrequisito para evitar el choque de nombres — ver §10); `MRTI-Agent@97720f5` (plantilla systemd) + corte real aplicado por jroman en `/etc/systemd/system/mrti-monitor.service` el 2026-08-11 (`daemon-reload`+`restart`), verificado con token real de Core: `module-access/agent-core` → 204, `GET /api/v1/agents` → 200 con datos reales. Los cinco consumidores (RH, Activos, Tickets, Agent, Core) validan contra Core |
 | 5. Limpiar identidad de Infra | En progreso | 2026-08-11 | Corrección urgente (no la fase formal): `MRTI-Infra@bed41ff` — `authRequired`/`socket.js` ya no leen la copia congelada de identidad, le preguntan a Core; de paso se corrigió un bug propio (fallback `MRTI_CORE_URL` en `mrti.js` apuntando mal) y se quitó `user_profiles` de `meta.js`. **Pendiente lo formal:** retirar el router `/api/auth` propio de Infra (sigue como respaldo de rollback de la Fase 4) y el frontend de administración de usuarios — requiere confirmar primero un período de tráfico cero |
-| 6. Frontera Infra/Activos | Pendiente | — | — |
+| 6. Frontera MRTI-Obs/Activos | En progreso | 2026-08-12 | Activos `1ef90d8`; MRTI-Obs (repo aún llamado `MRTI-Infra`) `06ea319`; Core `42cb7fc`. Migraciones aplicadas; Core 10/10, Obs 10/10, Activos 2/2; builds OK; PM2 `mrti-core-api`, `mrti-activos-api`, `mrti-obs-api` online; health checks 200. Pendiente: conciliar manualmente 24 dispositivos y aplicar Nginx con `sudo deploy/activate.sh` para activar `/mrti-obs/` (la ruta compatible `/mrti-infra/` continúa operativa) |
 | 7. Dashboard personal extensible | Completa | 2026-08-11 | Core `3d929ab`; RH `67455b5`; Activos `MRTI-Activos@f6db4c9`; Tickets `MRTI-Tickets@6ba7022`; widgets independientes `MRTI@8b5d289`; notificaciones consolidadas `MRTI@473a43f` |
 
 ## 10. Registro de decisiones
@@ -581,6 +613,7 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-08-11 | Se corrigió de inmediato (el mismo día, sin esperar a la Fase 5 formal) que `authRequired`/`socket.js` de Infra siguieran resolviendo `req.user` con SQL local contra la copia congelada de identidad | No era deuda técnica esperando su turno: era una regresión activa de la Fase 3 — cualquier usuario creado en Core después del corte de ayer no podía usar ninguna ruta real de Infra, y los cambios de rol/baja hechos en Core no se reflejaban ahí (riesgo de permisos desactualizados) | `MRTI-Infra@bed41ff`. Se dejó **sin tocar** el router `/api/auth` propio de Infra (login/administración de usuarios) y su `findProfile`/`signToken` locales — siguen siendo el respaldo de rollback de la Fase 4; desmontarlos es la Fase 5 real, pendiente de un período observado de tráfico cero |
 | 2026-08-11 | Se quitó el fallback a `MRTI_CORE_URL`/`MRTI_CORE_API_KEY*` en `mrti.js` (el proxy de telemetría a Monitor), dejando sólo `MRTI_MONITOR_*` | Al agregar `MRTI_CORE_URL` en el `.env` de Infra para la corrección de arriba, ese fallback (heredado del rename de la Fase 4) habría hecho que el proxy de Monitor apuntara por error al puerto de Core — se detectó por logs de error (`SyntaxError` al parsear HTML como JSON) segundos después de aplicar el cambio, ventana real de exposición menor a dos minutos | Mismo commit `MRTI-Infra@bed41ff`. `MRTI_MONITOR_API_KEY` ya estaba fijada en el `.env` real desde el rename de ayer, así que quitar el fallback no requirió ningún otro cambio de configuración |
 | 2026-08-11 | Notificaciones consolidadas (Fase 7) sin tabla ni estado de leído/no leído: se derivan al vuelo de `rh-self`/`tickets-self` en cada carga del dashboard — decisión explícita de jroman entre tres alcances propuestos | Con 3-4 usuarios reales, una bandeja de notificaciones persistente (tabla nueva + migración + endpoints de marcar-leído) era la opción de mayor esfuerzo para un beneficio que a esta escala no se nota; la guía solo exige "notificaciones consolidadas con enlaces", no un sistema de mensajería | Si la plataforma crece, esta v1 no distingue "ya lo vi" de "es nuevo" — solo muestra el estado actual cada vez; construir el estado persistente (segunda opción evaluada) sería el siguiente paso natural, no un rediseño |
+| 2026-08-12 | Renombrar funcionalmente MRTI Infra a **MRTI-Obs** y trasladar todo inventario/asignación patrimonial a MRTI Activos (decisión explícita de jroman; reemplaza la decisión de nombre del 2026-08-05) | "Infra" mezclaba inventario, identidad, organización y observabilidad. MRTI-Obs expresa el dominio restante: topología, red, disponibilidad, métricas y alertas | El permiso canónico es `mrti-obs`; `mrti-infra` permanece como alias. El proceso PM2 ya se llama `mrti-obs-api`; el directorio y base `MRTI-Infra`/`mrti_infra` se conservan por rollback. Inventario y asignaciones sólo se escriben en Activos. La ruta canónica `/mrti-obs/` queda pendiente de la recarga Nginx con privilegios; el build funciona también en la ruta anterior durante esa ventana |
 
 ## 11. Definición final de terminado
 
@@ -588,14 +621,13 @@ La iniciativa completa puede marcarse terminada únicamente cuando:
 
 - Core tiene backend, base y despliegue propios.
 - Core es el único emisor y administrador de identidad/permisos.
-- Infra no contiene handlers ni escrituras de autenticación.
+- MRTI-Obs no contiene handlers ni escrituras de autenticación.
 - Activos es el único propietario de inventario patrimonial y asignaciones.
-- Infra conserva únicamente topología, monitoreo y referencias externas.
-- RH, Activos, Tickets, Infra y Agent usan `MRTI_CORE_URL`.
+- MRTI-Obs conserva únicamente topología, monitoreo y referencias externas.
+- RH, Activos, Tickets, MRTI-Obs y Agent usan `MRTI_CORE_URL`.
 - Los contratos de autenticación y autoservicio están automatizados.
 - El dashboard personal degrada widgets individualmente.
 - No existen secretos, tablas antiguas o rutas de compatibilidad sin una fecha y
   responsable de retiro documentados.
 - Todos los repositorios involucrados están limpios y sus commits están
   registrados en esta guía.
-
