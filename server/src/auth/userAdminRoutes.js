@@ -6,6 +6,7 @@ import {
   authRequired, findProfile, normalizeProfile, PROFILE_COLUMNS, USER_MANAGERS, USER_ROLES,
 } from './shared.js';
 import { PASSWORD_MIN_LENGTH } from '../config/security.js';
+import { recordAudit } from '../audit.js';
 
 export const userAdminRouter = Router();
 
@@ -36,6 +37,7 @@ userAdminRouter.post('/users', authRequired, async (req, res, next) => {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, email, await bcrypt.hash(password, 10), fullName, role, areaId, req.body?.is_active !== false]
     );
+    await recordAudit({ req, action: 'user.created', entityType: 'user', entityId: id, metadata: { role, access_area_id: areaId, is_active: req.body?.is_active !== false } });
     res.status(201).json({ profile: await findProfile(id, req.headers.authorization) });
   } catch (err) {
     if (err?.code === 'ER_DUP_ENTRY') {
@@ -162,6 +164,7 @@ userAdminRouter.patch('/users/:id', authRequired, async (req, res, next) => {
       `UPDATE user_profiles SET ${columns.map((column) => `\`${column}\` = ?`).join(', ')} WHERE id = ?`,
       [...columns.map((column) => updates[column]), target.id]
     );
+    await recordAudit({ req, action: 'user.updated', entityType: 'user', entityId: target.id, metadata: { fields: columns } });
     res.json({ profile: await findProfile(target.id, req.headers.authorization) });
   } catch (err) {
     if (err?.code === 'ER_DUP_ENTRY') {

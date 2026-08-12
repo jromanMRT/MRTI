@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
 import { authRequired, findProfile } from './shared.js';
 import { PASSWORD_MIN_LENGTH } from '../config/security.js';
+import { recordAudit } from '../audit.js';
 
 export const profileRouter = Router();
 
@@ -25,6 +26,7 @@ profileRouter.patch('/profile', authRequired, async (req, res, next) => {
       'UPDATE user_profiles SET full_name = ?, email = ? WHERE id = ?',
       [fullName, email, req.user.id]
     );
+    await recordAudit({ req, action: 'profile.updated', entityType: 'user', entityId: req.user.id, metadata: { fields: ['full_name', 'email'] } });
     res.json({ profile: await findProfile(req.user.id, req.headers.authorization) });
   } catch (err) {
     if (err?.code === 'ER_DUP_ENTRY') {
@@ -60,6 +62,7 @@ profileRouter.patch('/profile/password', authRequired, async (req, res, next) =>
       'UPDATE user_profiles SET password_hash = ? WHERE id = ?',
       [passwordHash, req.user.id]
     );
+    await recordAudit({ req, action: 'profile.password_changed', entityType: 'user', entityId: req.user.id });
     res.json({ ok: true });
   } catch (err) {
     next(err);

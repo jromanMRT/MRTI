@@ -12,7 +12,7 @@ const LEGACY_MODULE_ALIASES = { 'mrti-infra': 'mrti-obs' };
 
 export function normalizeModuleCodes(moduleCodes = []) {
   return [...new Set(moduleCodes.map((code) => LEGACY_MODULE_ALIASES[code] || code))]
-    .filter((code) => MODULE_CODES.includes(code));
+    .filter((code) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(code));
 }
 
 export function normalizeProfile(profile) {
@@ -44,7 +44,8 @@ export async function findProfile(userId, authorizationHeader) {
   profile.physical_site_id = physicalArea?.site_id ?? null;
   profile.physical_site_name = physicalArea?.site_name ?? null;
   if (profile.role === 'administrator') {
-    profile.allowed_modules = [...MODULE_CODES];
+    const [applications] = await pool.query("SELECT code FROM applications WHERE status <> 'inactive' ORDER BY sort_order, name");
+    profile.allowed_modules = normalizeModuleCodes(applications.map(({ code }) => code));
     return profile;
   }
   const [modules] = await pool.query(

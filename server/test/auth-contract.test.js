@@ -49,6 +49,10 @@ before(async () => {
 });
 
 after(async () => {
+  await pool.query(
+    'DELETE FROM audit_events WHERE actor_user_id IN (?, ?) OR actor_email IN (?, ?)',
+    [viewer.id, admin.id, viewer.email, admin.email]
+  );
   await pool.query('DELETE FROM user_profiles WHERE id IN (?, ?)', [viewer.id, admin.id]);
   await pool.end();
 });

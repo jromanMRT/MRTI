@@ -668,6 +668,10 @@ main {
 .area-card input,
 .create-user-form input,
 .create-user-form select,
+.create-application-form input,
+.application-admin-card input,
+.application-admin-card select,
+.application-admin-card textarea,
 .user-editor input,
 .user-editor select,
 table select {
@@ -758,6 +762,24 @@ table select {
 .active-toggle { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: .74rem; white-space: nowrap; }
 .active-toggle input { width: auto; accent-color: var(--gold); }
 .area-card .secondary-button { justify-self: start; }
+.create-application-form,
+.application-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.create-application-form { margin-bottom: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-soft); }
+.create-application-form label,
+.application-admin-fields label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .75rem; font-weight: 650; }
+.create-application-form .application-wide,
+.application-admin-fields .application-wide { grid-column: 1 / -1; }
+.create-application-form .primary-button { align-self: end; }
+.application-admin-grid { display: grid; gap: 12px; }
+.application-admin-card { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+.application-admin-card .area-heading { justify-content: space-between; }
+.application-admin-card .secondary-button { justify-self: start; }
+.available.maintenance { color: #8a5a00; background: #fff1c7; }
+.unavailable-link { color: var(--ink-faint); cursor: not-allowed; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 13px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: .8rem; }

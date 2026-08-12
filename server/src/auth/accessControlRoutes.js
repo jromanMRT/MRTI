@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { authRequired, findProfile, MODULE_CODES } from './shared.js';
+import { authRequired, findProfile } from './shared.js';
+import { recordAudit } from '../audit.js';
 import { getPhysicalArea, listPhysicalAreas } from '../infraClient.js';
 import { listAssignableAssets, setPrimaryAsset } from '../assetsClient.js';
 
 export const accessControlRouter = Router();
 
-const MODULE_CATALOG = [
+const FALLBACK_MODULE_CATALOG = [
   { code: 'mrti-obs', name: 'MRTI-Obs' },
   { code: 'tickets', name: 'MRTI Tickets' },
   { code: 'agent-core', name: 'MRTI Agent Core' },
@@ -22,9 +23,22 @@ function administratorOnly(req, res, next) {
   return next();
 }
 
-function normalizedModules(value) {
+async function moduleCatalog() {
+  try {
+    const [rows] = await pool.query(
+      "SELECT code, name FROM applications WHERE status <> 'inactive' ORDER BY sort_order, name"
+    );
+    return rows.length ? rows : FALLBACK_MODULE_CATALOG;
+  } catch (error) {
+    if (error?.code === 'ER_NO_SUCH_TABLE') return FALLBACK_MODULE_CATALOG;
+    throw error;
+  }
+}
+
+async function normalizedModules(value) {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.map(String))].filter((code) => MODULE_CODES.includes(code));
+  const validCodes = new Set((await moduleCatalog()).map(({ code }) => code));
+  return [...new Set(value.map(String))].filter((code) => validCodes.has(code));
 }
 
 async function replaceAreaModules(connection, areaId, modules) {
@@ -65,7 +79,7 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
     ]);
     const physicalAreaNameById = new Map(physicalAreas.map((area) => [area.id, area.name]));
     res.json({
-      modules: MODULE_CATALOG,
+      modules: await moduleCatalog(),
       areas: areas.map((area) => ({
         ...area,
         is_active: Boolean(area.is_active),
@@ -126,6 +140,7 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
       if (deviceError.status) return res.status(deviceError.status).json({ error: deviceError.message });
       throw deviceError;
     }
+    await recordAudit({ req, action: 'user.location_changed', entityType: 'user', entityId: target.id, metadata: { physical_area_id: physicalAreaId, primary_asset_id: primaryDeviceId } });
     res.json({ profile: await findProfile(target.id, authorizationHeader) });
   } catch (error) {
     next(error);
@@ -135,21 +150,32 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
 accessControlRouter.get('/module-access/:moduleCode', authRequired, (req, res) => {
   const requestedCode = String(req.params.moduleCode || '');
   const moduleCode = requestedCode === 'mrti-infra' ? 'mrti-obs' : requestedCode;
-  if (!MODULE_CODES.includes(moduleCode)) return res.status(404).json({ error: 'Módulo no encontrado' });
-  if (req.user.role !== 'administrator' && !req.user.allowed_modules?.includes(moduleCode)) {
-    return res.status(403).json({ error: 'Tu área no tiene acceso a este módulo', code: 'MODULE_FORBIDDEN' });
-  }
-  return res.status(204).end();
+  pool.query("SELECT code FROM applications WHERE code = ? AND status <> 'inactive'", [moduleCode])
+    .then(([rows]) => {
+      if (!rows.length) return res.status(404).json({ error: 'Módulo no encontrado' });
+      if (req.user.role !== 'administrator' && !req.user.allowed_modules?.includes(moduleCode)) {
+        return res.status(403).json({ error: 'Tu área no tiene acceso a este módulo', code: 'MODULE_FORBIDDEN' });
+      }
+      return res.status(204).end();
+    })
+    .catch((error) => {
+      if (error?.code === 'ER_NO_SUCH_TABLE') {
+        if (!FALLBACK_MODULE_CATALOG.some(({ code }) => code === moduleCode)) return res.status(404).json({ error: 'Módulo no encontrado' });
+        if (req.user.role !== 'administrator' && !req.user.allowed_modules?.includes(moduleCode)) return res.status(403).json({ error: 'Tu área no tiene acceso a este módulo', code: 'MODULE_FORBIDDEN' });
+        return res.status(204).end();
+      }
+      return res.status(500).json({ error: 'No fue posible validar el módulo' });
+    });
 });
 
 accessControlRouter.post('/access-areas', authRequired, administratorOnly, async (req, res, next) => {
   const name = String(req.body?.name || '').trim();
   const description = String(req.body?.description || '').trim() || null;
-  const modules = normalizedModules(req.body?.module_codes);
+  const modules = await normalizedModules(req.body?.module_codes);
   if (name.length < 2 || name.length > 120) {
     return res.status(400).json({ error: 'El nombre del área debe tener entre 2 y 120 caracteres' });
   }
-  if (modules.length === MODULE_CODES.length) {
+  if (modules.length === (await moduleCatalog()).length) {
     return res.status(400).json({ error: 'Sólo los administradores pueden tener acceso a todos los módulos' });
   }
   const connection = await pool.getConnection();
@@ -162,6 +188,7 @@ accessControlRouter.post('/access-areas', authRequired, administratorOnly, async
     );
     await replaceAreaModules(connection, id, modules);
     await connection.commit();
+    await recordAudit({ req, action: 'access_area.created', entityType: 'access_area', entityId: id, metadata: { name, module_codes: modules } });
     res.status(201).json({ id });
   } catch (error) {
     await connection.rollback();
@@ -177,8 +204,10 @@ accessControlRouter.patch('/access-areas/:id', authRequired, administratorOnly, 
   try {
     const [[area]] = await connection.query('SELECT id FROM access_areas WHERE id = ?', [req.params.id]);
     if (!area) return res.status(404).json({ error: 'Área no encontrada' });
-    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'module_codes')
-      && normalizedModules(req.body.module_codes).length === MODULE_CODES.length) {
+    const requestedModules = Object.prototype.hasOwnProperty.call(req.body || {}, 'module_codes')
+      ? await normalizedModules(req.body.module_codes)
+      : null;
+    if (requestedModules && requestedModules.length === (await moduleCatalog()).length) {
       return res.status(400).json({ error: 'Sólo los administradores pueden tener acceso a todos los módulos' });
     }
 
@@ -204,9 +233,10 @@ accessControlRouter.patch('/access-areas/:id', authRequired, administratorOnly, 
       );
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'module_codes')) {
-      await replaceAreaModules(connection, req.params.id, normalizedModules(req.body.module_codes));
+      await replaceAreaModules(connection, req.params.id, requestedModules);
     }
     await connection.commit();
+    await recordAudit({ req, action: 'access_area.updated', entityType: 'access_area', entityId: req.params.id, metadata: { fields: [...columns, ...(requestedModules ? ['module_codes'] : [])] } });
     res.json({ success: true });
   } catch (error) {
     await connection.rollback();
@@ -227,6 +257,7 @@ accessControlRouter.patch('/users/:id/access-area', authRequired, administratorO
       if (!area) return res.status(400).json({ error: 'El área seleccionada no existe o está inactiva' });
     }
     await pool.query('UPDATE user_profiles SET access_area_id = ? WHERE id = ?', [areaId, target.id]);
+    await recordAudit({ req, action: 'user.access_area_changed', entityType: 'user', entityId: target.id, metadata: { access_area_id: areaId } });
     res.json({ profile: await findProfile(target.id) });
   } catch (error) {
     next(error);

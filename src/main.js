@@ -1,7 +1,7 @@
 import './style.css';
 
 const app = document.querySelector('#app');
-const MODULES = [
+const FALLBACK_MODULES = [
   {
     code: 'mrti-obs', title: 'MRTI-Obs', href: '/mrti-obs/',
     description: 'Observabilidad, topología, disponibilidad y alertas de la infraestructura tecnológica.',
@@ -28,6 +28,7 @@ const MODULES = [
     features: ['Directorio', 'Organigrama', 'Vacaciones'],
   },
 ];
+let portalApplications = [...FALLBACK_MODULES];
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -64,6 +65,22 @@ function isAdministrator(profile) {
 
 function canOpen(profile, moduleCode) {
   return isAdministrator(profile) || profile?.allowed_modules?.includes(moduleCode);
+}
+
+async function refreshApplications() {
+  try {
+    const { data } = await api('/api/portal/v1/applications');
+    portalApplications = data.map((application) => ({
+      ...application,
+      title: application.name,
+      href: application.url,
+      features: Array.isArray(application.features) ? application.features : [],
+    }));
+  } catch {
+    // Compatibilidad de despliegue: si la Etapa 2 aún no está disponible,
+    // el portal conserva el catálogo conocido en vez de quedar inutilizable.
+    portalApplications = [...FALLBACK_MODULES];
+  }
 }
 
 function roleName(role) {
@@ -133,7 +150,8 @@ function bindShell(profile) {
   document.querySelector('#notifications-button')?.addEventListener('click', () => document.querySelector('#notifications')?.scrollIntoView({ behavior: 'smooth' }));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
   document.querySelector('#control-button')?.addEventListener('click', () => renderControlCenter(profile));
-  document.querySelector('#logout-button')?.addEventListener('click', () => {
+  document.querySelector('#logout-button')?.addEventListener('click', async () => {
+    try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* cierre local garantizado */ }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_profile');
     window.history.replaceState({}, '', '/');
@@ -145,22 +163,23 @@ function cardMarkup(module) {
   const target = module.code === 'agent-core'
     ? `${module.href}#token=${encodeURIComponent(token() || '')}`
     : module.href;
+  const maintenance = module.status === 'maintenance';
   return `<article class="app-card" data-search="${escapeHtml(`${module.title} ${module.description} ${module.features.join(' ')}`.toLocaleLowerCase('es-MX'))}">
     <div class="card-glow" aria-hidden="true"></div>
     <div class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h7M7 17h4"/></svg></div>
-    <div class="card-copy"><div class="card-title-row"><h3>${module.title}</h3><span class="available">Disponible</span></div>
-      <p>${module.description}</p><ul>${module.features.map((item) => `<li>${item}</li>`).join('')}</ul></div>
-    <a class="open-app" href="${target}">Abrir aplicación <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <div class="card-copy"><div class="card-title-row"><h3>${escapeHtml(module.title)}</h3><span class="available${maintenance ? ' maintenance' : ''}">${maintenance ? 'Mantenimiento' : 'Disponible'}</span></div>
+      <p>${escapeHtml(module.description)}</p><ul>${module.features.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>
+    ${maintenance ? '<span class="open-app unavailable-link">Temporalmente no disponible</span>' : `<a class="open-app" href="${escapeHtml(target)}">Abrir aplicación <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>`}
   </article>`;
 }
 
 function renderPortal(profile) {
-  const available = MODULES.filter((module) => canOpen(profile, module.code));
+  const available = portalApplications.filter((module) => canOpen(profile, module.code));
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
-  const deniedModule = MODULES.find((module) => module.code === deniedCode);
+  const deniedModule = portalApplications.find((module) => module.code === deniedCode);
   window.history.replaceState({}, '', '/');
   const banner = deniedModule
-    ? `<div class="notice error">Tu área no tiene permiso para entrar a <strong>${deniedModule.title}</strong>. Si lo necesitas, solicítalo a un administrador.</div>`
+    ? `<div class="notice error">Tu área no tiene permiso para entrar a <strong>${escapeHtml(deniedModule.title)}</strong>. Si lo necesitas, solicítalo a un administrador.</div>`
     : '';
   const empty = `<div class="empty-state"><h3>Aún no tienes módulos asignados</h3><p>Un administrador debe asignarte un área desde el Centro de control.</p></div>`;
   const firstName = profile.full_name.split(' ')[0];
@@ -438,7 +457,11 @@ async function renderControlCenter(profile, flash = '') {
   app.innerHTML = shellMarkup(profile, '<section class="workspace-panel"><p>Cargando centro de control…</p></section>');
   bindShell(profile);
   try {
-    const data = await api('/api/auth/access-control');
+    const [data, applicationData, auditData] = await Promise.all([
+      api('/api/auth/access-control'),
+      api('/api/portal/v1/admin/applications'),
+      api('/api/portal/v1/admin/audit?limit=30'),
+    ]);
     const activeAreas = data.areas.filter((area) => area.is_active);
     const areaCards = data.areas.map((area) => `<form class="area-card" data-area-id="${area.id}">
       <div class="area-heading"><input class="area-name" name="name" value="${escapeHtml(area.name)}" required><label class="active-toggle"><input name="is_active" type="checkbox" ${area.is_active ? 'checked' : ''}> Activa</label></div>
@@ -486,6 +509,14 @@ async function renderControlCenter(profile, flash = '') {
         <span class="status-badge ${status}">${status === 'active' ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">⌄</span>
       </summary><div class="details-body"></div></details>`;
     }).join('');
+    const applicationStatusOptions = (selected = 'active') => [
+      ['active', 'Activa'], ['maintenance', 'Mantenimiento'], ['inactive', 'Inactiva'],
+    ].map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
+    const applicationCards = applicationData.data.map((application) => `<form class="application-admin-card" data-application-id="${application.id}">
+      <div class="area-heading"><strong>${escapeHtml(application.name)}</strong><span class="status-badge ${application.status === 'active' ? 'active' : 'inactive'}">${escapeHtml(application.status)}</span></div>
+      <div class="application-admin-fields"><label>Código<input name="code" value="${escapeHtml(application.code)}" readonly></label><label>Nombre<input name="name" value="${escapeHtml(application.name)}" required></label><label>Ruta interna<input name="url" value="${escapeHtml(application.url)}" required></label><label>Categoría<input name="category" value="${escapeHtml(application.category)}" required></label><label>Estado<select name="status">${applicationStatusOptions(application.status)}</select></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="${application.sort_order}" required></label><label class="application-wide">Descripción<textarea name="description" rows="2" required>${escapeHtml(application.description)}</textarea></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" value="${escapeHtml(application.features.join(', '))}"></label></div>
+      <button class="secondary-button" type="submit">Guardar aplicación</button></form>`).join('');
+    const auditRows = auditData.data.map((event) => `<tr><td>${escapeHtml(shortDate(event.created_at))}<small>${escapeHtml(new Date(event.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</small></td><td><strong>${escapeHtml(event.actor_email || 'Sistema')}</strong></td><td>${escapeHtml(event.action)}</td><td>${escapeHtml(event.entity_type)}${event.entity_id ? `<small>${escapeHtml(event.entity_id)}</small>` : ''}</td></tr>`).join('');
     app.innerHTML = shellMarkup(profile, `<section class="workspace-panel control-center">
       <button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Administración</p><h1>Centro de control</h1>
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
@@ -500,6 +531,10 @@ async function renderControlCenter(profile, flash = '') {
       </form><p class="field-help">El usuario deberá cambiar su contraseña temporal desde “Mi cuenta”.</p></div>
       <div class="control-section"><h2>Nueva área</h2><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></div>
       <div class="control-section"><h2>Áreas y módulos</h2><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div></div>
+      <div class="control-section"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span>${applicationData.data.length} registradas</span></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
+        <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
+        <div class="application-admin-grid">${applicationCards}</div></div>
+      <div class="control-section"><div class="users-heading"><div><h2>Auditoría reciente</h2><span>Últimos ${auditData.data.length} eventos</span></div></div><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th></tr></thead><tbody>${auditRows || '<tr><td colspan="4" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div></div>
       <div class="control-section"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div>
     </section>`);
     bindShell(profile);
@@ -585,6 +620,20 @@ async function renderControlCenter(profile, flash = '') {
       try { await api(`/api/auth/access-areas/${form.dataset.areaId}`, { method: 'PATCH', body: JSON.stringify({ name: values.get('name'), description: values.get('description'), is_active: values.get('is_active') === 'on', module_codes: [...form.querySelectorAll('.module-options input:checked')].map((item) => item.value) }) }); await renderControlCenter(profile, 'Área actualizada.'); }
       catch (error) { window.alert(error.message); }
     }));
+    const applicationPayload = (form) => {
+      const values = new FormData(form);
+      return { code: values.get('code'), name: values.get('name'), description: values.get('description'), url: values.get('url'), category: values.get('category'), status: values.get('status') || 'active', sort_order: Number(values.get('sort_order')), features: String(values.get('features') || '').split(',').map((item) => item.trim()).filter(Boolean) };
+    };
+    document.querySelector('#create-application').addEventListener('submit', async (event) => {
+      event.preventDefault(); const form = event.currentTarget;
+      try { await api('/api/portal/v1/admin/applications', { method: 'POST', body: JSON.stringify(applicationPayload(form)) }); await refreshApplications(); await renderControlCenter(profile, 'Aplicación registrada correctamente. Ya puedes asignarla a un área.'); }
+      catch (error) { window.alert(error.message); }
+    });
+    document.querySelectorAll('.application-admin-card').forEach((form) => form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try { const payload = applicationPayload(form); delete payload.code; await api(`/api/portal/v1/admin/applications/${form.dataset.applicationId}`, { method: 'PATCH', body: JSON.stringify(payload) }); await refreshApplications(); await renderControlCenter(profile, 'Aplicación actualizada correctamente.'); }
+      catch (error) { window.alert(error.message); }
+    }));
   } catch (error) {
     app.innerHTML = shellMarkup(profile, `<section class="workspace-panel"><div class="notice error">${escapeHtml(error.message)}</div><button class="back-button" id="back-portal">← Volver al portal</button></section>`);
     bindShell(profile); document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
@@ -636,6 +685,7 @@ function renderLogin(message = '') {
       const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) });
       const body = await response.json(); if (!response.ok || !body.token) throw new Error(body.error || 'No se pudo iniciar sesión');
       localStorage.setItem('auth_token', body.token); localStorage.setItem('auth_profile', JSON.stringify(body.profile || {}));
+      await refreshApplications();
       const destination = requestedDestination(); if (destination && destination !== '/') window.location.replace(destination); else renderPortal(body.profile);
     } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Iniciar sesión'; }
   });
@@ -645,9 +695,10 @@ async function initialize() {
   if (!token()) return renderLogin();
   try {
     const { profile } = await api('/api/auth/me'); localStorage.setItem('auth_profile', JSON.stringify(profile || {}));
+    await refreshApplications();
     const destination = requestedDestination();
     if (destination && destination !== '/') {
-      const destinationModule = MODULES.find((module) => destination.startsWith(module.href));
+      const destinationModule = portalApplications.find((module) => destination.startsWith(module.href));
       if (!destinationModule || canOpen(profile, destinationModule.code)) return window.location.replace(destination);
     }
     renderPortal(profile);
