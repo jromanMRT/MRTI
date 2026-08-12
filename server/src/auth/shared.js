@@ -7,16 +7,22 @@ const TOKEN_TTL = process.env.JWT_EXPIRES_IN || '7d';
 export const PROFILE_COLUMNS = 'id, user_number, email, full_name, role, access_area_id, physical_area_id, avatar_url, is_active, created_at, updated_at';
 export const USER_ROLES = ['administrator', 'supervisor', 'technician', 'viewer'];
 export const USER_MANAGERS = ['administrator', 'supervisor'];
-export const MODULE_CODES = ['mrti-infra', 'tickets', 'agent-core', 'activos', 'rh'];
+export const MODULE_CODES = ['mrti-obs', 'tickets', 'agent-core', 'activos', 'rh'];
+const LEGACY_MODULE_ALIASES = { 'mrti-infra': 'mrti-obs' };
+
+export function normalizeModuleCodes(moduleCodes = []) {
+  return [...new Set(moduleCodes.map((code) => LEGACY_MODULE_ALIASES[code] || code))]
+    .filter((code) => MODULE_CODES.includes(code));
+}
 
 export function normalizeProfile(profile) {
   return profile ? { ...profile, is_active: Boolean(profile.is_active) } : null;
 }
 
-// authorizationHeader es opcional: se reenvía a MRTI-Infra para resolver el
+// authorizationHeader es opcional: se reenvía a MRTI-Obs para resolver el
 // nombre del área física/piso/edificio/sitio (topología, propiedad de
-// Infra — ver Fase 3 de CORE_INFRA_MIGRATION_GUIDE.md). Sin ese header, o si
-// Infra no responde, esos campos quedan en null; nunca se rompe el perfil
+// módulo de observabilidad. Sin ese header, o si MRTI-Obs no responde, esos
+// campos quedan en null; nunca se rompe el perfil
 // por eso.
 export async function findProfile(userId, authorizationHeader) {
   const [rows] = await pool.query(
@@ -48,9 +54,9 @@ export async function findProfile(userId, authorizationHeader) {
       WHERE aam.area_id = ?`,
     [profile.access_area_id]
   );
-  profile.allowed_modules = modules
-    .map(({ module_code: moduleCode }) => moduleCode)
-    .filter((moduleCode) => MODULE_CODES.includes(moduleCode));
+  profile.allowed_modules = normalizeModuleCodes(
+    modules.map(({ module_code: moduleCode }) => moduleCode)
+  );
   return profile;
 }
 

@@ -100,7 +100,14 @@ test('GET /api/auth/module-access/:code — viewer sin área asignada => 403 MOD
 });
 
 test('GET /api/auth/module-access/:code — administrator => 204 (acceso total)', async () => {
-  const response = await fetch(`${BASE_URL}/api/auth/module-access/rh`, {
+  const response = await fetch(`${BASE_URL}/api/auth/module-access/mrti-obs`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(response.status, 204);
+});
+
+test('GET /api/auth/module-access/mrti-infra — alias heredado => 204', async () => {
+  const response = await fetch(`${BASE_URL}/api/auth/module-access/mrti-infra`, {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
   assert.equal(response.status, 204);

@@ -20,13 +20,13 @@ npm run build
 
 Nginx sirve `dist/` en la raíz `/` y centraliza los módulos:
 
-- **MRTI Infra:** `/mrti-infra/`
+- **MRTI-Obs:** `/mrti-obs/` (`/mrti-infra/` redirige durante compatibilidad)
 - **MRTI Tickets:** `/tickets/`
 - **MRTI Activos:** `/activos/`
 - **MRTI RH:** `/rh/`
 - **MRTI Agent Core:** redirección al puerto `8477`
 
-MRTI concentra el inicio y cierre de sesión. MRTI Infra y MRTI Tickets
+MRTI concentra el inicio y cierre de sesión. MRTI-Obs y MRTI Tickets
 comparten el token por estar publicados bajo el mismo origen; si se abre un
 módulo sin sesión, éste redirige a MRTI y conserva la ruta de retorno.
 

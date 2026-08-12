@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { authRequired, findProfile, MODULE_CODES } from './shared.js';
-import { getPhysicalArea, listPhysicalAreas, listDevices, setPrimaryDevice } from '../infraClient.js';
+import { getPhysicalArea, listPhysicalAreas } from '../infraClient.js';
+import { listAssignableAssets, setPrimaryAsset } from '../assetsClient.js';
 
 export const accessControlRouter = Router();
 
 const MODULE_CATALOG = [
-  { code: 'mrti-infra', name: 'MRTI Infra' },
+  { code: 'mrti-obs', name: 'MRTI-Obs' },
   { code: 'tickets', name: 'MRTI Tickets' },
   { code: 'agent-core', name: 'MRTI Agent Core' },
   { code: 'activos', name: 'MRTI Activos' },
@@ -53,14 +54,14 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
          LEFT JOIN access_areas a ON a.id = p.access_area_id
         ORDER BY p.user_number`
     );
-    // Topología física y dispositivos son de MRTI-Infra (Fase 3 de
+    // Topología física y dispositivos monitoreados son de MRTI-Obs (Fase 3 de
     // CORE_INFRA_MIGRATION_GUIDE.md): se piden por su API de autoservicio en
     // vez de por SQL directo. physical_area_name se resuelve en memoria para
     // no hacer una llamada HTTP por usuario.
     const authorizationHeader = req.headers.authorization;
     const [physicalAreas, devices] = await Promise.all([
       listPhysicalAreas(authorizationHeader),
-      listDevices({ authorizationHeader }),
+      listAssignableAssets(authorizationHeader),
     ]);
     const physicalAreaNameById = new Map(physicalAreas.map((area) => [area.id, area.name]));
     res.json({
@@ -99,7 +100,8 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
       if (!physicalAreaId) {
         return res.status(400).json({ error: 'El equipo habitual debe pertenecer al área física del usuario' });
       }
-      const areaDevices = await listDevices({ areaId: physicalAreaId, authorizationHeader });
+      const areaDevices = (await listAssignableAssets(authorizationHeader))
+        .filter((asset) => asset.area_id === physicalAreaId);
       const device = areaDevices.find((d) => d.id === primaryDeviceId);
       if (!device) {
         return res.status(400).json({ error: 'El equipo habitual no existe, está inactivo o no pertenece al área' });
@@ -111,16 +113,15 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
 
     await pool.query('UPDATE user_profiles SET physical_area_id = ? WHERE id = ?', [physicalAreaId, target.id]);
     try {
-      await setPrimaryDevice({
+      await setPrimaryAsset({
         userId: target.id,
-        deviceId: primaryDeviceId,
+        assetId: primaryDeviceId,
         userName: target.full_name,
         authorizationHeader,
       });
     } catch (deviceError) {
-      // El área (Core) y el equipo (Infra) ya no se pueden actualizar en una
-      // sola transacción al vivir en sistemas distintos: si Infra rechaza el
-      // equipo, se revierte el área para no dejar al usuario a medio mover.
+      // El área (Core) y el activo (Activos) viven en sistemas distintos: si
+      // Activos rechaza la asignación, se revierte el área en Core.
       await pool.query('UPDATE user_profiles SET physical_area_id = ? WHERE id = ?', [target.physical_area_id, target.id]);
       if (deviceError.status) return res.status(deviceError.status).json({ error: deviceError.message });
       throw deviceError;
@@ -132,7 +133,8 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
 });
 
 accessControlRouter.get('/module-access/:moduleCode', authRequired, (req, res) => {
-  const moduleCode = String(req.params.moduleCode || '');
+  const requestedCode = String(req.params.moduleCode || '');
+  const moduleCode = requestedCode === 'mrti-infra' ? 'mrti-obs' : requestedCode;
   if (!MODULE_CODES.includes(moduleCode)) return res.status(404).json({ error: 'Módulo no encontrado' });
   if (req.user.role !== 'administrator' && !req.user.allowed_modules?.includes(moduleCode)) {
     return res.status(403).json({ error: 'Tu área no tiene acceso a este módulo', code: 'MODULE_FORBIDDEN' });

@@ -3,9 +3,9 @@ import './style.css';
 const app = document.querySelector('#app');
 const MODULES = [
   {
-    code: 'mrti-infra', title: 'MRTI Infra', href: '/mrti-infra/',
-    description: 'Administración, inventario y monitoreo centralizado de la infraestructura tecnológica.',
-    features: ['Inventario', 'Monitoreo', 'Alertas'],
+    code: 'mrti-obs', title: 'MRTI-Obs', href: '/mrti-infra/',
+    description: 'Observabilidad, topología, disponibilidad y alertas de la infraestructura tecnológica.',
+    features: ['Monitoreo', 'Topología', 'Alertas'],
   },
   {
     code: 'tickets', title: 'MRTI Tickets', href: '/tickets/',
@@ -414,6 +414,10 @@ async function renderControlCenter(profile, flash = '') {
       <div class="control-section"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div>
     </section>`);
     bindShell(profile);
+    const legacyLocationNotice = document.querySelector('.notice a[href="/mrti-infra/sites"]')?.parentElement;
+    if (legacyLocationNotice) {
+      legacyLocationNotice.innerHTML = 'Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-infra/sites"><strong>MRTI-Obs → Sitios</strong></a> y asigna un área a cada activo.';
+    }
     document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
     const filterUsers = () => {
       const term = document.querySelector('#user-search').value.trim().toLocaleLowerCase('es-MX');

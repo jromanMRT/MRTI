@@ -1,4 +1,4 @@
-# Portal MRTI en / y MRTI Infra en /mrti-infra/.
+# Portal MRTI en / y MRTI-Obs en /mrti-obs/.
 server {
     listen 80;
     server_name _;
@@ -9,7 +9,7 @@ server {
     root /var/www/mrt/MRTI/MRTI/dist;
     index index.html;
 
-    # API y WebSocket de MRTI Infra.
+    # API y WebSocket de MRTI-Obs.
     location /socket.io/ {
         proxy_pass http://127.0.0.1:3002;
         proxy_http_version 1.1;
@@ -48,13 +48,23 @@ server {
     }
 
     location = /mrti-infra {
-        return 301 /mrti-infra/;
+        return 301 /mrti-obs/;
     }
 
-    # Aplicación de administración bajo su propia ruta.
+    # Compatibilidad para enlaces anteriores; se retirará al confirmar
+    # tráfico cero sobre /mrti-infra/.
     location ^~ /mrti-infra/ {
+        rewrite ^/mrti-infra/(.*)$ /mrti-obs/$1 permanent;
+    }
+
+    location = /mrti-obs {
+        return 301 /mrti-obs/;
+    }
+
+    # Aplicación canónica de observabilidad.
+    location ^~ /mrti-obs/ {
         alias /var/www/mrt/MRTI/MRTI-Infra/dist/;
-        try_files $uri $uri/ /mrti-infra/index.html;
+        try_files $uri $uri/ /mrti-obs/index.html;
     }
 
     # API de MRTI Activos. Mismo patrón que /tickets-api/.

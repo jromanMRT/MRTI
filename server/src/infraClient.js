@@ -1,13 +1,13 @@
-const MRTI_INFRA_URL = process.env.MRTI_INFRA_URL || 'http://127.0.0.1:3002';
+const MRTI_OBS_URL = process.env.MRTI_OBS_URL || process.env.MRTI_INFRA_URL || 'http://127.0.0.1:3002';
 const TIMEOUT_MS = 3000;
 
-// Autoservicio de MRTI-Infra (topología física y dispositivos) — Core ya no
+// Autoservicio de MRTI-Obs (topología física y dispositivos monitoreados) — Core ya no
 // consulta esas tablas por SQL directo (Fase 3 de CORE_INFRA_MIGRATION_GUIDE.md).
 // Las lecturas degradan a null/[] si Infra no responde: un módulo caído no
 // debe tumbar el login ni el resto del dashboard personal.
 
 async function fetchJson(path, { authorizationHeader, method = 'GET', body } = {}) {
-  const response = await fetch(`${MRTI_INFRA_URL}${path}`, {
+  const response = await fetch(`${MRTI_OBS_URL}${path}`, {
     method,
     headers: {
       ...(authorizationHeader ? { Authorization: authorizationHeader } : {}),
@@ -64,7 +64,7 @@ export async function setPrimaryDevice({ userId, deviceId, userName, authorizati
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(body.error || `MRTI Infra respondió ${response.status}`);
+    const error = new Error(body.error || `MRTI-Obs respondió ${response.status}`);
     error.status = response.status;
     throw error;
   }
