@@ -1,0 +1,72 @@
+# Compose de TRANSICIÓN — únicamente MRTI Core API (fase de contenerización,
+# ver MRTI/docs/architecture/CORE_INFRA_MIGRATION_GUIDE.md).
+#
+# Alcance: solo core-api. NO incluye MRTI-Obs, Activos, RH, Tickets, Monitor
+# ni MySQL — esos siguen en PM2/systemd/Docker propio, sin cambios.
+#
+# Uso previsto en esta fase: contenedor de PRUEBA en un puerto alterno,
+# mientras PM2 (mrti-core-api, puerto 3005) sigue siendo la producción real.
+# El corte definitivo (apagar PM2, publicar 3005 desde aquí) es un paso
+# aparte, documentado en MRTI/docs/architecture/CORE_DOCKER_CUTOVER.md, y
+# NO se ejecuta con este archivo tal cual.
+#
+# Red: USO TEMPORAL DE `network_mode: host` — decisión tomada durante la
+# verificación de esta misma fase, no la opción original.
+#
+# Se intentó primero bridge por defecto + `extra_hosts: host.docker.internal:
+# host-gateway`, publicando solo en 127.0.0.1. Se descartó porque MySQL en
+# este host tiene `bind-address = 127.0.0.1` (correcto y fuera de alcance
+# tocar — "MySQL debe permanecer sin cambios durante la primera fase"): un
+# contenedor en bridge llega al host por la IP del gateway del bridge
+# (ej. 172.17.0.1), no por 127.0.0.1, así que nunca hubiera alcanzado MySQL
+# sin relajar su bind-address, que es exactamente lo que no se debe hacer.
+#
+# Con `network_mode: host` el contenedor comparte el namespace de red del
+# host, así que `127.0.0.1:3306`/`:3002`/`:3003` dentro del proceso resuelven
+# igual que para PM2. Limitaciones conocidas, documentadas explícitamente:
+#   - `ports:` no aplica en este modo (Docker lo ignora) — el puerto real
+#     publicado es el que el proceso Node elige vía `PORT` en `.env.docker`.
+#   - El código actual (`src/index.js`) hace `app.listen(PORT, cb)` SIN
+#     bind address explícito, es decir escucha en `0.0.0.0`. En modo host
+#     eso significa que el puerto de prueba (3105) queda expuesto en TODAS
+#     las interfaces del host mientras el contenedor esté arriba, no solo en
+#     loopback — a diferencia de lo que lograba el enfoque bridge descartado.
+#     Mitigación aplicada: el contenedor de prueba se levanta solo durante la
+#     verificación activa y se detiene inmediatamente después (`docker
+#     compose -f docker-compose.core.yml down`); no se deja corriendo sin
+#     supervisión. No se pudo confirmar reglas de firewall del host en esta
+#     sesión (requiere root) para acotar el riesgo real de exposición externa.
+#   - No funciona igual fuera de Linux (Docker Desktop mapea distinto).
+#   - Solo debe usarse mientras MySQL/Obs/Activos sigan en 127.0.0.1 del host
+#     sin contenerizar. En cuanto Obs/Activos se contenericen, este servicio
+#     debe volver a una red bridge nombrada y resolver por nombre de servicio,
+#     no por host.docker.internal ni host networking.
+#   - Mejora fuera de alcance de esta sesión: añadir soporte explícito de
+#     `HOST`/bind address en `src/index.js` (ej. `app.listen(PORT, HOST, cb)`)
+#     para poder restringir a 127.0.0.1 incluso en host networking. No se
+#     modifica el código de Core en esta sesión — solo contenerización.
+
+services:
+  core-api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: mrti-core-api:local
+    container_name: mrti-core-api-docker-test
+    restart: unless-stopped
+    init: true # PID 1 = tini vía Compose; reenvía señales y evita procesos zombis.
+    network_mode: host
+    env_file:
+      - ./server/.env.docker
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
