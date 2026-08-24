@@ -91,6 +91,93 @@ function userIdentifier(userNumber) {
   return `USR-${String(userNumber || 0).padStart(6, '0')}`;
 }
 
+const THEME_KEY = 'mrti_theme';
+
+function preferredTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function currentTheme() {
+  return localStorage.getItem(THEME_KEY) || preferredTheme();
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.querySelector('#theme-toggle')?.setAttribute('aria-pressed', String(theme === 'dark'));
+}
+
+function bindThemeToggle() {
+  applyTheme(currentTheme());
+  document.querySelector('#theme-toggle')?.addEventListener('click', () => {
+    const next = currentTheme() === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+}
+
+function themeToggleMarkup() {
+  return `<button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar tema" aria-pressed="false">
+    <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+  </button>`;
+}
+
+function appMenuItemMarkup(module) {
+  const target = module.code === 'agent-core'
+    ? `${module.href}#token=${encodeURIComponent(token() || '')}`
+    : module.href;
+  const maintenance = module.status === 'maintenance';
+  return `<li class="app-menu-item" data-search="${escapeHtml(module.title.toLocaleLowerCase('es-MX'))}">
+    ${maintenance
+    ? `<span class="app-menu-link is-disabled"><span class="app-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h7M7 17h4"/></svg></span><span class="app-menu-text">${escapeHtml(module.title)}</span><span class="app-menu-status">Mantenimiento</span></span>`
+    : `<a class="app-menu-link" href="${escapeHtml(target)}"><span class="app-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h7M7 17h4"/></svg></span><span class="app-menu-text">${escapeHtml(module.title)}</span></a>`}
+  </li>`;
+}
+
+function appMenuMarkup(profile) {
+  const available = portalApplications.filter((module) => canOpen(profile, module.code));
+  return `<div class="app-menu">
+    <button class="primary-nav-link app-menu-trigger" id="applications-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="app-menu-panel">
+      Aplicaciones <svg class="app-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="app-menu-panel" id="app-menu-panel" hidden>
+      <div class="app-menu-search"><input id="app-menu-search-input" type="search" placeholder="Buscar aplicación…" aria-label="Buscar aplicación"></div>
+      <ul class="app-menu-list" id="app-menu-list">${available.length ? available.map(appMenuItemMarkup).join('') : '<li class="app-menu-empty">Aún no tienes módulos asignados.</li>'}</ul>
+    </div>
+  </div>`;
+}
+
+// Los listeners de cierre viven en `document` para toda la vida de la SPA
+// (una sola vez, aquí fuera de bindAppMenu) y resuelven el trigger/panel
+// vigentes en cada clic; así una nueva navegación no va acumulando
+// listeners duplicados en `document` en cada render del shell.
+function closeAppMenu() {
+  document.querySelector('#app-menu-panel')?.setAttribute('hidden', '');
+  document.querySelector('#applications-button')?.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', closeAppMenu);
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
+
+function bindAppMenu() {
+  const trigger = document.querySelector('#applications-button');
+  const panel = document.querySelector('#app-menu-panel');
+  const search = document.querySelector('#app-menu-search-input');
+  if (!trigger || !panel) return;
+  trigger.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const willOpen = panel.hidden;
+    closeAppMenu();
+    if (willOpen) { panel.hidden = false; trigger.setAttribute('aria-expanded', 'true'); search?.focus(); }
+  });
+  panel.addEventListener('click', (event) => event.stopPropagation());
+  search?.addEventListener('input', () => {
+    const term = search.value.trim().toLocaleLowerCase('es-MX');
+    document.querySelectorAll('#app-menu-list .app-menu-item').forEach((item) => {
+      item.hidden = Boolean(term) && !item.dataset.search.includes(term);
+    });
+  });
+}
+
 function brandMarkup() {
   return `<a class="brand" href="/" aria-label="Minera Río Tinto, inicio">
     <span class="brand-mark"><img src="/company-logo.svg" alt=""></span>
@@ -129,10 +216,12 @@ function shellMarkup(profile, content) {
       <nav class="primary-nav" aria-label="Navegación principal">
         <button class="primary-nav-link active" id="home-button" type="button">Inicio</button>
         ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new">Nueva solicitud</a><a class="primary-nav-link" href="/tickets/tickets">Mis solicitudes</a>' : ''}
-        <button class="primary-nav-link" id="applications-button" type="button">Aplicaciones</button>
       </nav>
       <div class="topbar-actions">
+        ${appMenuMarkup(profile)}
+        ${themeToggleMarkup()}
         <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-dot" id="notification-dot" hidden></span></button>
+        <button class="nav-button" id="brand-button" type="button">Recursos de marca</button>
         <button class="nav-button" id="account-button" type="button">Perfil</button>
         ${isAdministrator(profile) ? '<button class="nav-button" id="control-button" type="button">Centro de control</button>' : ''}
         <span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span>
@@ -145,9 +234,11 @@ function shellMarkup(profile, content) {
 }
 
 function bindShell(profile) {
+  bindThemeToggle();
+  bindAppMenu();
   document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile));
-  document.querySelector('#applications-button')?.addEventListener('click', () => document.querySelector('#applications')?.scrollIntoView({ behavior: 'smooth' }));
   document.querySelector('#notifications-button')?.addEventListener('click', () => document.querySelector('#notifications')?.scrollIntoView({ behavior: 'smooth' }));
+  document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
   document.querySelector('#control-button')?.addEventListener('click', () => renderControlCenter(profile));
   document.querySelector('#logout-button')?.addEventListener('click', async () => {
@@ -159,29 +250,13 @@ function bindShell(profile) {
   });
 }
 
-function cardMarkup(module) {
-  const target = module.code === 'agent-core'
-    ? `${module.href}#token=${encodeURIComponent(token() || '')}`
-    : module.href;
-  const maintenance = module.status === 'maintenance';
-  return `<article class="app-card" data-search="${escapeHtml(`${module.title} ${module.description} ${module.features.join(' ')}`.toLocaleLowerCase('es-MX'))}">
-    <div class="card-glow" aria-hidden="true"></div>
-    <div class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h7M7 17h4"/></svg></div>
-    <div class="card-copy"><div class="card-title-row"><h3>${escapeHtml(module.title)}</h3><span class="available${maintenance ? ' maintenance' : ''}">${maintenance ? 'Mantenimiento' : 'Disponible'}</span></div>
-      <p>${escapeHtml(module.description)}</p><ul>${module.features.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>
-    ${maintenance ? '<span class="open-app unavailable-link">Temporalmente no disponible</span>' : `<a class="open-app" href="${escapeHtml(target)}">Abrir aplicación <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>`}
-  </article>`;
-}
-
 function renderPortal(profile) {
-  const available = portalApplications.filter((module) => canOpen(profile, module.code));
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
   const deniedModule = portalApplications.find((module) => module.code === deniedCode);
   window.history.replaceState({}, '', '/');
   const banner = deniedModule
     ? `<div class="notice error">Tu área no tiene permiso para entrar a <strong>${escapeHtml(deniedModule.title)}</strong>. Si lo necesitas, solicítalo a un administrador.</div>`
     : '';
-  const empty = `<div class="empty-state"><h3>Aún no tienes módulos asignados</h3><p>Un administrador debe asignarte un área desde el Centro de control.</p></div>`;
   const firstName = profile.full_name.split(' ')[0];
   const location = [profile.physical_site_name, profile.physical_area_name].filter(Boolean).join(' · ') || 'Ubicación pendiente';
   const quickActions = [
@@ -201,36 +276,14 @@ function renderPortal(profile) {
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
       <div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>
-      <div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div></section>
-    <section class="applications" id="applications"><div class="section-heading"><div><p class="section-label">Aplicaciones</p><h2>Herramientas especializadas</h2><p class="panel-copy" style="margin:8px 0 0;">Úsalas cuando necesites funciones administrativas o técnicas avanzadas.</p></div><span class="app-count">${available.length} ${available.length === 1 ? 'aplicación' : 'aplicaciones'}</span></div>
-      <form class="application-search" id="application-search"><label for="application-search-input">Buscar en mis aplicaciones</label><div><input id="application-search-input" type="search" placeholder="Buscar por nombre o función…"><button type="submit">Buscar</button></div><small id="application-search-feedback"></small></form>
-      <div class="app-grid">${available.length ? available.map(cardMarkup).join('') : empty}</div></section>`);
+      <div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div></section>`);
   bindShell(profile);
-  bindPortalSearch();
   // Cada widget corre por separado: si Activos o Tickets no responden, el
   // dashboard de RH y el resto de la página no se ven afectados.
   void loadEmployeeDashboard(profile);
   void loadAssetsDashboard(profile);
   void loadTicketsDashboard(profile);
   void loadNotifications(profile);
-}
-
-function bindPortalSearch() {
-  const form = document.querySelector('#application-search');
-  const input = document.querySelector('#application-search-input');
-  const feedback = document.querySelector('#application-search-feedback');
-  if (!form || !input || !feedback) return;
-  const filter = () => {
-    const term = input.value.trim().toLocaleLowerCase('es-MX');
-    let visible = 0;
-    document.querySelectorAll('.app-card').forEach((card) => {
-      card.hidden = Boolean(term) && !card.dataset.search.includes(term);
-      if (!card.hidden) visible += 1;
-    });
-    feedback.textContent = term ? `${visible} ${visible === 1 ? 'resultado' : 'resultados'}` : '';
-  };
-  form.addEventListener('submit', (event) => { event.preventDefault(); filter(); });
-  input.addEventListener('input', filter);
 }
 
 const LEAVE_STATUS = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada', cancelled: 'Cancelada' };
@@ -446,6 +499,39 @@ function renderAccount(profile) {
       message.className = 'form-message error'; message.textContent = error.message; message.hidden = false;
     } finally { button.disabled = false; }
   });
+}
+
+// Catálogo de archivos de marca (logos y variantes). Solo hay uno hoy --
+// para agregar otro: sube el archivo a public/brand/ y añade su entrada
+// aquí (nombre, ruta, formato y una descripción de cuándo usarlo).
+const brandAssets = [
+  {
+    file: '/brand/logo-color.svg',
+    name: 'Logotipo — color',
+    format: 'SVG',
+    description: 'Versión principal a color, fondo transparente. Para documentos, firmas de correo y presentaciones sobre fondo claro.',
+  },
+];
+
+function renderBrandAssets(profile) {
+  const cards = brandAssets.map((asset) => `<article class="asset-card">
+    <div class="asset-preview"><img src="${asset.file}" alt="${escapeHtml(asset.name)}" loading="lazy"></div>
+    <div class="asset-info">
+      <p class="asset-name">${escapeHtml(asset.name)}<span class="asset-format">${asset.format}</span></p>
+      <p class="asset-description">${escapeHtml(asset.description)}</p>
+      <a class="asset-download" href="${asset.file}" download>Descargar</a>
+    </div>
+  </article>`).join('');
+
+  app.innerHTML = shellMarkup(profile, `<section class="workspace-panel">
+    <button class="back-button" id="back-portal" type="button">← Volver al portal</button>
+    <p class="section-label">Identidad de marca</p><h1>Recursos de marca</h1>
+    <p class="panel-copy">Logotipos oficiales de MRT Corporativo, siempre a la mano para documentos, presentaciones y cualquier material que lo necesite.</p>
+    <div class="asset-grid">${cards}</div>
+    <p class="panel-note">¿Necesitas otra variante (fondo oscuro, PNG, solo isotipo)? Pídesela a TI y se agrega aquí.</p>
+  </section>`);
+  bindShell(profile);
+  document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
 }
 
 function moduleChecks(modules, selected = []) {
