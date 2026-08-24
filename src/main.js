@@ -209,33 +209,71 @@ function setHomeStat(id, value, detail, state = '') {
 
 function shellMarkup(profile, content) {
   const ticketsAllowed = canOpen(profile, 'tickets');
-  return `<div class="page-shell">
+  const collapsed = localStorage.getItem('mrti_core_sidebar_collapsed') === '1';
+  return `<div class="page-shell${collapsed ? ' sidebar-collapsed' : ''}">
     <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
-    <header class="topbar">
-      ${brandMarkup()}
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Cerrar navegación" tabindex="-1"></button>
+    <aside class="portal-sidebar" id="portal-sidebar" aria-label="Navegación del portal">
+      <div class="sidebar-brand">${brandMarkup()}</div>
       <nav class="primary-nav" aria-label="Navegación principal">
-        <button class="primary-nav-link active" id="home-button" type="button">Inicio</button>
-        ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new">Nueva solicitud</a><a class="primary-nav-link" href="/tickets/tickets">Mis solicitudes</a>' : ''}
+        <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
+        ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nueva solicitud</span></a><a class="primary-nav-link" href="/tickets/tickets"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis solicitudes</span></a>' : ''}
       </nav>
-      <div class="topbar-actions">
+      <div class="sidebar-section">
+        <span class="sidebar-section-label">Espacio de trabajo</span>
         ${appMenuMarkup(profile)}
-        ${themeToggleMarkup()}
-        <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-dot" id="notification-dot" hidden></span></button>
-        <button class="nav-button" id="brand-button" type="button">Recursos de marca</button>
-        <button class="nav-button" id="account-button" type="button">Perfil</button>
-        ${isAdministrator(profile) ? '<button class="nav-button" id="control-button" type="button">Centro de control</button>' : ''}
-        <span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span>
-        <button class="logout-button" id="logout-button" type="button">Cerrar sesión</button>
+        <button class="nav-button" id="brand-button" type="button"><span class="nav-icon" aria-hidden="true">◆</span><span class="nav-label">Recursos de marca</span></button>
+        <button class="nav-button" id="account-button" type="button"><span class="nav-icon" aria-hidden="true">○</span><span class="nav-label">Perfil</span></button>
+        ${isAdministrator(profile) ? '<button class="nav-button" id="control-button" type="button"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Centro de control</span></button>' : ''}
       </div>
-    </header>
-    <main>${content}</main>
-    <footer><span>MRTI</span><span class="footer-separator"></span><span>La puerta de entrada digital de Minera Río Tinto</span><span class="copyright">© ${new Date().getFullYear()} MRTI</span></footer>
+      <div class="sidebar-footer">
+        ${themeToggleMarkup()}
+        <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral" title="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral">${collapsed ? '»' : '«'}</button>
+        <button class="logout-button" id="logout-button" type="button"><span class="nav-label">Cerrar sesión</span><span class="collapsed-only" aria-hidden="true">↪</span></button>
+      </div>
+    </aside>
+    <div class="portal-workspace">
+      <header class="topbar">
+        <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">☰</button>
+        <div class="mobile-brand">${brandMarkup()}</div>
+        <div class="topbar-context"><strong>Portal corporativo</strong><small>Inicio y autoservicio</small></div>
+        <div class="topbar-actions">
+          <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-dot" id="notification-dot" hidden></span></button>
+          <span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span>
+        </div>
+      </header>
+      <main>${content}</main>
+      <footer><span>MRTI</span><span class="footer-separator"></span><span>La puerta de entrada digital de Minera Río Tinto</span><span class="copyright">© ${new Date().getFullYear()} MRTI</span></footer>
+    </div>
   </div>`;
 }
 
 function bindShell(profile) {
   bindThemeToggle();
   bindAppMenu();
+  const shell = document.querySelector('.page-shell');
+  const mobileButton = document.querySelector('#mobile-menu-button');
+  const closeMobileMenu = () => {
+    shell?.classList.remove('sidebar-mobile-open');
+    mobileButton?.setAttribute('aria-expanded', 'false');
+  };
+  mobileButton?.addEventListener('click', () => {
+    const open = !shell?.classList.contains('sidebar-mobile-open');
+    shell?.classList.toggle('sidebar-mobile-open', open);
+    mobileButton.setAttribute('aria-expanded', String(open));
+  });
+  document.querySelector('#sidebar-backdrop')?.addEventListener('click', closeMobileMenu);
+  document.querySelector('#portal-sidebar')?.addEventListener('click', (event) => {
+    if (event.target.closest('a, button') && !event.target.closest('.app-menu-trigger')) closeMobileMenu();
+  });
+  document.querySelector('#sidebar-collapse')?.addEventListener('click', () => {
+    const collapsed = shell?.classList.toggle('sidebar-collapsed') || false;
+    localStorage.setItem('mrti_core_sidebar_collapsed', collapsed ? '1' : '0');
+    const button = document.querySelector('#sidebar-collapse');
+    button.textContent = collapsed ? '»' : '«';
+    button.setAttribute('aria-label', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
+    button.setAttribute('title', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
+  });
   document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile));
   document.querySelector('#notifications-button')?.addEventListener('click', () => document.querySelector('#notifications')?.scrollIntoView({ behavior: 'smooth' }));
   document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
