@@ -29,6 +29,11 @@ const FALLBACK_MODULES = [
   },
 ];
 let portalApplications = [...FALLBACK_MODULES];
+const DEFAULT_BRAND_APPEARANCE = {
+  portal_logo: { asset_id: null, content_url: '/company-logo.svg' },
+  login_background: { asset_id: null, content_url: null },
+};
+let brandAppearance = structuredClone(DEFAULT_BRAND_APPEARANCE);
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -81,6 +86,21 @@ async function refreshApplications() {
     // el portal conserva el catálogo conocido en vez de quedar inutilizable.
     portalApplications = [...FALLBACK_MODULES];
   }
+}
+
+async function refreshBrandAppearance() {
+  try {
+    const response = await fetch('/api/portal/v1/brand-appearance', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const { data } = await response.json();
+    brandAppearance = {
+      portal_logo: data.portal_logo?.content_url ? data.portal_logo : DEFAULT_BRAND_APPEARANCE.portal_logo,
+      login_background: data.login_background || DEFAULT_BRAND_APPEARANCE.login_background,
+    };
+  } catch {
+    brandAppearance = structuredClone(DEFAULT_BRAND_APPEARANCE);
+  }
+  return brandAppearance;
 }
 
 function roleName(role) {
@@ -180,7 +200,7 @@ function bindAppMenu() {
 
 function brandMarkup() {
   return `<a class="brand" href="/" aria-label="Minera Río Tinto, inicio">
-    <span class="brand-mark"><img src="/company-logo.svg" alt=""></span>
+    <span class="brand-mark"><img src="${escapeHtml(brandAppearance.portal_logo.content_url || '/company-logo.svg')}" alt=""></span>
     <span><strong>MRTI</strong><small>Minera Río Tinto</small></span>
   </a>`;
 }
@@ -575,25 +595,46 @@ async function renderBrandAssets(profile, flash = '') {
   bindShell(profile);
 
   try {
-    const { data } = await api('/api/portal/v1/brand-assets');
+    const [{ data }] = await Promise.all([
+      api('/api/portal/v1/brand-assets'),
+      refreshBrandAppearance(),
+    ]);
     const assets = await Promise.all(data.map(async (asset) => ({
       ...asset,
       objectUrl: await authenticatedImageUrl(asset.content_url),
     })));
-    const cards = assets.map((asset) => `<article class="asset-card">
+    const slotsByAsset = Object.entries(brandAppearance).reduce((index, [slot, appearance]) => {
+      if (appearance.asset_id) (index[appearance.asset_id] ||= []).push(slot);
+      return index;
+    }, {});
+    const slotLabels = { portal_logo: 'Logo del portal', login_background: 'Fondo del login' };
+    const cards = assets.map((asset) => {
+      const usages = slotsByAsset[asset.id] || [];
+      return `<article class="asset-card">
       <div class="asset-preview"><img src="${asset.objectUrl}" alt="${escapeHtml(asset.name)}" loading="lazy"></div>
       <div class="asset-info">
         <p class="asset-name">${escapeHtml(asset.name)}<span class="asset-format">${escapeHtml(asset.format)}</span></p>
+        ${usages.length ? `<div class="asset-usages">${usages.map((slot) => `<span>${escapeHtml(slotLabels[slot])}</span>`).join('')}</div>` : ''}
         <p class="asset-description">${escapeHtml(asset.description || 'Sin descripción.')}</p>
         <p class="asset-file-detail">${escapeHtml(asset.original_filename)} · ${readableFileSize(asset.file_size)}</p>
         <div class="asset-actions">
           <a class="asset-download" href="${asset.objectUrl}" download="${escapeHtml(asset.original_filename)}">Descargar</a>
-          ${isAdministrator(profile) ? `<button class="asset-remove" type="button" data-brand-remove="${asset.id}" data-brand-name="${escapeHtml(asset.name)}">Quitar</button>` : ''}
+          ${isAdministrator(profile) ? `<button class="asset-remove" type="button" data-brand-remove="${asset.id}" data-brand-name="${escapeHtml(asset.name)}" ${usages.length ? 'disabled title="Cambia primero el uso de esta imagen"' : ''}>${usages.length ? 'En uso' : 'Quitar'}</button>` : ''}
         </div>
       </div>
-    </article>`).join('');
+    </article>`;
+    }).join('');
 
-    const adminPanel = isAdministrator(profile) ? `<section class="brand-admin-panel" aria-labelledby="brand-upload-title">
+    const assetOptions = (selectedId) => `<option value="">Usar diseño predeterminado</option>${assets
+      .map((asset) => `<option value="${asset.id}" ${asset.id === selectedId ? 'selected' : ''}>${escapeHtml(`${asset.name} · ${asset.format}`)}</option>`).join('')}`;
+
+    const adminPanel = isAdministrator(profile) ? `<section class="brand-appearance-panel" aria-labelledby="brand-appearance-title">
+      <div class="brand-admin-heading"><div><p class="section-label">Uso en el sitio</p><h2 id="brand-appearance-title">Imágenes activas</h2></div><span>Selecciona cualquier archivo del catálogo</span></div>
+      <div class="brand-appearance-grid">
+        <form class="brand-appearance-form" data-brand-appearance="portal_logo"><label><strong>Logo del portal</strong><small>Se muestra en el menú, encabezado móvil y acceso.</small><select name="asset_id">${assetOptions(brandAppearance.portal_logo.asset_id)}</select></label><button class="secondary-button" type="submit">Aplicar logo</button></form>
+        <form class="brand-appearance-form" data-brand-appearance="login_background"><label><strong>Fondo del inicio de sesión</strong><small>Cubre el panel visual izquierdo; conviene usar una imagen horizontal.</small><select name="asset_id">${assetOptions(brandAppearance.login_background.asset_id)}</select></label><button class="secondary-button" type="submit">Aplicar fondo</button></form>
+      </div>
+    </section><section class="brand-admin-panel" aria-labelledby="brand-upload-title">
       <div class="brand-admin-heading"><div><p class="section-label">Administración</p><h2 id="brand-upload-title">Agregar un recurso</h2></div><span>SVG, PNG, JPG o WebP · máximo 10 MB</span></div>
       <form class="brand-upload-form" id="brand-upload-form">
         <label class="brand-dropzone" id="brand-dropzone" for="brand-file">
@@ -621,6 +662,23 @@ async function renderBrandAssets(profile, flash = '') {
     </section>`);
     bindShell(profile);
     document.querySelector('#back-portal').addEventListener('click', () => { clearBrandObjectUrls(); renderPortal(profile); });
+
+    document.querySelectorAll('[data-brand-appearance]').forEach((form) => form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        await api(`/api/portal/v1/admin/brand-appearance/${form.dataset.brandAppearance}`, {
+          method: 'PUT',
+          body: JSON.stringify({ asset_id: form.elements.asset_id.value || null }),
+        });
+        await refreshBrandAppearance();
+        await renderBrandAssets(profile, 'La imagen del sitio se actualizó correctamente.');
+      } catch (error) {
+        window.alert(error.message);
+        button.disabled = false;
+      }
+    }));
 
     document.querySelectorAll('[data-brand-remove]').forEach((button) => button.addEventListener('click', async () => {
       if (!window.confirm(`¿Quitar “${button.dataset.brandName}” de los recursos de marca?`)) return;
@@ -886,11 +944,13 @@ async function renderControlCenter(profile, flash = '') {
 }
 
 function loginMarkup() {
+  const logoUrl = brandAppearance.portal_logo.content_url || '/company-logo.svg';
+  const backgroundUrl = brandAppearance.login_background.content_url;
   return `<main class="core-login"><section class="login-shell" aria-label="Acceso a MRTI">
-    <aside class="login-story"><div class="login-company"><img src="/company-logo.svg" alt="Emblema de Minera Río Tinto"><div><span>Minera Río Tinto</span><strong>MRTI</strong></div></div>
+    <aside class="login-story${backgroundUrl ? ' has-custom-background' : ''}" ${backgroundUrl ? `style="--login-background-image: url('${escapeHtml(backgroundUrl)}')"` : ''}><div class="login-company"><img src="${escapeHtml(logoUrl)}" alt="Emblema de Minera Río Tinto"><div><span>Minera Río Tinto</span><strong>MRTI</strong></div></div>
       <div class="login-story-copy"><p class="login-eyebrow">Portal empresarial</p><h1>Tu entrada digital a la empresa.</h1><p>Solicita, consulta e infórmate desde un solo lugar, con acceso personalizado según tu función.</p></div>
       <div class="login-story-footer"><span>${escapeHtml(longDate())}</span><small>Acceso interno protegido</small></div></aside>
-    <section class="login-panel"><div class="login-mobile-brand"><img src="/company-logo.svg" alt=""><span><strong>MRTI</strong><small>Minera Río Tinto</small></span></div>
+    <section class="login-panel"><div class="login-mobile-brand"><img src="${escapeHtml(logoUrl)}" alt=""><span><strong>MRTI</strong><small>Minera Río Tinto</small></span></div>
       <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para continuar al MRTI Home.</p>
       <form id="login-form" class="login-form"><label>Correo o usuario<input name="email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="nombre@empresa.com" required></label>
         <label>Contraseña<div class="password-field"><input name="password" id="login-password" type="password" autocomplete="current-password" required><button id="toggle-password" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div></label>
@@ -937,6 +997,7 @@ function renderLogin(message = '') {
 }
 
 async function initialize() {
+  await refreshBrandAppearance();
   if (!token()) return renderLogin();
   try {
     const { profile } = await api('/api/auth/me'); localStorage.setItem('auth_profile', JSON.stringify(profile || {}));

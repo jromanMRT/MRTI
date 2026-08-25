@@ -510,6 +510,16 @@ a.app-menu-link:focus-visible { color: var(--gold-deep); background: var(--surfa
     linear-gradient(145deg, #3e2e17, #17120c);
 }
 
+.login-story.has-custom-background {
+  background-image:
+    linear-gradient(180deg, rgba(18, 14, 8, .3), rgba(18, 14, 8, .82)),
+    var(--login-background-image);
+  background-position: center;
+  background-size: cover;
+}
+
+.login-story.has-custom-background::after { display: none; }
+
 .login-story::after {
   position: absolute;
   z-index: -1;
@@ -846,8 +856,12 @@ main {
   color: var(--bad); background: transparent; cursor: pointer; font-size: .76rem; font-weight: 700;
 }
 .asset-remove:hover { border-color: var(--bad); background: var(--bad-bg); }
+.asset-remove:disabled { border-color: var(--line); color: var(--ink-faint); background: var(--surface-soft); cursor: not-allowed; }
+.asset-usages { display: flex; flex-wrap: wrap; gap: 5px; margin: -1px 0 9px; }
+.asset-usages span { padding: 3px 7px; border-radius: 999px; color: var(--good); background: var(--good-bg); font-size: .62rem; font-weight: 750; }
 .asset-info { display: flex; flex: 1; flex-direction: column; }
 .asset-info .asset-actions { margin-top: auto; }
+.brand-appearance-panel,
 .brand-admin-panel { margin: 0 0 30px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
 .brand-admin-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 17px; }
 .brand-admin-heading h2 { margin: 5px 0 0; color: var(--ink); font-size: 1.08rem; }
@@ -874,6 +888,13 @@ main {
 .brand-upload-fields input:focus,
 .brand-upload-fields textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 14%, transparent); }
 .brand-upload-fields .primary-button { justify-self: start; }
+.brand-appearance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.brand-appearance-form { display: grid; align-content: space-between; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.brand-appearance-form label { display: grid; gap: 6px; }
+.brand-appearance-form label strong { color: var(--ink); font-size: .86rem; }
+.brand-appearance-form label small { color: var(--ink-faint); font-size: .7rem; line-height: 1.45; }
+.brand-appearance-form select { width: 100%; margin-top: 5px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface-soft); outline: none; }
+.brand-appearance-form .secondary-button { justify-self: start; }
 .brand-flash { margin: -10px 0 22px; }
 .brand-empty { grid-column: 1 / -1; padding: 34px; border: 1px dashed var(--line); border-radius: 12px; color: var(--ink-faint); text-align: center; }
 .control-form { display: grid; gap: 17px; }
@@ -1143,6 +1164,7 @@ footer {
   .create-area-form .module-options { grid-column: 1; }
   .workspace-panel { padding: 23px; }
   .brand-upload-form { grid-template-columns: 1fr; }
+  .brand-appearance-grid { grid-template-columns: 1fr; }
   .brand-admin-heading { align-items: start; flex-direction: column; }
 }
 

@@ -43,6 +43,14 @@ ruta de recuperación. El archivo estático `public/brand/logo-color.svg` se
 mantiene temporalmente como respaldo de rollback, pero ya no alimenta el
 catálogo visible.
 
+Los administradores también pueden asignar desde esa pantalla cualquier
+recurso activo como **Logo del portal** o **Fondo del inicio de sesión**. Estas
+asignaciones viven en `mrti_core.brand_appearance` y se aplican sin editar ni
+reconstruir código. El endpoint público de apariencia sólo expone los dos
+archivos que el sitio necesita antes de iniciar sesión; el catálogo completo
+permanece protegido. No se permite quitar un archivo mientras esté asignado a
+un uso del sitio.
+
 La configuración conjunta para este servidor está en
 `deploy/nginx.conf.example`. El activador conserva un respaldo y restaura la
 configuración anterior automáticamente si Nginx no la acepta:

@@ -12,6 +12,10 @@ const ALLOWED_IMAGES = new Map([
   ['image/webp', { extension: '.webp', format: 'WEBP' }],
   ['image/svg+xml', { extension: '.svg', format: 'SVG' }],
 ]);
+const APPEARANCE_SLOTS = new Map([
+  ['portal_logo', 'Logo del portal'],
+  ['login_background', 'Fondo del inicio de sesión'],
+]);
 
 export const brandAssetRouter = Router();
 
@@ -79,6 +83,60 @@ function serializeAsset(row) {
   };
 }
 
+function sendAssetContent(res, asset, { disposition = 'inline', cacheControl = 'private, max-age=300' } = {}) {
+  const asciiName = asset.original_filename.replace(/[^A-Za-z0-9._-]/g, '_');
+  res.set({
+    'Content-Type': asset.mime_type,
+    'Content-Length': String(asset.file_size),
+    'Content-Disposition': `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(asset.original_filename)}`,
+    'Cache-Control': cacheControl,
+    ETag: `"${asset.checksum_sha256}"`,
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.send(asset.content);
+}
+
+brandAssetRouter.get('/brand-appearance', async (_req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT appearance.slot, appearance.asset_id, assets.name, assets.mime_type
+         FROM brand_appearance appearance
+         LEFT JOIN brand_assets assets
+           ON assets.id = appearance.asset_id AND assets.archived_at IS NULL
+        ORDER BY appearance.slot`
+    );
+    const data = Object.fromEntries([...APPEARANCE_SLOTS].map(([slot, label]) => {
+      const row = rows.find((item) => item.slot === slot && item.name);
+      return [slot, {
+        label,
+        asset_id: row?.asset_id || null,
+        asset_name: row?.name || null,
+        content_url: row ? `/api/portal/v1/brand-appearance/${slot}/content` : null,
+      }];
+    }));
+    res.set('Cache-Control', 'no-store').json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+brandAssetRouter.get('/brand-appearance/:slot/content', async (req, res, next) => {
+  try {
+    if (!APPEARANCE_SLOTS.has(req.params.slot)) return res.status(404).json({ error: 'Uso de marca no encontrado' });
+    const [[asset]] = await pool.query(
+      `SELECT assets.original_filename, assets.mime_type, assets.file_size, assets.checksum_sha256, assets.content
+         FROM brand_appearance appearance
+         JOIN brand_assets assets ON assets.id = appearance.asset_id AND assets.archived_at IS NULL
+        WHERE appearance.slot = ?`,
+      [req.params.slot]
+    );
+    if (!asset) return res.status(404).json({ error: 'No hay una imagen asignada' });
+    sendAssetContent(res, asset, { cacheControl: 'public, no-cache' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 brandAssetRouter.get('/brand-assets', authRequired, async (_req, res, next) => {
   try {
     const [rows] = await pool.query(
@@ -99,17 +157,8 @@ brandAssetRouter.get('/brand-assets/:id/content', authRequired, async (req, res,
       [req.params.id]
     );
     if (!asset) return res.status(404).json({ error: 'Recurso de marca no encontrado' });
-    const asciiName = asset.original_filename.replace(/[^A-Za-z0-9._-]/g, '_');
     const disposition = req.query.download === '1' ? 'attachment' : 'inline';
-    res.set({
-      'Content-Type': asset.mime_type,
-      'Content-Length': String(asset.file_size),
-      'Content-Disposition': `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(asset.original_filename)}`,
-      'Cache-Control': 'private, max-age=300',
-      ETag: `"${asset.checksum_sha256}"`,
-      'X-Content-Type-Options': 'nosniff',
-    });
-    res.send(asset.content);
+    sendAssetContent(res, asset, { disposition });
   } catch (error) {
     next(error);
   }
@@ -154,6 +203,34 @@ brandAssetRouter.post(
   }
 );
 
+brandAssetRouter.put('/admin/brand-appearance/:slot', authRequired, administratorOnly, async (req, res, next) => {
+  try {
+    const { slot } = req.params;
+    if (!APPEARANCE_SLOTS.has(slot)) return res.status(404).json({ error: 'Uso de marca no encontrado' });
+    const assetId = req.body?.asset_id ? String(req.body.asset_id) : null;
+    if (assetId) {
+      const [[asset]] = await pool.query('SELECT id FROM brand_assets WHERE id = ? AND archived_at IS NULL', [assetId]);
+      if (!asset) return res.status(400).json({ error: 'Selecciona un recurso de marca activo' });
+    }
+    await pool.query(
+      `INSERT INTO brand_appearance (slot, asset_id, updated_by_user_id)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE asset_id = VALUES(asset_id), updated_by_user_id = VALUES(updated_by_user_id)`,
+      [slot, assetId, req.user.id]
+    );
+    await recordAudit({
+      req,
+      action: 'brand_appearance.updated',
+      entityType: 'brand_appearance',
+      entityId: slot,
+      metadata: { asset_id: assetId },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 brandAssetRouter.delete('/admin/brand-assets/:id', authRequired, administratorOnly, async (req, res, next) => {
   try {
     const [[asset]] = await pool.query(
@@ -161,6 +238,8 @@ brandAssetRouter.delete('/admin/brand-assets/:id', authRequired, administratorOn
       [req.params.id]
     );
     if (!asset) return res.status(404).json({ error: 'Recurso de marca no encontrado' });
+    const [[usage]] = await pool.query('SELECT slot FROM brand_appearance WHERE asset_id = ? LIMIT 1', [asset.id]);
+    if (usage) return res.status(409).json({ error: 'Este recurso está en uso. Asigna otra imagen o restaura el valor predeterminado antes de quitarlo' });
     await pool.query(
       'UPDATE brand_assets SET archived_at = CURRENT_TIMESTAMP, archived_by_user_id = ? WHERE id = ?',
       [req.user.id, asset.id]

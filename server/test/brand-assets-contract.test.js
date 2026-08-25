@@ -52,11 +52,25 @@ test('catálogo de marca requiere sesión', async () => {
   assert.equal(response.status, 401);
 });
 
+test('apariencia pública sólo expone los usos configurados', async () => {
+  const response = await fetch(`${BASE_URL}/api/portal/v1/brand-appearance`);
+  assert.equal(response.status, 200);
+  const { data } = await response.json();
+  assert.ok(Object.hasOwn(data, 'portal_logo'));
+  assert.ok(Object.hasOwn(data, 'login_background'));
+  assert.equal(Object.keys(data).length, 2);
+});
+
 test('un usuario normal no puede subir imágenes', async () => {
   const response = await request('/api/portal/v1/admin/brand-assets?name=No%20permitido&filename=test.png', viewerToken, {
     method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png,
   });
   assert.equal(response.status, 403);
+
+  const appearance = await request('/api/portal/v1/admin/brand-appearance/login_background', viewerToken, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: null }),
+  });
+  assert.equal(appearance.status, 403);
 });
 
 test('administrador sube, consulta y quita un recurso persistido', async () => {
@@ -76,8 +90,22 @@ test('administrador sube, consulta y quita un recurso persistido', async () => {
   assert.equal(content.headers.get('content-type'), 'image/png');
   assert.deepEqual(Buffer.from(await content.arrayBuffer()), png);
 
+  const assigned = await request('/api/portal/v1/admin/brand-appearance/login_background', adminToken, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: assetId }),
+  });
+  assert.equal(assigned.status, 200);
+  const publicContent = await fetch(`${BASE_URL}/api/portal/v1/brand-appearance/login_background/content`);
+  assert.equal(publicContent.status, 200);
+  assert.deepEqual(Buffer.from(await publicContent.arrayBuffer()), png);
+
   const forbiddenDelete = await request(`/api/portal/v1/admin/brand-assets/${assetId}`, viewerToken, { method: 'DELETE' });
   assert.equal(forbiddenDelete.status, 403);
+  const usedDelete = await request(`/api/portal/v1/admin/brand-assets/${assetId}`, adminToken, { method: 'DELETE' });
+  assert.equal(usedDelete.status, 409);
+  const restored = await request('/api/portal/v1/admin/brand-appearance/login_background', adminToken, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: null }),
+  });
+  assert.equal(restored.status, 200);
   const removed = await request(`/api/portal/v1/admin/brand-assets/${assetId}`, adminToken, { method: 'DELETE' });
   assert.equal(removed.status, 200);
   const hiddenContent = await request(`/api/portal/v1/brand-assets/${assetId}/content`, adminToken);
