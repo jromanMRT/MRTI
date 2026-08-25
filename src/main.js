@@ -539,37 +539,158 @@ function renderAccount(profile) {
   });
 }
 
-// Catálogo de archivos de marca (logos y variantes). Solo hay uno hoy --
-// para agregar otro: sube el archivo a public/brand/ y añade su entrada
-// aquí (nombre, ruta, formato y una descripción de cuándo usarlo).
-const brandAssets = [
-  {
-    file: '/brand/logo-color.svg',
-    name: 'Logotipo — color',
-    format: 'SVG',
-    description: 'Versión principal a color, fondo transparente. Para documentos, firmas de correo y presentaciones sobre fondo claro.',
-  },
-];
+let brandObjectUrls = [];
 
-function renderBrandAssets(profile) {
-  const cards = brandAssets.map((asset) => `<article class="asset-card">
-    <div class="asset-preview"><img src="${asset.file}" alt="${escapeHtml(asset.name)}" loading="lazy"></div>
-    <div class="asset-info">
-      <p class="asset-name">${escapeHtml(asset.name)}<span class="asset-format">${asset.format}</span></p>
-      <p class="asset-description">${escapeHtml(asset.description)}</p>
-      <a class="asset-download" href="${asset.file}" download>Descargar</a>
-    </div>
-  </article>`).join('');
+function clearBrandObjectUrls() {
+  brandObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  brandObjectUrls = [];
+}
 
-  app.innerHTML = shellMarkup(profile, `<section class="workspace-panel">
-    <button class="back-button" id="back-portal" type="button">← Volver al portal</button>
-    <p class="section-label">Identidad de marca</p><h1>Recursos de marca</h1>
-    <p class="panel-copy">Logotipos oficiales de MRT Corporativo, siempre a la mano para documentos, presentaciones y cualquier material que lo necesite.</p>
-    <div class="asset-grid">${cards}</div>
-    <p class="panel-note">¿Necesitas otra variante (fondo oscuro, PNG, solo isotipo)? Pídesela a TI y se agrega aquí.</p>
-  </section>`);
+function readableFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function imageMimeType(file) {
+  if (file.type) return file.type;
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  return ({ svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' })[extension] || '';
+}
+
+async function authenticatedImageUrl(path) {
+  const response = await fetch(path, { headers: { Authorization: `Bearer ${token()}` } });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `No fue posible cargar la imagen (${response.status})`);
+  }
+  const objectUrl = URL.createObjectURL(await response.blob());
+  brandObjectUrls.push(objectUrl);
+  return objectUrl;
+}
+
+async function renderBrandAssets(profile, flash = '') {
+  clearBrandObjectUrls();
+  app.innerHTML = shellMarkup(profile, '<section class="workspace-panel"><p>Cargando recursos de marca…</p></section>');
   bindShell(profile);
-  document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
+
+  try {
+    const { data } = await api('/api/portal/v1/brand-assets');
+    const assets = await Promise.all(data.map(async (asset) => ({
+      ...asset,
+      objectUrl: await authenticatedImageUrl(asset.content_url),
+    })));
+    const cards = assets.map((asset) => `<article class="asset-card">
+      <div class="asset-preview"><img src="${asset.objectUrl}" alt="${escapeHtml(asset.name)}" loading="lazy"></div>
+      <div class="asset-info">
+        <p class="asset-name">${escapeHtml(asset.name)}<span class="asset-format">${escapeHtml(asset.format)}</span></p>
+        <p class="asset-description">${escapeHtml(asset.description || 'Sin descripción.')}</p>
+        <p class="asset-file-detail">${escapeHtml(asset.original_filename)} · ${readableFileSize(asset.file_size)}</p>
+        <div class="asset-actions">
+          <a class="asset-download" href="${asset.objectUrl}" download="${escapeHtml(asset.original_filename)}">Descargar</a>
+          ${isAdministrator(profile) ? `<button class="asset-remove" type="button" data-brand-remove="${asset.id}" data-brand-name="${escapeHtml(asset.name)}">Quitar</button>` : ''}
+        </div>
+      </div>
+    </article>`).join('');
+
+    const adminPanel = isAdministrator(profile) ? `<section class="brand-admin-panel" aria-labelledby="brand-upload-title">
+      <div class="brand-admin-heading"><div><p class="section-label">Administración</p><h2 id="brand-upload-title">Agregar un recurso</h2></div><span>SVG, PNG, JPG o WebP · máximo 10 MB</span></div>
+      <form class="brand-upload-form" id="brand-upload-form">
+        <label class="brand-dropzone" id="brand-dropzone" for="brand-file">
+          <input id="brand-file" name="file" type="file" accept=".svg,.png,.jpg,.jpeg,.webp,image/svg+xml,image/png,image/jpeg,image/webp">
+          <strong>Arrastra aquí la imagen</strong><span>o haz clic para seleccionarla</span>
+          <small id="brand-file-name">Ningún archivo seleccionado</small>
+        </label>
+        <div class="brand-upload-fields">
+          <label>Nombre visible<input name="name" maxlength="120" placeholder="Ej. Logotipo blanco" required></label>
+          <label>Descripción<textarea name="description" maxlength="500" rows="3" placeholder="Indica dónde y cómo debe utilizarse"></textarea></label>
+          <div class="form-message" id="brand-upload-message" hidden></div>
+          <button class="primary-button" type="submit">Guardar recurso</button>
+        </div>
+      </form>
+    </section>` : '';
+
+    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel">
+      <button class="back-button" id="back-portal" type="button">← Volver al portal</button>
+      <p class="section-label">Identidad de marca</p><h1>Recursos de marca</h1>
+      <p class="panel-copy">Logotipos e imágenes oficiales disponibles para documentos, presentaciones y materiales corporativos.</p>
+      ${flash ? `<div class="form-message success brand-flash">${escapeHtml(flash)}</div>` : ''}
+      ${adminPanel}
+      <div class="asset-grid">${cards || '<p class="brand-empty">Aún no hay recursos de marca disponibles.</p>'}</div>
+      ${isAdministrator(profile) ? '<p class="panel-note">Quitar un recurso lo oculta de inmediato, pero conserva su historial para recuperación y auditoría.</p>' : ''}
+    </section>`);
+    bindShell(profile);
+    document.querySelector('#back-portal').addEventListener('click', () => { clearBrandObjectUrls(); renderPortal(profile); });
+
+    document.querySelectorAll('[data-brand-remove]').forEach((button) => button.addEventListener('click', async () => {
+      if (!window.confirm(`¿Quitar “${button.dataset.brandName}” de los recursos de marca?`)) return;
+      button.disabled = true;
+      try {
+        await api(`/api/portal/v1/admin/brand-assets/${button.dataset.brandRemove}`, { method: 'DELETE' });
+        await renderBrandAssets(profile, 'El recurso se quitó correctamente.');
+      } catch (error) {
+        window.alert(error.message);
+        button.disabled = false;
+      }
+    }));
+
+    const form = document.querySelector('#brand-upload-form');
+    if (!form) return;
+    const input = document.querySelector('#brand-file');
+    const dropzone = document.querySelector('#brand-dropzone');
+    const fileName = document.querySelector('#brand-file-name');
+    const message = document.querySelector('#brand-upload-message');
+    let selectedFile = null;
+
+    function selectFile(file) {
+      selectedFile = file || null;
+      fileName.textContent = selectedFile ? `${selectedFile.name} · ${readableFileSize(selectedFile.size)}` : 'Ningún archivo seleccionado';
+      if (selectedFile && !form.elements.name.value.trim()) {
+        form.elements.name.value = selectedFile.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
+      }
+    }
+    input.addEventListener('change', () => selectFile(input.files[0]));
+    ['dragenter', 'dragover'].forEach((type) => dropzone.addEventListener(type, (event) => {
+      event.preventDefault(); dropzone.classList.add('is-dragging');
+    }));
+    ['dragleave', 'drop'].forEach((type) => dropzone.addEventListener(type, (event) => {
+      event.preventDefault(); dropzone.classList.remove('is-dragging');
+    }));
+    dropzone.addEventListener('drop', (event) => {
+      const [file] = event.dataTransfer.files;
+      if (file) selectFile(file);
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const mimeType = selectedFile && imageMimeType(selectedFile);
+      if (!selectedFile) {
+        message.className = 'form-message error'; message.textContent = 'Selecciona una imagen.'; message.hidden = false; return;
+      }
+      if (!['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType) || selectedFile.size > 10 * 1024 * 1024) {
+        message.className = 'form-message error'; message.textContent = 'Usa una imagen SVG, PNG, JPG o WebP de máximo 10 MB.'; message.hidden = false; return;
+      }
+      const button = form.querySelector('button[type="submit"]');
+      const params = new URLSearchParams({
+        name: form.elements.name.value.trim(),
+        description: form.elements.description.value.trim(),
+        filename: selectedFile.name,
+      });
+      button.disabled = true;
+      message.className = 'form-message'; message.textContent = 'Guardando en la base de datos…'; message.hidden = false;
+      try {
+        await api(`/api/portal/v1/admin/brand-assets?${params}`, { method: 'POST', headers: { 'Content-Type': mimeType }, body: selectedFile });
+        await renderBrandAssets(profile, 'El nuevo recurso ya está disponible para todos los usuarios.');
+      } catch (error) {
+        message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; button.disabled = false;
+      }
+    });
+  } catch (error) {
+    clearBrandObjectUrls();
+    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel"><button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Identidad de marca</p><h1>No fue posible cargar los recursos</h1><p class="panel-copy">${escapeHtml(error.message)}</p><button class="primary-button" id="retry-brand-assets" type="button">Intentar de nuevo</button></section>`);
+    bindShell(profile);
+    document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
+    document.querySelector('#retry-brand-assets').addEventListener('click', () => renderBrandAssets(profile));
+  }
 }
 
 function moduleChecks(modules, selected = []) {

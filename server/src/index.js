@@ -6,6 +6,7 @@ import { authRouter, authRequired } from './auth.js';
 import { pool } from './db.js';
 import { validateCorsOrigin } from './config/security.js';
 import { applicationRouter } from './portal/applicationRoutes.js';
+import { brandAssetRouter } from './portal/brandAssetRoutes.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3005);
@@ -39,6 +40,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/portal/v1', applicationRouter);
+app.use('/api/portal/v1', brandAssetRouter);
 
 // Ruta de diagnóstico interno para probar tokens emitidos por Core/Infra de
 // forma intercambiable durante la Fase 1. No forma parte del contrato público.

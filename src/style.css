@@ -834,11 +834,48 @@ main {
   font-size: .62rem; font-weight: 700; letter-spacing: .04em;
 }
 .asset-description { margin: 0 0 12px; color: var(--ink-soft); font-size: .8rem; line-height: 1.5; }
+.asset-file-detail { margin: 0 0 13px; color: var(--ink-faint); font-size: .69rem; overflow-wrap: anywhere; }
+.asset-actions { display: flex; align-items: center; gap: 9px; }
 .asset-download {
   display: inline-block; padding: 7px 14px; border-radius: 999px;
   background: var(--gold-bright); color: #2a1c05; font-weight: 700; font-size: .8rem; text-decoration: none;
 }
 .asset-download:hover { background: var(--gold); }
+.asset-remove {
+  padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--bad); background: transparent; cursor: pointer; font-size: .76rem; font-weight: 700;
+}
+.asset-remove:hover { border-color: var(--bad); background: var(--bad-bg); }
+.asset-info { display: flex; flex: 1; flex-direction: column; }
+.asset-info .asset-actions { margin-top: auto; }
+.brand-admin-panel { margin: 0 0 30px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.brand-admin-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 17px; }
+.brand-admin-heading h2 { margin: 5px 0 0; color: var(--ink); font-size: 1.08rem; }
+.brand-admin-heading > span { color: var(--ink-faint); font-size: .72rem; }
+.brand-upload-form { display: grid; grid-template-columns: minmax(240px, .8fr) minmax(280px, 1.2fr); gap: 18px; }
+.brand-dropzone {
+  display: grid; min-height: 190px; padding: 24px; place-content: center; gap: 7px;
+  border: 2px dashed var(--line); border-radius: 12px; color: var(--ink-soft); background: var(--surface);
+  cursor: pointer; text-align: center; transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+.brand-dropzone:hover,
+.brand-dropzone.is-dragging { border-color: var(--gold); background: var(--bg-soft); transform: translateY(-1px); }
+.brand-dropzone input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.brand-dropzone strong { color: var(--ink); font-size: .94rem; }
+.brand-dropzone span { font-size: .78rem; }
+.brand-dropzone small { margin-top: 8px; color: var(--gold-deep); font-size: .7rem; overflow-wrap: anywhere; }
+.brand-upload-fields { display: grid; align-content: start; gap: 13px; }
+.brand-upload-fields label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .75rem; font-weight: 650; }
+.brand-upload-fields input,
+.brand-upload-fields textarea {
+  min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); background: var(--surface); font: inherit; outline: none; resize: vertical;
+}
+.brand-upload-fields input:focus,
+.brand-upload-fields textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 14%, transparent); }
+.brand-upload-fields .primary-button { justify-self: start; }
+.brand-flash { margin: -10px 0 22px; }
+.brand-empty { grid-column: 1 / -1; padding: 34px; border: 1px dashed var(--line); border-radius: 12px; color: var(--ink-faint); text-align: center; }
 .control-form { display: grid; gap: 17px; }
 .control-form label { display: grid; gap: 8px; color: var(--ink-soft); font-size: .8rem; font-weight: 650; }
 .control-form input,
@@ -918,6 +955,7 @@ table select {
 }
 .primary-button:hover,
 .table-save:hover { filter: brightness(1.04); }
+button:disabled { cursor: wait; opacity: .58; }
 .secondary-button,
 .table-save { padding: 8px 12px; color: var(--gold-deep); background: var(--surface-soft); }
 .secondary-button:hover { background: var(--bg-soft); }
@@ -1104,6 +1142,8 @@ footer {
   .user-summary-meta { display: none; }
   .create-area-form .module-options { grid-column: 1; }
   .workspace-panel { padding: 23px; }
+  .brand-upload-form { grid-template-columns: 1fr; }
+  .brand-admin-heading { align-items: start; flex-direction: column; }
 }
 
 @media (max-width: 520px) {

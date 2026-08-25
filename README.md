@@ -30,6 +30,19 @@ MRTI concentra el inicio y cierre de sesión. MRTI-Obs y MRTI Tickets
 comparten el token por estar publicados bajo el mismo origen; si se abre un
 módulo sin sesión, éste redirige a MRTI y conserva la ruta de retorno.
 
+## Recursos de marca
+
+El catálogo de **Recursos de marca** se consulta desde Core y guarda tanto los
+metadatos como el archivo en `mrti_core.brand_assets`; no depende del build del
+frontend. Todos los usuarios autenticados pueden ver y descargar imágenes. Sólo
+el rol global `administrator` puede subir archivos SVG, PNG, JPG o WebP (máximo
+10 MB) o quitarlos desde la misma pantalla mediante arrastrar y soltar.
+
+Quitar un recurso realiza un archivado lógico para conservar auditoría y una
+ruta de recuperación. El archivo estático `public/brand/logo-color.svg` se
+mantiene temporalmente como respaldo de rollback, pero ya no alimenta el
+catálogo visible.
+
 La configuración conjunta para este servidor está en
 `deploy/nginx.conf.example`. El activador conserva un respaldo y restaura la
 configuración anterior automáticamente si Nginx no la acepta:
