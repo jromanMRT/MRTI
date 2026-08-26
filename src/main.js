@@ -763,7 +763,7 @@ async function renderControlCenter(profile, flash = '') {
     const [data, applicationData, auditData] = await Promise.all([
       api('/api/auth/access-control'),
       api('/api/portal/v1/admin/applications'),
-      api('/api/portal/v1/admin/audit?limit=30'),
+      api('/api/portal/v1/admin/audit?limit=200'),
     ]);
     const activeAreas = data.areas.filter((area) => area.is_active);
     const areaCards = data.areas.map((area) => `<form class="area-card" data-area-id="${area.id}">
@@ -819,7 +819,25 @@ async function renderControlCenter(profile, flash = '') {
       <div class="area-heading"><strong>${escapeHtml(application.name)}</strong><span class="status-badge ${application.status === 'active' ? 'active' : 'inactive'}">${escapeHtml(application.status)}</span></div>
       <div class="application-admin-fields"><label>Código<input name="code" value="${escapeHtml(application.code)}" readonly></label><label>Nombre<input name="name" value="${escapeHtml(application.name)}" required></label><label>Ruta interna<input name="url" value="${escapeHtml(application.url)}" required></label><label>Categoría<input name="category" value="${escapeHtml(application.category)}" required></label><label>Estado<select name="status">${applicationStatusOptions(application.status)}</select></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="${application.sort_order}" required></label><label class="application-wide">Descripción<textarea name="description" rows="2" required>${escapeHtml(application.description)}</textarea></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" value="${escapeHtml(application.features.join(', '))}"></label></div>
       <button class="secondary-button" type="submit">Guardar aplicación</button></form>`).join('');
-    const auditRows = auditData.data.map((event) => `<tr><td>${escapeHtml(shortDate(event.created_at))}<small>${escapeHtml(new Date(event.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</small></td><td><strong>${escapeHtml(event.actor_email || 'Sistema')}</strong></td><td>${escapeHtml(event.action)}</td><td>${escapeHtml(event.entity_type)}${event.entity_id ? `<small>${escapeHtml(event.entity_id)}</small>` : ''}</td></tr>`).join('');
+    const auditModules = [...new Set(auditData.data.map((event) => event.module_code || 'core'))].sort();
+    const auditSourceFailures = (auditData.sources || []).filter((source) => !source.ok);
+    const auditDetails = (event) => {
+      const parse = (value) => {
+        if (!value) return null;
+        if (typeof value === 'object') return value;
+        try { return JSON.parse(value); } catch { return value; }
+      };
+      const before = parse(event.before_json);
+      const after = parse(event.after_json);
+      const metadata = parse(event.metadata_json);
+      if (!before && !after && !metadata) return '<span class="audit-no-detail">Sin detalle adicional</span>';
+      return `<details class="audit-change"><summary>Ver cambio</summary>${before ? `<div><strong>Antes</strong><pre>${escapeHtml(JSON.stringify(before, null, 2))}</pre></div>` : ''}${after ? `<div><strong>Después</strong><pre>${escapeHtml(JSON.stringify(after, null, 2))}</pre></div>` : ''}${metadata ? `<div><strong>Contexto</strong><pre>${escapeHtml(JSON.stringify(metadata, null, 2))}</pre></div>` : ''}</details>`;
+    };
+    const auditRows = auditData.data.map((event) => {
+      const actor = event.actor_name || event.actor_email || 'Sistema';
+      const search = `${actor} ${event.action} ${event.entity_type} ${event.entity_id || ''} ${event.module_code || 'core'}`.toLocaleLowerCase('es-MX');
+      return `<tr class="audit-row" data-audit-module="${escapeHtml(event.module_code || 'core')}" data-audit-search="${escapeHtml(search)}"><td>${escapeHtml(shortDate(event.created_at))}<small>${escapeHtml(new Date(event.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</small></td><td><span class="audit-module">${escapeHtml(event.module_code || 'core')}</span></td><td><strong>${escapeHtml(actor)}</strong>${event.actor_email && event.actor_name ? `<small>${escapeHtml(event.actor_email)}</small>` : ''}</td><td>${escapeHtml(event.action)}</td><td>${escapeHtml(event.entity_type)}${event.entity_id ? `<small>${escapeHtml(event.entity_id)}</small>` : ''}</td><td>${auditDetails(event)}</td></tr>`;
+    }).join('');
     app.innerHTML = shellMarkup(profile, `<section class="workspace-panel control-center">
       <button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Administración</p><h1>Centro de control</h1>
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
@@ -837,7 +855,7 @@ async function renderControlCenter(profile, flash = '') {
       <div class="control-section"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span>${applicationData.data.length} registradas</span></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
         <div class="application-admin-grid">${applicationCards}</div></div>
-      <div class="control-section"><div class="users-heading"><div><h2>Auditoría reciente</h2><span>Últimos ${auditData.data.length} eventos</span></div></div><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th></tr></thead><tbody>${auditRows || '<tr><td colspan="4" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div></div>
+      <div class="control-section"><div class="users-heading"><div><h2>Historial de actividad de la plataforma</h2><span id="audit-visible-count">${auditData.data.length} eventos</span></div><div class="audit-filters"><input id="audit-search" type="search" placeholder="Usuario, acción o registro…"><select id="audit-module-filter"><option value="all">Todos los módulos</option>${auditModules.map((moduleCode) => `<option value="${escapeHtml(moduleCode)}">${escapeHtml(moduleCode)}</option>`).join('')}</select></div></div>${auditSourceFailures.length ? `<div class="notice">Historial parcial: no respondieron ${auditSourceFailures.map((source) => escapeHtml(source.source)).join(', ')}.</div>` : ''}<p class="field-help">Los datos sensibles se redactan automáticamente. Cada módulo conserva su historial y Core reúne aquí una vista de consulta.</p><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Módulo</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Cambios</th></tr></thead><tbody id="audit-table-body">${auditRows || '<tr><td colspan="6" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div><p class="personal-empty" id="audit-empty" hidden>No hay eventos que coincidan con los filtros.</p></div>
       <div class="control-section"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div>
     </section>`);
     bindShell(profile);
@@ -857,6 +875,21 @@ async function renderControlCenter(profile, flash = '') {
     };
     document.querySelector('#user-search').addEventListener('input', filterUsers);
     document.querySelector('#user-status-filter').addEventListener('change', filterUsers);
+    const filterAudit = () => {
+      const term = document.querySelector('#audit-search').value.trim().toLocaleLowerCase('es-MX');
+      const moduleCode = document.querySelector('#audit-module-filter').value;
+      let visible = 0;
+      document.querySelectorAll('.audit-row').forEach((row) => {
+        const matches = (!term || row.dataset.auditSearch.includes(term))
+          && (moduleCode === 'all' || row.dataset.auditModule === moduleCode);
+        row.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      document.querySelector('#audit-visible-count').textContent = `${visible} ${visible === 1 ? 'evento' : 'eventos'}`;
+      document.querySelector('#audit-empty').hidden = visible !== 0;
+    };
+    document.querySelector('#audit-search').addEventListener('input', filterAudit);
+    document.querySelector('#audit-module-filter').addEventListener('change', filterAudit);
     const syncDeviceOptions = (container) => {
       const areaSelect = container.querySelector('.physical-area-select');
       const deviceSelect = container.querySelector('.primary-device-select');

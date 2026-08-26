@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { authRequired } from '../auth/shared.js';
 import { recordAudit } from '../audit.js';
+import { fetchRemoteAuditEvents, filterAndSortAuditEvents } from './auditSources.js';
 
 export const applicationRouter = Router();
 
@@ -150,13 +151,32 @@ applicationRouter.patch('/admin/applications/:id', authRequired, administratorOn
 applicationRouter.get('/admin/audit', authRequired, administratorOnly, async (req, res, next) => {
   try {
     const requestedLimit = Number(req.query.limit || 50);
-    const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 50;
+    const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 500) : 50;
     const [rows] = await pool.query(
       `SELECT id, actor_user_id, actor_email, action, entity_type, entity_id, ip_address, metadata_json, created_at
-         FROM audit_events ORDER BY id DESC LIMIT ?`,
-      [limit]
+         FROM audit_events ORDER BY id DESC LIMIT 500`
     );
-    res.json({ data: rows.map((row) => ({ ...row, metadata: row.metadata_json ? JSON.parse(row.metadata_json) : null })) });
+    const local = rows.map((row) => ({
+      event_uuid: `core-${row.id}`,
+      module_code: 'core',
+      actor_user_id: row.actor_user_id,
+      actor_name: null,
+      actor_email: row.actor_email,
+      action: row.action,
+      entity_type: row.entity_type,
+      entity_id: row.entity_id,
+      request_id: null,
+      ip_address: row.ip_address,
+      user_agent: null,
+      before_json: null,
+      after_json: null,
+      metadata_json: row.metadata_json,
+      status_code: 200,
+      created_at: row.created_at,
+    }));
+    const remote = await fetchRemoteAuditEvents(req.headers.authorization, 500);
+    const data = filterAndSortAuditEvents([...local, ...remote.data], req.query).slice(0, limit);
+    res.json({ data, sources: [{ source: 'core', ok: true, error: null }, ...remote.sources] });
   } catch (error) {
     next(error);
   }
