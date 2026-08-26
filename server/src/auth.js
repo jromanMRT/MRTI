@@ -4,6 +4,7 @@ import { profileRouter } from './auth/profileRoutes.js';
 import { userAdminRouter } from './auth/userAdminRoutes.js';
 import { accessControlRouter } from './auth/accessControlRoutes.js';
 import { ticketContextRouter } from './auth/ticketContextRoutes.js';
+import { provisioningRouter } from './auth/provisioningRoutes.js';
 
 // Composición del módulo de identidad:
 // sesiones públicas, cuenta personal y administración de usuarios.
@@ -13,5 +14,6 @@ authRouter.use(profileRouter);
 authRouter.use(userAdminRouter);
 authRouter.use(accessControlRouter);
 authRouter.use(ticketContextRouter);
+authRouter.use(provisioningRouter);
 
 export { authRequired, moduleAccessRequired } from './auth/shared.js';

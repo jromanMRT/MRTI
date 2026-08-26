@@ -525,11 +525,11 @@ async function loadNotifications(profile) {
   container.innerHTML = `<article class="personal-card notifications-card"><div class="personal-card-title"><div><p>Novedades</p><h3>Notificaciones</h3></div></div><ul class="notification-list">${rows}</ul></article>`;
 }
 
-function renderAccount(profile) {
+function renderAccount(profile, { required = false } = {}) {
   app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel">
-    <button class="back-button" id="back-portal" type="button">← Volver al portal</button>
-    <p class="section-label">Mi cuenta</p><h1>Cambiar contraseña</h1>
-    <p class="panel-copy">Actualiza tu contraseña de acceso central. El cambio aplica automáticamente a todos los módulos.</p>
+    ${required ? '' : '<button class="back-button" id="back-portal" type="button">← Volver al portal</button>'}
+    <p class="section-label">Mi cuenta</p><h1>${required ? 'Crea tu contraseña personal' : 'Cambiar contraseña'}</h1>
+    <p class="panel-copy">${required ? 'Por seguridad, reemplaza la contraseña temporal antes de continuar.' : 'Actualiza tu contraseña de acceso central. El cambio aplica automáticamente a todos los módulos.'}</p>
     <form class="control-form" id="password-form">
       <label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label>
       <label>Nueva contraseña<input name="new_password" type="password" minlength="10" maxlength="128" autocomplete="new-password" required></label>
@@ -539,7 +539,7 @@ function renderAccount(profile) {
     </form>
   </section>`);
   bindShell(profile);
-  document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
+  document.querySelector('#back-portal')?.addEventListener('click', () => renderPortal(profile));
   const form = document.querySelector('#password-form');
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -553,6 +553,13 @@ function renderAccount(profile) {
     try {
       await api('/api/auth/profile/password', { method: 'PATCH', body: JSON.stringify({ current_password: data.get('current_password'), new_password: data.get('new_password') }) });
       form.reset(); message.className = 'form-message success'; message.textContent = 'Contraseña actualizada correctamente.'; message.hidden = false;
+      if (required) {
+        const { profile: updatedProfile } = await api('/api/auth/me');
+        updatedProfile.password_change_required = false;
+        localStorage.setItem('auth_profile', JSON.stringify(updatedProfile || {}));
+        await refreshApplications();
+        renderPortal(updatedProfile);
+      }
     } catch (error) {
       message.className = 'form-message error'; message.textContent = error.message; message.hidden = false;
     } finally { button.disabled = false; }
@@ -805,10 +812,10 @@ async function renderControlCenter(profile, flash = '') {
       const searchValue = `${identifier} ${user.full_name} ${user.email} ${roleName(user.role)} ${user.access_area_name || ''}`.toLocaleLowerCase('es-MX');
       const isSelf = user.id === profile.id;
       const status = isSelf ? 'active' : (user.is_active ? 'active' : 'inactive');
-      const locationMeta = isSelf ? 'Acceso total' : escapeHtml(user.physical_area_name || 'Sin ubicación');
+      const accessMeta = isSelf ? 'Acceso total' : escapeHtml(user.access_area_name || 'Sólo Core');
       return `<details class="user-list-item" data-user-id="${user.id}" data-user-search="${escapeHtml(searchValue)}" data-user-status="${status}"><summary>
         <span class="user-number">${identifier}</span><span class="user-summary-name"><strong>${escapeHtml(user.full_name)}</strong><small>${escapeHtml(user.email)}</small></span>
-        <span class="user-summary-meta">${escapeHtml(roleName(user.role))}</span><span class="user-summary-meta">${locationMeta}</span>
+        <span class="user-summary-meta">${escapeHtml(roleName(user.role))}</span><span class="user-summary-meta">${accessMeta}</span>
         <span class="status-badge ${status}">${status === 'active' ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">⌄</span>
       </summary><div class="details-body"></div></details>`;
     }).join('');
@@ -843,23 +850,42 @@ async function renderControlCenter(profile, flash = '') {
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI-Obs → Sitios</strong></a> y asigna un área a cada activo.</div>'}
-      <div class="control-section"><h2>Crear usuario</h2><form class="create-user-form" id="create-user">
+      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button></nav>
+      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="10" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" required></label>
         <label>Rol<select name="role">${roleOptions()}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions()}</select></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions()}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions()}</select></label>
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
-      </form><p class="field-help">El usuario deberá cambiar su contraseña temporal desde “Mi cuenta”.</p></div>
-      <div class="control-section"><h2>Nueva área</h2><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></div>
-      <div class="control-section"><h2>Áreas y módulos</h2><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div></div>
-      <div class="control-section"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span>${applicationData.data.length} registradas</span></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
+      </form><p class="field-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
+      <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span>${data.areas.length} configuradas</span></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div></div></div>
+      <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span>${applicationData.data.length} registradas</span></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
-        <div class="application-admin-grid">${applicationCards}</div></div>
-      <div class="control-section"><div class="users-heading"><div><h2>Historial de actividad de la plataforma</h2><span id="audit-visible-count">${auditData.data.length} eventos</span></div><div class="audit-filters"><input id="audit-search" type="search" placeholder="Usuario, acción o registro…"><select id="audit-module-filter"><option value="all">Todos los módulos</option>${auditModules.map((moduleCode) => `<option value="${escapeHtml(moduleCode)}">${escapeHtml(moduleCode)}</option>`).join('')}</select></div></div>${auditSourceFailures.length ? `<div class="notice">Historial parcial: no respondieron ${auditSourceFailures.map((source) => escapeHtml(source.source)).join(', ')}.</div>` : ''}<p class="field-help">Los datos sensibles se redactan automáticamente. Cada módulo conserva su historial y Core reúne aquí una vista de consulta.</p><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Módulo</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Cambios</th></tr></thead><tbody id="audit-table-body">${auditRows || '<tr><td colspan="6" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div><p class="personal-empty" id="audit-empty" hidden>No hay eventos que coincidan con los filtros.</p></div>
-      <div class="control-section"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div>
+        <div class="application-admin-grid">${applicationCards}</div></div></div>
+      <div class="control-panel" data-control-panel="audit" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Historial de actividad de la plataforma</h2><span id="audit-visible-count">${auditData.data.length} eventos</span></div><div class="audit-filters"><input id="audit-search" type="search" placeholder="Usuario, acción o registro…"><select id="audit-module-filter"><option value="all">Todos los módulos</option>${auditModules.map((moduleCode) => `<option value="${escapeHtml(moduleCode)}">${escapeHtml(moduleCode)}</option>`).join('')}</select></div></div>${auditSourceFailures.length ? `<div class="notice">Historial parcial: no respondieron ${auditSourceFailures.map((source) => escapeHtml(source.source)).join(', ')}.</div>` : ''}<p class="field-help">Los datos sensibles se redactan automáticamente. Cada módulo conserva su historial y Core reúne aquí una vista de consulta.</p><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Módulo</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Cambios</th></tr></thead><tbody id="audit-table-body">${auditRows || '<tr><td colspan="6" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div><p class="personal-empty" id="audit-empty" hidden>No hay eventos que coincidan con los filtros.</p></div></div>
     </section>`);
     bindShell(profile);
     document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
+    document.querySelectorAll('.control-tab').forEach((tab) => tab.addEventListener('click', () => {
+      document.querySelectorAll('.control-tab').forEach((item) => item.classList.toggle('active', item === tab));
+      document.querySelectorAll('[data-control-panel]').forEach((panel) => { panel.hidden = panel.dataset.controlPanel !== tab.dataset.controlTarget; });
+    }));
+    document.querySelector('#provision-rh-users').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      if (!window.confirm('Se crearán cuentas lectoras sin módulos para los correos corporativos únicos y activos de RH. ¿Continuar?')) return;
+      button.disabled = true; button.textContent = 'Aprovisionando…';
+      try {
+        const result = await api('/api/auth/users/provision-rh', { method: 'POST' });
+        if (result.created.length) {
+          const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+          const csv = ['Nombre,Correo,Contraseña temporal', ...result.created.map((item) => [item.full_name, item.email, item.temporary_password].map(quote).join(','))].join('\r\n');
+          const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+          const anchor = document.createElement('a'); anchor.href = url; anchor.download = `usuarios-core-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url);
+        }
+        const ambiguousCount = result.ambiguous.reduce((total, item) => total + Number(item.active_records || 0), 0);
+        await renderControlCenter(profile, `${result.created.length} cuentas creadas, ${result.linked} expedientes vinculados.${ambiguousCount ? ` ${ambiguousCount} expedientes quedaron fuera por correo duplicado.` : ''}`);
+      } catch (error) { window.alert(error.message); button.disabled = false; button.textContent = 'Aprovisionar desde RH'; }
+    });
     const filterUsers = () => {
       const term = document.querySelector('#user-search').value.trim().toLocaleLowerCase('es-MX');
       const status = document.querySelector('#user-status-filter').value;
@@ -1024,6 +1050,7 @@ function renderLogin(message = '') {
       const body = await response.json(); if (!response.ok || !body.token) throw new Error(body.error || 'No se pudo iniciar sesión');
       localStorage.setItem('auth_token', body.token); localStorage.setItem('auth_profile', JSON.stringify(body.profile || {}));
       await refreshApplications();
+      if (body.profile.password_change_required) return renderAccount(body.profile, { required: true });
       const destination = requestedDestination(); if (destination && destination !== '/') window.location.replace(destination); else renderPortal(body.profile);
     } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Iniciar sesión'; }
   });
@@ -1033,8 +1060,14 @@ async function initialize() {
   await refreshBrandAppearance();
   if (!token()) return renderLogin();
   try {
-    const { profile } = await api('/api/auth/me'); localStorage.setItem('auth_profile', JSON.stringify(profile || {}));
+    const [{ profile }, passwordStatus] = await Promise.all([
+      api('/api/auth/me'),
+      api('/api/auth/password-status'),
+    ]);
+    profile.password_change_required = Boolean(passwordStatus.required);
+    localStorage.setItem('auth_profile', JSON.stringify(profile || {}));
     await refreshApplications();
+    if (profile.password_change_required) return renderAccount(profile, { required: true });
     const destination = requestedDestination();
     if (destination && destination !== '/') {
       const destinationModule = portalApplications.find((module) => destination.startsWith(module.href));

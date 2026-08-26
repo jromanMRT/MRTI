@@ -33,8 +33,8 @@ userAdminRouter.post('/users', authRequired, async (req, res, next) => {
     const id = randomUUID();
     await pool.query(
       `INSERT INTO user_profiles
-        (id, email, password_hash, full_name, role, access_area_id, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (id, email, password_hash, password_change_required, full_name, role, access_area_id, is_active)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
       [id, email, await bcrypt.hash(password, 10), fullName, role, areaId, req.body?.is_active !== false]
     );
     await recordAudit({ req, action: 'user.created', entityType: 'user', entityId: id, metadata: { role, access_area_id: areaId, is_active: req.body?.is_active !== false } });
@@ -137,6 +137,7 @@ userAdminRouter.patch('/users/:id', authRequired, async (req, res, next) => {
         return res.status(400).json({ error: 'La contraseña no puede exceder 128 caracteres' });
       }
       updates.password_hash = await bcrypt.hash(password, 10);
+      updates.password_change_required = 1;
     }
 
     if (!Object.keys(updates).length) {

@@ -59,7 +59,7 @@ profileRouter.patch('/profile/password', authRequired, async (req, res, next) =>
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await pool.query(
-      'UPDATE user_profiles SET password_hash = ? WHERE id = ?',
+      'UPDATE user_profiles SET password_hash = ?, password_change_required = 0 WHERE id = ?',
       [passwordHash, req.user.id]
     );
     await recordAudit({ req, action: 'profile.password_changed', entityType: 'user', entityId: req.user.id });
