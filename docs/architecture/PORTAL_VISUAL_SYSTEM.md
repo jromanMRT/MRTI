@@ -55,6 +55,12 @@ El patrón común incluye:
    pantallas pequeñas.
 7. Encabezado de contenido de `72px` cuando el módulo necesita búsqueda,
    contexto o controles de sesión.
+8. En escritorio, la barra permanece fija y cubre todo el alto visible
+   (`100dvh`, con respaldo `100vh`) aunque el documento tenga desplazamiento.
+9. El contenido reserva exactamente `256px` o `64px` según el estado de la
+   barra y anima también su ancho; los contenedores generales deben aprovechar
+   ese espacio. Los límites de ancho se conservan sólo en formularios o fichas
+   donde mejoren la lectura.
 
 La pantalla informativa de pared de MRTI-Obs (`/news-screen`) es una excepción:
 usa un shell de visualización a distancia, aunque mantiene contraste específico
