@@ -532,8 +532,8 @@ function renderAccount(profile, { required = false } = {}) {
     <p class="panel-copy">${required ? 'Por seguridad, reemplaza la contraseña temporal antes de continuar.' : 'Actualiza tu contraseña de acceso central. El cambio aplica automáticamente a todos los módulos.'}</p>
     <form class="control-form" id="password-form">
       <label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label>
-      <label>Nueva contraseña<input name="new_password" type="password" minlength="10" maxlength="128" autocomplete="new-password" required></label>
-      <label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" autocomplete="new-password" required></label>
+      <label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
+      <label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
       <div class="form-message" id="password-message" hidden></div>
       <button class="primary-button" type="submit">Guardar nueva contraseña</button>
     </form>
@@ -799,8 +799,8 @@ async function renderControlCenter(profile, flash = '') {
         <div class="user-fields"><label>Nombre<input name="full_name" value="${escapeHtml(user.full_name)}" required></label><label>Correo<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
           <label>Rol<select name="role">${roleOptions(user.role)}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions(user.access_area_id || '')}</select></label>
           <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions(user.physical_area_id || '')}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '', user.id)}</select></label>
-          <label>Nueva contraseña <small>(opcional)</small><input name="password" type="password" minlength="10" maxlength="128" autocomplete="new-password" placeholder="Mínimo 10 caracteres"></label>
-          <label>Confirmar contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" autocomplete="new-password"></label></div>
+          <label>Nueva contraseña <small>(opcional)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>
+          <label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password"></label></div>
         <div class="user-actions"><label class="active-toggle"><input name="is_active" type="checkbox" ${user.is_active ? 'checked' : ''}> Cuenta activa</label><button class="secondary-button" type="submit">Guardar usuario</button></div>
       </form>`;
     }
@@ -853,7 +853,7 @@ async function renderControlCenter(profile, flash = '') {
       <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button></nav>
       <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
-        <label>Contraseña temporal<input name="password" type="password" minlength="10" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="10" maxlength="128" required></label>
+        <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
         <label>Rol<select name="role">${roleOptions()}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions()}</select></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions()}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions()}</select></label>
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>

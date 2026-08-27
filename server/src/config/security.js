@@ -55,6 +55,6 @@ export function validateCorsOrigin(origin, callback) {
   callback(error);
 }
 
-export const PASSWORD_MIN_LENGTH = 10;
+export const PASSWORD_MIN_LENGTH = 6;
 export const PUBLIC_REGISTRATION_ENABLED =
   String(process.env.ALLOW_PUBLIC_REGISTRATION || 'true').toLowerCase() === 'true';

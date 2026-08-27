@@ -1234,3 +1234,24 @@ footer {
 .audit-change div { margin-top: 8px; }
 .audit-change pre { width: min(480px, 70vw); max-height: 220px; margin-top: 4px; padding: 9px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-soft); background: var(--surface-soft); font: .7rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
 .audit-no-detail { color: var(--ink-faint); font-size: .72rem; }
+
+@media (min-width: 821px) {
+  .page-shell,
+  .page-shell.sidebar-collapsed { display: block; }
+  .portal-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 256px;
+    height: 100vh;
+    height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .portal-workspace {
+    width: calc(100% - 256px);
+    margin-left: 256px;
+    transition: width 200ms ease, margin-left 200ms ease;
+  }
+  .sidebar-collapsed .portal-sidebar { width: 64px; }
+  .sidebar-collapsed .portal-workspace { width: calc(100% - 64px); margin-left: 64px; }
+}
