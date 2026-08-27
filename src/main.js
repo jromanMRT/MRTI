@@ -143,60 +143,27 @@ function themeToggleMarkup() {
   </button>`;
 }
 
-function appMenuItemMarkup(module) {
+function appLinkMarkup(module) {
   const target = module.code === 'agent-core'
     ? `${module.href}#token=${encodeURIComponent(token() || '')}`
     : module.href;
   const maintenance = module.status === 'maintenance';
-  return `<li class="app-menu-item" data-search="${escapeHtml(module.title.toLocaleLowerCase('es-MX'))}">
-    ${maintenance
-    ? `<span class="app-menu-link is-disabled"><span class="app-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h7M7 17h4"/></svg></span><span class="app-menu-text">${escapeHtml(module.title)}</span><span class="app-menu-status">Mantenimiento</span></span>`
-    : `<a class="app-menu-link" href="${escapeHtml(target)}"><span class="app-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h7M7 17h4"/></svg></span><span class="app-menu-text">${escapeHtml(module.title)}</span></a>`}
-  </li>`;
+  const icon = '<span class="nav-icon" aria-hidden="true">▦</span>';
+  if (maintenance) {
+    return `<span class="nav-button is-disabled">${icon}<span class="nav-label">${escapeHtml(module.title)}</span><span class="nav-status">Mantenimiento</span></span>`;
+  }
+  return `<a class="nav-button" href="${escapeHtml(target)}">${icon}<span class="nav-label">${escapeHtml(module.title)}</span></a>`;
 }
 
-function appMenuMarkup(profile) {
+// Los módulos se listan como enlaces directos en la barra lateral (en lugar
+// de un desplegable) para que el acceso sea de un solo clic.
+function appLinksMarkup(profile) {
   const available = portalApplications.filter((module) => canOpen(profile, module.code));
-  return `<div class="app-menu">
-    <button class="primary-nav-link app-menu-trigger" id="applications-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="app-menu-panel">
-      Aplicaciones <svg class="app-menu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-    </button>
-    <div class="app-menu-panel" id="app-menu-panel" hidden>
-      <div class="app-menu-search"><input id="app-menu-search-input" type="search" placeholder="Buscar aplicación…" aria-label="Buscar aplicación"></div>
-      <ul class="app-menu-list" id="app-menu-list">${available.length ? available.map(appMenuItemMarkup).join('') : '<li class="app-menu-empty">Aún no tienes módulos asignados.</li>'}</ul>
-    </div>
+  if (!available.length) return '';
+  return `<div class="sidebar-section">
+    <span class="sidebar-section-label">Aplicaciones</span>
+    ${available.map(appLinkMarkup).join('')}
   </div>`;
-}
-
-// Los listeners de cierre viven en `document` para toda la vida de la SPA
-// (una sola vez, aquí fuera de bindAppMenu) y resuelven el trigger/panel
-// vigentes en cada clic; así una nueva navegación no va acumulando
-// listeners duplicados en `document` en cada render del shell.
-function closeAppMenu() {
-  document.querySelector('#app-menu-panel')?.setAttribute('hidden', '');
-  document.querySelector('#applications-button')?.setAttribute('aria-expanded', 'false');
-}
-document.addEventListener('click', closeAppMenu);
-document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAppMenu(); });
-
-function bindAppMenu() {
-  const trigger = document.querySelector('#applications-button');
-  const panel = document.querySelector('#app-menu-panel');
-  const search = document.querySelector('#app-menu-search-input');
-  if (!trigger || !panel) return;
-  trigger.addEventListener('click', (event) => {
-    event.stopPropagation();
-    const willOpen = panel.hidden;
-    closeAppMenu();
-    if (willOpen) { panel.hidden = false; trigger.setAttribute('aria-expanded', 'true'); search?.focus(); }
-  });
-  panel.addEventListener('click', (event) => event.stopPropagation());
-  search?.addEventListener('input', () => {
-    const term = search.value.trim().toLocaleLowerCase('es-MX');
-    document.querySelectorAll('#app-menu-list .app-menu-item').forEach((item) => {
-      item.hidden = Boolean(term) && !item.dataset.search.includes(term);
-    });
-  });
 }
 
 function brandMarkup() {
@@ -240,9 +207,9 @@ function shellMarkup(profile, content) {
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
         ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nueva solicitud</span></a><a class="primary-nav-link" href="/tickets/tickets"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis solicitudes</span></a>' : ''}
       </nav>
+      ${appLinksMarkup(profile)}
       <div class="sidebar-section">
         <span class="sidebar-section-label">Espacio de trabajo</span>
-        ${appMenuMarkup(profile)}
         <button class="nav-button" id="brand-button" type="button"><span class="nav-icon" aria-hidden="true">◆</span><span class="nav-label">Recursos de marca</span></button>
         <button class="nav-button" id="account-button" type="button"><span class="nav-icon" aria-hidden="true">○</span><span class="nav-label">Perfil</span></button>
         ${isAdministrator(profile) ? '<button class="nav-button" id="control-button" type="button"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Centro de control</span></button>' : ''}
@@ -271,7 +238,6 @@ function shellMarkup(profile, content) {
 
 function bindShell(profile) {
   bindThemeToggle();
-  bindAppMenu();
   const shell = document.querySelector('.page-shell');
   const mobileButton = document.querySelector('#mobile-menu-button');
   const closeMobileMenu = () => {
@@ -285,7 +251,7 @@ function bindShell(profile) {
   });
   document.querySelector('#sidebar-backdrop')?.addEventListener('click', closeMobileMenu);
   document.querySelector('#portal-sidebar')?.addEventListener('click', (event) => {
-    if (event.target.closest('a, button') && !event.target.closest('.app-menu-trigger')) closeMobileMenu();
+    if (event.target.closest('a, button')) closeMobileMenu();
   });
   document.querySelector('#sidebar-collapse')?.addEventListener('click', () => {
     const collapsed = shell?.classList.toggle('sidebar-collapsed') || false;
@@ -333,7 +299,7 @@ function renderPortal(profile) {
     <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
     ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
     : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
-    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates"><label>Categoría<select name="category_id" id="ticket-category"><option value="">Cargando categorías…</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar solicitud</button></form></details></section>
+    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar solicitud</button></form></details></section>
     <section class="personal-dashboard notifications-section" id="notifications"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
@@ -462,7 +428,7 @@ async function loadTicketsDashboard(profile, flash = '') {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
       return;
     }
-    const rows = tickets.map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td>${escapeHtml(ticket.category_name || 'Sin categoría')}</td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
+    const rows = tickets.map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td><strong>${escapeHtml(ticket.business_area_name || 'Sin área')}</strong><small>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
     const moduleLink = canOpen(profile, 'tickets') ? '<a class="personal-link" href="/tickets/">Abrir gestión completa en MRTI Tickets →</a>' : '';
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis solicitudes</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div>${moduleLink}</article>`;
   } catch (error) {
@@ -475,7 +441,9 @@ async function loadTicketsDashboard(profile, flash = '') {
 async function bindTicketSelfService(profile) {
   const panel = document.querySelector('#ticket-create-panel');
   const form = document.querySelector('#ticket-self-form');
+  const businessArea = document.querySelector('#ticket-business-area');
   const category = document.querySelector('#ticket-category');
+  const subcategory = document.querySelector('#ticket-subcategory');
   const priority = document.querySelector('#ticket-priority');
   const message = document.querySelector('#ticket-form-message');
   document.querySelector('[data-core-action="new-ticket"]')?.addEventListener('click', () => {
@@ -485,10 +453,25 @@ async function bindTicketSelfService(profile) {
   });
   try {
     const { data } = await api('/tickets-api/api/tickets-self/options');
-    category.innerHTML = `<option value="">Sin categoría</option>${data.categories.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
+    businessArea.innerHTML = `<option value="">Seleccionar área</option>${data.business_areas.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
+    const renderCategories = () => {
+      const items = data.categories.filter((item) => String(item.business_area_id) === businessArea.value);
+      category.disabled = !businessArea.value;
+      category.innerHTML = `<option value="">Seleccionar categoría</option>${items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
+      subcategory.disabled = true;
+      subcategory.innerHTML = '<option value="">Selecciona primero la categoría</option>';
+    };
+    const renderSubcategories = () => {
+      const items = data.subcategories.filter((item) => String(item.category_id) === category.value);
+      subcategory.disabled = !items.length;
+      subcategory.innerHTML = `<option value="">${items.length ? 'Seleccionar detalle' : 'Sin detalle adicional'}</option>${items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
+    };
+    businessArea.addEventListener('change', renderCategories);
+    category.addEventListener('change', renderSubcategories);
     priority.innerHTML = data.priorities.map((item) => `<option value="${escapeHtml(item.code)}"${item.code === 'P3' ? ' selected' : ''}>${escapeHtml(item.code)} · ${escapeHtml(item.name)}</option>`).join('');
   } catch (error) {
-    category.innerHTML = '<option value="">Sin categoría</option>';
+    businessArea.innerHTML = '<option value="">No disponible</option>';
+    category.innerHTML = '<option value="">No disponible</option>';
     message.hidden = false;
     message.textContent = `No fue posible cargar todas las opciones: ${error.message}`;
   }
@@ -504,7 +487,9 @@ async function bindTicketSelfService(profile) {
         body: JSON.stringify({
           title: values.get('title'),
           description: values.get('description'),
-          category_id: values.get('category_id') || null,
+          business_area_id: values.get('business_area_id'),
+          category_id: values.get('category_id'),
+          subcategory_id: values.get('subcategory_id') || null,
           priority_code: values.get('priority_code') || 'P3',
         }),
       });
