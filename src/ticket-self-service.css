@@ -1,0 +1,33 @@
+.quick-action[type='button'] {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ticket-self-service { margin: 26px 0; }
+.ticket-create-card { padding: 0; overflow: hidden; }
+.ticket-create-card > summary {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 23px;
+  cursor: pointer;
+  list-style: none;
+}
+.ticket-create-card > summary::-webkit-details-marker { display: none; }
+.ticket-create-card > summary span { display: grid; gap: 4px; }
+.ticket-create-card > summary small { color: var(--gold-deep); font-size: .66rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.ticket-create-card > summary strong { color: var(--ink); font-size: 1.05rem; }
+.ticket-create-card > summary b { color: var(--gold-deep); font-size: .72rem; }
+.ticket-create-card[open] > summary { border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+.ticket-create-card[open] > summary b { font-size: 0; }
+.ticket-create-card[open] > summary b::after { content: 'Ocultar formulario'; font-size: .72rem; }
+.ticket-self-form { padding: 5px 23px 23px; }
+
+@media (max-width: 520px) {
+  .ticket-create-card > summary { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .ticket-self-form .personal-form-dates { grid-template-columns: 1fr; }
+}

@@ -1,4 +1,5 @@
 import './style.css';
+import './ticket-self-service.css';
 
 const app = document.querySelector('#app');
 const FALLBACK_MODULES = [
@@ -56,7 +57,7 @@ async function api(path, options = {}) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(body.error || `Error ${response.status}`);
+    const error = new Error(body.error?.message || body.error || `Error ${response.status}`);
     error.status = response.status;
     error.code = body.code;
     throw error;
@@ -318,8 +319,8 @@ function renderPortal(profile) {
   const firstName = profile.full_name.split(' ')[0];
   const location = [profile.physical_site_name, profile.physical_area_name].filter(Boolean).join(' · ') || 'Ubicación pendiente';
   const quickActions = [
-    canOpen(profile, 'tickets') ? { href: '/tickets/tickets/new', icon: '+', title: 'Nueva solicitud', copy: 'Reporta una necesidad o solicita apoyo.' } : null,
-    canOpen(profile, 'tickets') ? { href: '/tickets/tickets', icon: 'S', title: 'Mis solicitudes', copy: 'Consulta avances y respuestas.' } : null,
+    { action: 'new-ticket', icon: '+', title: 'Nueva solicitud', copy: 'Reporta una necesidad desde Core.' },
+    { href: '#tickets-dashboard', icon: 'S', title: 'Mis solicitudes', copy: 'Consulta aquí su avance y prioridad.' },
     { href: '#employee-dashboard', icon: 'RH', title: 'Solicitar ausencia', copy: 'Vacaciones y permisos desde tu Home.' },
     { href: '#assets-dashboard', icon: 'A', title: 'Mis activos', copy: 'Consulta el equipo que tienes asignado.' },
   ].filter(Boolean);
@@ -329,13 +330,17 @@ function renderPortal(profile) {
       <p>Solicita, consulta e infórmate desde un solo lugar. MRTI conecta tus servicios internos sin que tengas que conocer qué sistema los atiende.</p>
       <dl class="home-context"><div><dt>Fecha</dt><dd>${escapeHtml(longDate())}</dd></div><div><dt>Área</dt><dd id="home-department">${escapeHtml(profile.access_area_name || 'Sin área asignada')}</dd></div><div><dt>Puesto</dt><dd id="home-position">Consultando RH…</dd></div><div><dt>Ubicación</dt><dd>${escapeHtml(location)}</dd></div></dl></div>
       <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats"><article class="home-stat" id="requests-stat"><span>Solicitudes abiertas</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="leave-stat"><span>Ausencias pendientes</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="notifications-stat"><span>Novedades</span><strong>—</strong><small>Consultando…</small></article></div></aside></section>
-    <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
+    <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
+    ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
+    : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
+    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates"><label>Categoría<select name="category_id" id="ticket-category"><option value="">Cargando categorías…</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar solicitud</button></form></details></section>
     <section class="personal-dashboard notifications-section" id="notifications"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
       <div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>
       <div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div></section>`);
   bindShell(profile);
+  bindTicketSelfService(profile);
   // Cada widget corre por separado: si Activos o Tickets no responden, el
   // dashboard de RH y el resto de la página no se ven afectados.
   void loadEmployeeDashboard(profile);
@@ -445,7 +450,7 @@ const TICKET_STATUS_CLASS = {
 };
 const TICKET_OPEN_STATUSES = ['NEW', 'OPEN', 'ASSIGNED', 'IN_DIAGNOSIS', 'IN_PROGRESS', 'ON_HOLD_USER', 'ON_HOLD_VENDOR', 'REOPENED'];
 
-async function loadTicketsDashboard() {
+async function loadTicketsDashboard(profile, flash = '') {
   const container = document.querySelector('#tickets-dashboard');
   if (!container) return;
   try {
@@ -457,13 +462,61 @@ async function loadTicketsDashboard() {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
       return;
     }
-    const rows = tickets.slice(0, 6).map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td></tr>`).join('');
-    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Prioridad</th><th>Estatus</th></tr></thead><tbody>${rows}</tbody></table></div><a class="personal-link" href="/tickets/">Ver todos en MRTI Tickets →</a></article>`;
+    const rows = tickets.map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td>${escapeHtml(ticket.category_name || 'Sin categoría')}</td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
+    const moduleLink = canOpen(profile, 'tickets') ? '<a class="personal-link" href="/tickets/">Abrir gestión completa en MRTI Tickets →</a>' : '';
+    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis solicitudes</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div>${moduleLink}</article>`;
   } catch (error) {
     setHomeStat('requests-stat', '—', 'Solicitudes no disponible', 'unavailable');
     container.className = 'notice error';
     container.textContent = error.message;
   }
+}
+
+async function bindTicketSelfService(profile) {
+  const panel = document.querySelector('#ticket-create-panel');
+  const form = document.querySelector('#ticket-self-form');
+  const category = document.querySelector('#ticket-category');
+  const priority = document.querySelector('#ticket-priority');
+  const message = document.querySelector('#ticket-form-message');
+  document.querySelector('[data-core-action="new-ticket"]')?.addEventListener('click', () => {
+    panel.open = true;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    form.elements.title.focus({ preventScroll: true });
+  });
+  try {
+    const { data } = await api('/tickets-api/api/tickets-self/options');
+    category.innerHTML = `<option value="">Sin categoría</option>${data.categories.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
+    priority.innerHTML = data.priorities.map((item) => `<option value="${escapeHtml(item.code)}"${item.code === 'P3' ? ' selected' : ''}>${escapeHtml(item.code)} · ${escapeHtml(item.name)}</option>`).join('');
+  } catch (error) {
+    category.innerHTML = '<option value="">Sin categoría</option>';
+    message.hidden = false;
+    message.textContent = `No fue posible cargar todas las opciones: ${error.message}`;
+  }
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const values = new FormData(form);
+    button.disabled = true;
+    message.hidden = true;
+    try {
+      const result = await api('/tickets-api/api/tickets-self', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: values.get('title'),
+          description: values.get('description'),
+          category_id: values.get('category_id') || null,
+          priority_code: values.get('priority_code') || 'P3',
+        }),
+      });
+      form.reset();
+      panel.open = false;
+      await loadTicketsDashboard(profile, `${result.data.folio} fue enviado correctamente.`);
+      document.querySelector('#tickets-dashboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+      message.hidden = false;
+      message.textContent = error.message;
+    } finally { button.disabled = false; }
+  });
 }
 
 // Notificaciones consolidadas (Fase 7, último ítem del checklist): no hay
