@@ -35,6 +35,12 @@ const DEFAULT_BRAND_APPEARANCE = {
   login_background: { asset_id: null, content_url: null },
 };
 let brandAppearance = structuredClone(DEFAULT_BRAND_APPEARANCE);
+const DEFAULT_USER_PREFERENCES = {
+  theme: 'system', density: 'comfortable', show_notifications: true,
+  show_rh: true, show_assets: true, show_tickets: true,
+};
+let userPreferences = { ...DEFAULT_USER_PREFERENCES };
+let avatarObjectUrl = null;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -87,6 +93,39 @@ async function refreshApplications() {
     // el portal conserva el catálogo conocido en vez de quedar inutilizable.
     portalApplications = [...FALLBACK_MODULES];
   }
+}
+
+async function refreshPreferences() {
+  try {
+    const { preferences } = await api('/api/auth/profile/preferences');
+    userPreferences = { ...DEFAULT_USER_PREFERENCES, ...preferences };
+  } catch {
+    userPreferences = { ...DEFAULT_USER_PREFERENCES };
+  }
+  if (userPreferences.theme === 'system') localStorage.removeItem(THEME_KEY);
+  else localStorage.setItem(THEME_KEY, userPreferences.theme);
+  applyTheme(currentTheme());
+  document.documentElement.dataset.density = userPreferences.density;
+  return userPreferences;
+}
+
+async function refreshAvatar(profile) {
+  if (avatarObjectUrl) {
+    URL.revokeObjectURL(avatarObjectUrl);
+    avatarObjectUrl = null;
+  }
+  if (!profile?.avatar_url) return null;
+  try {
+    const response = await fetch(profile.avatar_url, {
+      headers: { Authorization: `Bearer ${token()}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    avatarObjectUrl = URL.createObjectURL(await response.blob());
+  } catch {
+    avatarObjectUrl = null;
+  }
+  return avatarObjectUrl;
 }
 
 async function refreshBrandAppearance() {
@@ -173,6 +212,13 @@ function brandMarkup() {
   </a>`;
 }
 
+function avatarMarkup(profile, className = '') {
+  const initials = String(profile.full_name || 'Usuario').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  return avatarObjectUrl
+    ? `<span class="user-avatar ${className}"><img src="${escapeHtml(avatarObjectUrl)}" alt="Foto de ${escapeHtml(profile.full_name)}"></span>`
+    : `<span class="user-avatar ${className}" aria-hidden="true">${escapeHtml(initials || 'U')}</span>`;
+}
+
 function longDate(date = new Date()) {
   const value = new Intl.DateTimeFormat('es-MX', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -224,10 +270,10 @@ function shellMarkup(profile, content) {
       <header class="topbar">
         <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">☰</button>
         <div class="mobile-brand">${brandMarkup()}</div>
-        <div class="topbar-context"><strong>Portal corporativo</strong><small>Inicio y autoservicio</small></div>
+        <div class="topbar-context"><strong>Mi espacio</strong><small>Dashboard y configuración personal</small></div>
         <div class="topbar-actions">
           <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-dot" id="notification-dot" hidden></span></button>
-          <span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span>
+          <button class="session-profile" id="topbar-profile-button" type="button" aria-label="Abrir mi configuración">${avatarMarkup(profile, 'small')}<span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span></button>
         </div>
       </header>
       <main>${content}</main>
@@ -265,11 +311,14 @@ function bindShell(profile) {
   document.querySelector('#notifications-button')?.addEventListener('click', () => document.querySelector('#notifications')?.scrollIntoView({ behavior: 'smooth' }));
   document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
+  document.querySelector('#topbar-profile-button')?.addEventListener('click', () => renderAccount(profile));
   document.querySelector('#control-button')?.addEventListener('click', () => renderControlCenter(profile));
   document.querySelector('#logout-button')?.addEventListener('click', async () => {
     try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* cierre local garantizado */ }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_profile');
+    if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
+    avatarObjectUrl = null;
     window.history.replaceState({}, '', '/');
     renderLogin();
   });
@@ -292,19 +341,19 @@ function renderPortal(profile) {
   ].filter(Boolean);
   app.innerHTML = shellMarkup(profile, `
     ${banner}
-    <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> MRTI Home</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>¿Qué necesitas hacer hoy?</em></h1>
-      <p>Solicita, consulta e infórmate desde un solo lugar. MRTI conecta tus servicios internos sin que tengas que conocer qué sistema los atiende.</p>
+    <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> Mi espacio</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>Este es tu dashboard.</em></h1>
+      <p>Consulta tus gestiones, entra a tus módulos y adapta este espacio a tu forma de trabajar.</p>
       <dl class="home-context"><div><dt>Fecha</dt><dd>${escapeHtml(longDate())}</dd></div><div><dt>Área</dt><dd id="home-department">${escapeHtml(profile.access_area_name || 'Sin área asignada')}</dd></div><div><dt>Puesto</dt><dd id="home-position">Consultando RH…</dd></div><div><dt>Ubicación</dt><dd>${escapeHtml(location)}</dd></div></dl></div>
-      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats"><article class="home-stat" id="requests-stat"><span>Tickets abiertos</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="leave-stat"><span>Ausencias pendientes</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="notifications-stat"><span>Novedades</span><strong>—</strong><small>Consultando…</small></article></div></aside></section>
+      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats">${userPreferences.show_tickets ? '<article class="home-stat" id="requests-stat"><span>Tickets abiertos</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_rh ? '<article class="home-stat" id="leave-stat"><span>Ausencias pendientes</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_assets ? '<article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_notifications ? '<article class="home-stat" id="notifications-stat"><span>Novedades</span><strong>—</strong><small>Consultando…</small></article>' : ''}</div></aside></section>
     <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
     ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
     : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
     <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
-    <section class="personal-dashboard notifications-section" id="notifications"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>
+    ${userPreferences.show_notifications ? '<section class="personal-dashboard notifications-section" id="notifications"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>' : ''}
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
-      <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
-      <div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>
-      <div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div></section>`);
+      ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>' : ''}
+      ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>' : ''}
+      ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div>' : ''}</section>`);
   bindShell(profile);
   bindTicketSelfService(profile);
   // Cada widget corre por separado: si Activos o Tickets no responden, el
@@ -563,11 +612,86 @@ async function loadNotifications(profile) {
   container.innerHTML = `<article class="personal-card notifications-card"><div class="personal-card-title"><div><p>Novedades</p><h3>Notificaciones</h3></div></div><ul class="notification-list">${rows}</ul></article>`;
 }
 
+async function resizeAvatar(file) {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+    throw new Error('Selecciona una foto PNG, JPG o WebP de máximo 8 MB.');
+  }
+  const bitmap = await createImageBitmap(file);
+  const size = Math.min(256, Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const context = canvas.getContext('2d');
+  const scale = Math.max(size / bitmap.width, size / bitmap.height);
+  const width = bitmap.width * scale; const height = bitmap.height * scale;
+  context.drawImage(bitmap, (size - width) / 2, (size - height) / 2, width, height);
+  bitmap.close();
+  for (const quality of [.82, .7, .58, .46]) {
+    const value = canvas.toDataURL('image/jpeg', quality);
+    if (value.length <= 60000) return value;
+  }
+  throw new Error('No fue posible optimizar la foto. Prueba con una imagen más sencilla.');
+}
+
 function renderAccount(profile, { required = false } = {}) {
+  if (required) return renderRequiredPassword(profile);
+  const checked = (value) => value ? 'checked' : '';
+  app.innerHTML = shellMarkup(profile, `<section class="workspace-panel account-workspace">
+    <button class="back-button" id="back-portal" type="button">← Volver a mi dashboard</button>
+    <div class="account-heading"><div>${avatarMarkup(profile, 'large')}</div><div><p class="section-label">Mi configuración</p><h1>${escapeHtml(profile.full_name)}</h1><p class="panel-copy">Administra tu identidad, seguridad y la forma en que usas este espacio.</p></div></div>
+    <div class="account-grid">
+      <section class="account-card"><div><p class="section-label">Perfil</p><h2>Datos personales</h2></div>
+        <form class="control-form" id="profile-form"><label>Nombre completo<input name="full_name" value="${escapeHtml(profile.full_name)}" minlength="2" required></label><label>Correo electrónico<input name="email" type="email" value="${escapeHtml(profile.email)}" required></label><div class="form-message" id="profile-message" hidden></div><button class="primary-button" type="submit">Guardar perfil</button></form>
+      </section>
+      <section class="account-card"><div><p class="section-label">Foto</p><h2>Imagen de perfil</h2></div><div class="avatar-editor"><div id="avatar-preview">${avatarMarkup(profile, 'preview')}</div><div><label class="avatar-file">Elegir foto<input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="secondary-button" id="remove-avatar" type="button" ${profile.avatar_url ? '' : 'disabled'}>Quitar foto</button><small>Se recorta y optimiza localmente antes de guardarse.</small></div></div><div class="form-message" id="avatar-message" hidden></div></section>
+      <section class="account-card account-preferences"><div><p class="section-label">Mi espacio</p><h2>Apariencia y contenido</h2></div>
+        <form class="control-form" id="preferences-form"><div class="preference-selects"><label>Tema<select name="theme"><option value="system" ${userPreferences.theme === 'system' ? 'selected' : ''}>Usar el del dispositivo</option><option value="light" ${userPreferences.theme === 'light' ? 'selected' : ''}>Claro</option><option value="dark" ${userPreferences.theme === 'dark' ? 'selected' : ''}>Oscuro</option></select></label><label>Densidad<select name="density"><option value="comfortable" ${userPreferences.density === 'comfortable' ? 'selected' : ''}>Cómoda</option><option value="compact" ${userPreferences.density === 'compact' ? 'selected' : ''}>Compacta</option></select></label></div><fieldset class="widget-options"><legend>Mostrar en mi dashboard</legend><label><input type="checkbox" name="show_notifications" ${checked(userPreferences.show_notifications)}> Notificaciones</label><label><input type="checkbox" name="show_rh" ${checked(userPreferences.show_rh)}> Recursos Humanos</label><label><input type="checkbox" name="show_assets" ${checked(userPreferences.show_assets)}> Activos</label><label><input type="checkbox" name="show_tickets" ${checked(userPreferences.show_tickets)}> Tickets</label></fieldset><div class="form-message" id="preferences-message" hidden></div><button class="primary-button" type="submit">Guardar preferencias</button></form>
+      </section>
+      <section class="account-card"><div><p class="section-label">Seguridad</p><h2>Cambiar contraseña</h2></div><form class="control-form" id="password-form"><label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label><label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><div class="form-message" id="password-message" hidden></div><button class="primary-button" type="submit">Guardar nueva contraseña</button></form></section>
+    </div>
+  </section>`);
+  bindShell(profile);
+  document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
+
+  const profileForm = document.querySelector('#profile-form');
+  profileForm.addEventListener('submit', async (event) => {
+    event.preventDefault(); const message = document.querySelector('#profile-message'); const values = new FormData(profileForm); const button = profileForm.querySelector('button'); button.disabled = true;
+    try { const { profile: updated } = await api('/api/auth/profile', { method: 'PATCH', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email') }) }); localStorage.setItem('auth_profile', JSON.stringify(updated)); message.className = 'form-message success'; message.textContent = 'Perfil actualizado.'; message.hidden = false; setTimeout(() => renderAccount(updated), 500); }
+    catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; button.disabled = false; }
+  });
+
+  const saveAvatar = async (avatarDataUrl) => {
+    const message = document.querySelector('#avatar-message'); message.className = 'form-message'; message.textContent = avatarDataUrl ? 'Optimizando y guardando foto…' : 'Quitando foto…'; message.hidden = false;
+    try { const { profile: updated } = await api('/api/auth/profile/avatar', { method: 'PATCH', body: JSON.stringify({ avatar_data_url: avatarDataUrl }) }); localStorage.setItem('auth_profile', JSON.stringify(updated)); await refreshAvatar(updated); renderAccount(updated); }
+    catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
+  };
+  document.querySelector('#avatar-file').addEventListener('change', async (event) => { const [file] = event.target.files; if (!file) return; try { await saveAvatar(await resizeAvatar(file)); } catch (error) { const message = document.querySelector('#avatar-message'); message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; } });
+  document.querySelector('#remove-avatar').addEventListener('click', () => saveAvatar(null));
+
+  const preferencesForm = document.querySelector('#preferences-form');
+  preferencesForm.addEventListener('submit', async (event) => {
+    event.preventDefault(); const message = document.querySelector('#preferences-message'); const values = new FormData(preferencesForm); const payload = { theme: values.get('theme'), density: values.get('density'), show_notifications: values.has('show_notifications'), show_rh: values.has('show_rh'), show_assets: values.has('show_assets'), show_tickets: values.has('show_tickets') };
+    try { const { preferences } = await api('/api/auth/profile/preferences', { method: 'PATCH', body: JSON.stringify(payload) }); userPreferences = preferences; if (preferences.theme === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, preferences.theme); applyTheme(currentTheme()); document.documentElement.dataset.density = preferences.density; message.className = 'form-message success'; message.textContent = 'Tu espacio quedó actualizado.'; message.hidden = false; }
+    catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
+  });
+  bindPasswordForm(profile, false);
+}
+
+function bindPasswordForm(profile, required) {
+  const form = document.querySelector('#password-form');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault(); const data = new FormData(form); const message = document.querySelector('#password-message');
+    if (data.get('new_password') !== data.get('confirmation')) { message.className = 'form-message error'; message.textContent = 'Las contraseñas nuevas no coinciden.'; message.hidden = false; return; }
+    const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+    try { await api('/api/auth/profile/password', { method: 'PATCH', body: JSON.stringify({ current_password: data.get('current_password'), new_password: data.get('new_password') }) }); form.reset(); message.className = 'form-message success'; message.textContent = 'Contraseña actualizada correctamente.'; message.hidden = false; if (required) { const { profile: updated } = await api('/api/auth/me'); updated.password_change_required = false; localStorage.setItem('auth_profile', JSON.stringify(updated)); await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(updated)]); renderPortal(updated); } }
+    catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
+    finally { button.disabled = false; }
+  });
+}
+
+function renderRequiredPassword(profile) {
   app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel">
-    ${required ? '' : '<button class="back-button" id="back-portal" type="button">← Volver al portal</button>'}
-    <p class="section-label">Mi cuenta</p><h1>${required ? 'Crea tu contraseña personal' : 'Cambiar contraseña'}</h1>
-    <p class="panel-copy">${required ? 'Por seguridad, reemplaza la contraseña temporal antes de continuar.' : 'Actualiza tu contraseña de acceso central. El cambio aplica automáticamente a todos los módulos.'}</p>
+    <p class="section-label">Mi cuenta</p><h1>Crea tu contraseña personal</h1>
+    <p class="panel-copy">Por seguridad, reemplaza la contraseña temporal antes de continuar.</p>
     <form class="control-form" id="password-form">
       <label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label>
       <label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
@@ -577,31 +701,7 @@ function renderAccount(profile, { required = false } = {}) {
     </form>
   </section>`);
   bindShell(profile);
-  document.querySelector('#back-portal')?.addEventListener('click', () => renderPortal(profile));
-  const form = document.querySelector('#password-form');
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = new FormData(form);
-    const message = document.querySelector('#password-message');
-    if (data.get('new_password') !== data.get('confirmation')) {
-      message.className = 'form-message error'; message.textContent = 'Las contraseñas nuevas no coinciden.'; message.hidden = false; return;
-    }
-    const button = form.querySelector('button[type="submit"]');
-    button.disabled = true;
-    try {
-      await api('/api/auth/profile/password', { method: 'PATCH', body: JSON.stringify({ current_password: data.get('current_password'), new_password: data.get('new_password') }) });
-      form.reset(); message.className = 'form-message success'; message.textContent = 'Contraseña actualizada correctamente.'; message.hidden = false;
-      if (required) {
-        const { profile: updatedProfile } = await api('/api/auth/me');
-        updatedProfile.password_change_required = false;
-        localStorage.setItem('auth_profile', JSON.stringify(updatedProfile || {}));
-        await refreshApplications();
-        renderPortal(updatedProfile);
-      }
-    } catch (error) {
-      message.className = 'form-message error'; message.textContent = error.message; message.hidden = false;
-    } finally { button.disabled = false; }
-  });
+  bindPasswordForm(profile, true);
 }
 
 let brandObjectUrls = [];
@@ -1087,7 +1187,7 @@ function renderLogin(message = '') {
       const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) });
       const body = await response.json(); if (!response.ok || !body.token) throw new Error(body.error || 'No se pudo iniciar sesión');
       localStorage.setItem('auth_token', body.token); localStorage.setItem('auth_profile', JSON.stringify(body.profile || {}));
-      await refreshApplications();
+      await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(body.profile)]);
       if (body.profile.password_change_required) return renderAccount(body.profile, { required: true });
       const destination = requestedDestination(); if (destination && destination !== '/') window.location.replace(destination); else renderPortal(body.profile);
     } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Iniciar sesión'; }
@@ -1104,7 +1204,7 @@ async function initialize() {
     ]);
     profile.password_change_required = Boolean(passwordStatus.required);
     localStorage.setItem('auth_profile', JSON.stringify(profile || {}));
-    await refreshApplications();
+    await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(profile)]);
     if (profile.password_change_required) return renderAccount(profile, { required: true });
     const destination = requestedDestination();
     if (destination && destination !== '/') {
