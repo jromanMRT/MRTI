@@ -41,6 +41,7 @@ const DEFAULT_USER_PREFERENCES = {
 };
 let userPreferences = { ...DEFAULT_USER_PREFERENCES };
 let avatarObjectUrl = null;
+let notificationRefreshTimer = null;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -362,6 +363,17 @@ function renderPortal(profile) {
   void loadAssetsDashboard(profile);
   void loadTicketsDashboard(profile);
   void loadNotifications(profile);
+  if (notificationRefreshTimer) window.clearInterval(notificationRefreshTimer);
+  if (userPreferences.show_notifications) {
+    notificationRefreshTimer = window.setInterval(() => {
+      if (!document.querySelector('#notifications-dashboard')) {
+        window.clearInterval(notificationRefreshTimer);
+        notificationRefreshTimer = null;
+        return;
+      }
+      void loadNotifications(profile);
+    }, 60_000);
+  }
 }
 
 const LEAVE_STATUS = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada', cancelled: 'Cancelada' };
