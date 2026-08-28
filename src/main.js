@@ -562,12 +562,13 @@ async function bindTicketSelfService(profile) {
 async function loadNotifications(profile) {
   const container = document.querySelector('#notifications-dashboard');
   if (!container) return;
-  const [leaveResult, ticketsResult] = await Promise.allSettled([
+  const [leaveResult, ticketsResult, teamTicketsResult] = await Promise.allSettled([
     api('/rh-api/api/rh-self/me/leave-requests'),
     api('/tickets-api/api/tickets-self/me'),
+    api('/tickets-api/api/tickets-self/team-notifications'),
   ]);
 
-  if (leaveResult.status === 'rejected' && ticketsResult.status === 'rejected') {
+  if (leaveResult.status === 'rejected' && ticketsResult.status === 'rejected' && teamTicketsResult.status === 'rejected') {
     setHomeStat('notifications-stat', '—', 'Novedades no disponibles', 'unavailable');
     container.className = 'notice error';
     container.textContent = 'No fue posible consultar las novedades en este momento.';
@@ -596,6 +597,17 @@ async function loadNotifications(profile) {
           icon: 'TK',
           text: `Tienes asignado el ticket <strong>${escapeHtml(ticket.folio)}</strong>: ${escapeHtml(ticket.title)} (${escapeHtml(ticket.status_name)}).`,
           href: canOpen(profile, 'tickets') ? '/tickets/' : null,
+        });
+      });
+  }
+  if (teamTicketsResult.status === 'fulfilled') {
+    teamTicketsResult.value.data
+      .slice(0, 3)
+      .forEach((ticket) => {
+        items.push({
+          icon: 'TK',
+          text: `Llegó el ticket <strong>${escapeHtml(ticket.folio)}</strong> al equipo de <strong>${escapeHtml(ticket.business_area_name || 'tu área')}</strong>: ${escapeHtml(ticket.title)}.`,
+          href: canOpen(profile, 'tickets') ? `/tickets/tickets/${encodeURIComponent(ticket.id)}` : null,
         });
       });
   }
@@ -900,15 +912,29 @@ function moduleChecks(modules, selected = []) {
   return modules.map((module) => `<label class="check-option"><input type="checkbox" value="${module.code}" ${selected.includes(module.code) ? 'checked' : ''}>${escapeHtml(module.name)}</label>`).join('');
 }
 
-async function renderControlCenter(profile, flash = '') {
+async function loadTicketTeamControlData() {
+  try {
+    const { data: areas } = await api('/tickets-api/api/business-areas');
+    const memberships = await Promise.all(areas.map(async (area) => {
+      const { data: members } = await api(`/tickets-api/api/business-areas/${area.id}/members`);
+      return [String(area.id), members];
+    }));
+    return { areas, membersByArea: Object.fromEntries(memberships), error: null };
+  } catch (error) {
+    return { areas: [], membersByArea: {}, error: error.message };
+  }
+}
+
+async function renderControlCenter(profile, flash = '', initialPanel = 'users') {
   if (!isAdministrator(profile)) return renderPortal(profile);
   app.innerHTML = shellMarkup(profile, '<section class="workspace-panel"><p>Cargando centro de control…</p></section>');
   bindShell(profile);
   try {
-    const [data, applicationData, auditData] = await Promise.all([
+    const [data, applicationData, auditData, ticketTeamData] = await Promise.all([
       api('/api/auth/access-control'),
       api('/api/portal/v1/admin/applications'),
       api('/api/portal/v1/admin/audit?limit=200'),
+      loadTicketTeamControlData(),
     ]);
     const activeAreas = data.areas.filter((area) => area.is_active);
     const areaCards = data.areas.map((area) => `<form class="area-card" data-area-id="${area.id}">
@@ -957,6 +983,15 @@ async function renderControlCenter(profile, flash = '') {
         <span class="status-badge ${status}">${status === 'active' ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">⌄</span>
       </summary><div class="details-body"></div></details>`;
     }).join('');
+    const activeTicketCandidates = data.users.filter((user) => user.is_active);
+    const ticketTeamCards = ticketTeamData.areas.map((area) => {
+      const members = ticketTeamData.membersByArea[String(area.id)] || [];
+      const memberIds = new Set(members.map((member) => member.user_id));
+      const available = activeTicketCandidates.filter((user) => !memberIds.has(user.id));
+      const options = available.map((user) => `<option value="${escapeHtml(user.id)}">${escapeHtml(user.full_name)} · ${escapeHtml(roleName(user.role))}</option>`).join('');
+      const memberRows = members.map((member) => `<li><span><strong>${escapeHtml(member.user_name || member.user_id)}</strong><small>Recibe novedades y puede atender tickets de esta área.</small></span><button class="secondary-button" type="button" data-ticket-team-remove="${escapeHtml(member.user_id)}" data-ticket-area-id="${area.id}">Quitar</button></li>`).join('');
+      return `<article class="ticket-team-card"><div class="area-heading"><div><strong>${escapeHtml(area.name)}</strong><small>${members.length} ${members.length === 1 ? 'integrante' : 'integrantes'}</small></div></div><form class="ticket-team-add" data-ticket-area-id="${area.id}"><select name="user_id" required><option value="">Seleccionar usuario activo</option>${options}</select><button class="primary-button" type="submit" ${available.length ? '' : 'disabled'}>${available.length ? 'Agregar' : 'Sin candidatos'}</button></form><ul>${memberRows || '<li class="ticket-team-empty">Este equipo todavía no tiene integrantes.</li>'}</ul></article>`;
+    }).join('');
     const applicationStatusOptions = (selected = 'active') => [
       ['active', 'Activa'], ['maintenance', 'Mantenimiento'], ['inactive', 'Inactiva'],
     ].map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
@@ -988,7 +1023,7 @@ async function renderControlCenter(profile, flash = '') {
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
-      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button></nav>
+      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button></nav>
       <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
@@ -997,6 +1032,7 @@ async function renderControlCenter(profile, flash = '') {
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
       </form><p class="field-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
       <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span>${data.areas.length} configuradas</span></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div></div></div>
+      <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Mi espacio las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div>`}</div></div>
       <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span>${applicationData.data.length} registradas</span></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
         <div class="application-admin-grid">${applicationCards}</div></div></div>
@@ -1007,6 +1043,25 @@ async function renderControlCenter(profile, flash = '') {
     document.querySelectorAll('.control-tab').forEach((tab) => tab.addEventListener('click', () => {
       document.querySelectorAll('.control-tab').forEach((item) => item.classList.toggle('active', item === tab));
       document.querySelectorAll('[data-control-panel]').forEach((panel) => { panel.hidden = panel.dataset.controlPanel !== tab.dataset.controlTarget; });
+    }));
+    document.querySelector(`[data-control-target="${initialPanel}"]`)?.click();
+    document.querySelectorAll('.ticket-team-add').forEach((form) => form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const userId = String(new FormData(form).get('user_id') || '');
+      const user = activeTicketCandidates.find((candidate) => candidate.id === userId);
+      if (!user) return;
+      const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+      try {
+        await api(`/tickets-api/api/business-areas/${form.dataset.ticketAreaId}/members`, { method: 'POST', body: JSON.stringify({ user_id: user.id, user_name: user.full_name }) });
+        await renderControlCenter(profile, `${user.full_name} fue agregado al equipo.`, 'ticket-teams');
+      } catch (error) { window.alert(error.message); button.disabled = false; }
+    }));
+    document.querySelectorAll('[data-ticket-team-remove]').forEach((button) => button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await api(`/tickets-api/api/business-areas/${button.dataset.ticketAreaId}/members/${encodeURIComponent(button.dataset.ticketTeamRemove)}`, { method: 'DELETE' });
+        await renderControlCenter(profile, 'El integrante fue retirado del equipo.', 'ticket-teams');
+      } catch (error) { window.alert(error.message); button.disabled = false; }
     }));
     document.querySelector('#provision-rh-users').addEventListener('click', async (event) => {
       const button = event.currentTarget;

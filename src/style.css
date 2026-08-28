@@ -1005,6 +1005,19 @@ button:disabled { cursor: wait; opacity: .58; }
 .active-toggle { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); font-size: .74rem; white-space: nowrap; }
 .active-toggle input { width: auto; accent-color: var(--gold); }
 .area-card .secondary-button { justify-self: start; }
+.ticket-team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 18px; }
+.ticket-team-card { display: grid; align-content: start; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-soft); }
+.ticket-team-card .area-heading { justify-content: space-between; }
+.ticket-team-card .area-heading > div { display: grid; gap: 3px; }
+.ticket-team-card .area-heading strong { color: var(--ink); }
+.ticket-team-card .area-heading small,
+.ticket-team-card li small { color: var(--ink-faint); font-size: .7rem; }
+.ticket-team-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
+.ticket-team-card ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ticket-team-card li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ticket-team-card li > span { display: grid; gap: 3px; }
+.ticket-team-card li strong { color: var(--ink-soft); font-size: .8rem; }
+.ticket-team-card .ticket-team-empty { display: block; color: var(--ink-faint); font-size: .76rem; }
 .create-application-form,
 .application-admin-fields {
   display: grid;
@@ -1158,6 +1171,7 @@ footer {
   }
 
   .create-area-form { grid-template-columns: 1fr; }
+  .ticket-team-add { grid-template-columns: 1fr; }
   .create-user-form,
   .user-fields { grid-template-columns: 1fr; }
   .users-heading { align-items: stretch; flex-direction: column; }
