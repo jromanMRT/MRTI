@@ -14,6 +14,7 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 let viewerToken;
 let adminToken;
 let assetId;
+let originalLoginBackground;
 
 async function login(email) {
   const response = await fetch(`${BASE_URL}/api/auth/login`, {
@@ -31,6 +32,11 @@ function request(path, token, options = {}) {
 }
 
 before(async () => {
+  const [[appearance]] = await pool.query(
+    `SELECT asset_id, updated_by_user_id, updated_at
+       FROM brand_appearance WHERE slot = 'login_background' LIMIT 1`
+  );
+  originalLoginBackground = appearance || { asset_id: null, updated_by_user_id: null, updated_at: null };
   const passwordHash = await bcrypt.hash(password, 10);
   await pool.query(
     'INSERT INTO user_profiles (id, email, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, ?, 1), (?, ?, ?, ?, ?, 1)',
@@ -41,6 +47,12 @@ before(async () => {
 });
 
 after(async () => {
+  await pool.query(
+    `UPDATE brand_appearance
+        SET asset_id = ?, updated_by_user_id = ?, updated_at = ?
+      WHERE slot = 'login_background'`,
+    [originalLoginBackground.asset_id, originalLoginBackground.updated_by_user_id, originalLoginBackground.updated_at]
+  );
   if (assetId) await pool.query('DELETE FROM brand_assets WHERE id = ?', [assetId]);
   await pool.query('DELETE FROM audit_events WHERE actor_user_id IN (?, ?)', [viewer.id, admin.id]);
   await pool.query('DELETE FROM user_profiles WHERE id IN (?, ?)', [viewer.id, admin.id]);
@@ -103,9 +115,12 @@ test('administrador sube, consulta y quita un recurso persistido', async () => {
   const usedDelete = await request(`/api/portal/v1/admin/brand-assets/${assetId}`, adminToken, { method: 'DELETE' });
   assert.equal(usedDelete.status, 409);
   const restored = await request('/api/portal/v1/admin/brand-appearance/login_background', adminToken, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: null }),
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: originalLoginBackground.asset_id }),
   });
   assert.equal(restored.status, 200);
+  const restoredAppearance = await fetch(`${BASE_URL}/api/portal/v1/brand-appearance`);
+  assert.equal(restoredAppearance.status, 200);
+  assert.equal((await restoredAppearance.json()).data.login_background.asset_id, originalLoginBackground.asset_id);
   const removed = await request(`/api/portal/v1/admin/brand-assets/${assetId}`, adminToken, { method: 'DELETE' });
   assert.equal(removed.status, 200);
   const hiddenContent = await request(`/api/portal/v1/brand-assets/${assetId}/content`, adminToken);
