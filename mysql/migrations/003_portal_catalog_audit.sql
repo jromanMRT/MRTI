@@ -22,7 +22,7 @@ INSERT INTO applications
   (id, code, name, description, url, category, icon_key, features_json, status, sort_order)
 VALUES
   ('8f2d9200-0001-4000-8000-000000000001', 'mrti-obs', 'MRTI-Obs', 'Observabilidad, topología, disponibilidad y alertas de la infraestructura tecnológica.', '/mrti-obs/', 'Sistemas', 'observability', '["Monitoreo","Topología","Alertas"]', 'active', 10),
-  ('8f2d9200-0002-4000-8000-000000000002', 'tickets', 'MRTI Solicitudes', 'Gestión centralizada de solicitudes, asignaciones, prioridades y niveles de servicio.', '/tickets/', 'Empresa', 'requests', '["Solicitudes","Asignaciones","SLA"]', 'active', 20),
+  ('8f2d9200-0002-4000-8000-000000000002', 'tickets', 'MRTI-Tickets', 'Gestión centralizada de tickets, asignaciones, prioridades y niveles de servicio.', '/tickets/', 'Empresa', 'requests', '["Tickets","Asignaciones","SLA"]', 'active', 20),
   ('8f2d9200-0003-4000-8000-000000000003', 'agent-core', 'MRTI Agent Core', 'Telemetría, estado en vivo y descargas para los agentes instalados en los equipos.', '/agent-core/', 'Sistemas', 'agents', '["Agentes","Telemetría","Alertas"]', 'active', 30),
   ('8f2d9200-0004-4000-8000-000000000004', 'activos', 'MRTI Activos', 'Inventario de activos de TI: equipos, asignaciones, licencias y accesos.', '/activos/', 'Sistemas', 'assets', '["Inventario","Asignaciones","Licencias"]', 'active', 40),
   ('8f2d9200-0005-4000-8000-000000000005', 'rh', 'MRTI RH', 'Directorio de empleados, organigrama, vacaciones y expedientes documentales.', '/rh/', 'Recursos Humanos', 'people', '["Directorio","Organigrama","Vacaciones"]', 'active', 50)

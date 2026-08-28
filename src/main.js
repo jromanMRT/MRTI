@@ -9,8 +9,8 @@ const FALLBACK_MODULES = [
     features: ['Monitoreo', 'Topología', 'Alertas'],
   },
   {
-    code: 'tickets', title: 'MRTI Tickets', href: '/tickets/',
-    description: 'Gestión centralizada de solicitudes, asignaciones, prioridades y niveles de servicio.',
+    code: 'tickets', title: 'MRTI-Tickets', href: '/tickets/',
+    description: 'Gestión centralizada de tickets, asignaciones, prioridades y niveles de servicio.',
     features: ['Tickets', 'Asignaciones', 'SLA'],
   },
   {
@@ -205,7 +205,7 @@ function shellMarkup(profile, content) {
       <div class="sidebar-brand">${brandMarkup()}</div>
       <nav class="primary-nav" aria-label="Navegación principal">
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
-        ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nueva solicitud</span></a><a class="primary-nav-link" href="/tickets/tickets"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis solicitudes</span></a>' : ''}
+        ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></a><a class="primary-nav-link" href="/tickets/tickets"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></a>' : ''}
       </nav>
       ${appLinksMarkup(profile)}
       <div class="sidebar-section">
@@ -285,8 +285,8 @@ function renderPortal(profile) {
   const firstName = profile.full_name.split(' ')[0];
   const location = [profile.physical_site_name, profile.physical_area_name].filter(Boolean).join(' · ') || 'Ubicación pendiente';
   const quickActions = [
-    { action: 'new-ticket', icon: '+', title: 'Nueva solicitud', copy: 'Reporta una necesidad desde Core.' },
-    { href: '#tickets-dashboard', icon: 'S', title: 'Mis solicitudes', copy: 'Consulta aquí su avance y prioridad.' },
+    { action: 'new-ticket', icon: '+', title: 'Nuevo ticket', copy: 'Reporta una necesidad desde Core.' },
+    { href: '#tickets-dashboard', icon: 'T', title: 'Mis tickets', copy: 'Consulta aquí su avance y prioridad.' },
     { href: '#employee-dashboard', icon: 'RH', title: 'Solicitar ausencia', copy: 'Vacaciones y permisos desde tu Home.' },
     { href: '#assets-dashboard', icon: 'A', title: 'Mis activos', copy: 'Consulta el equipo que tienes asignado.' },
   ].filter(Boolean);
@@ -295,11 +295,11 @@ function renderPortal(profile) {
     <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> MRTI Home</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>¿Qué necesitas hacer hoy?</em></h1>
       <p>Solicita, consulta e infórmate desde un solo lugar. MRTI conecta tus servicios internos sin que tengas que conocer qué sistema los atiende.</p>
       <dl class="home-context"><div><dt>Fecha</dt><dd>${escapeHtml(longDate())}</dd></div><div><dt>Área</dt><dd id="home-department">${escapeHtml(profile.access_area_name || 'Sin área asignada')}</dd></div><div><dt>Puesto</dt><dd id="home-position">Consultando RH…</dd></div><div><dt>Ubicación</dt><dd>${escapeHtml(location)}</dd></div></dl></div>
-      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats"><article class="home-stat" id="requests-stat"><span>Solicitudes abiertas</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="leave-stat"><span>Ausencias pendientes</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="notifications-stat"><span>Novedades</span><strong>—</strong><small>Consultando…</small></article></div></aside></section>
+      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats"><article class="home-stat" id="requests-stat"><span>Tickets abiertos</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="leave-stat"><span>Ausencias pendientes</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article><article class="home-stat" id="notifications-stat"><span>Novedades</span><strong>—</strong><small>Consultando…</small></article></div></aside></section>
     <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
     ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
     : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
-    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar solicitud</button></form></details></section>
+    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
     <section class="personal-dashboard notifications-section" id="notifications"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       <div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>
@@ -422,17 +422,17 @@ async function loadTicketsDashboard(profile, flash = '') {
   try {
     const { data: tickets } = await api('/tickets-api/api/tickets-self/me');
     const openTickets = tickets.filter((ticket) => TICKET_OPEN_STATUSES.includes(ticket.status_code)).length;
-    setHomeStat('requests-stat', String(openTickets), `${tickets.length} ${tickets.length === 1 ? 'solicitud total' : 'solicitudes totales'}`, openTickets ? 'attention' : 'ok');
+    setHomeStat('requests-stat', String(openTickets), `${tickets.length} ${tickets.length === 1 ? 'ticket total' : 'tickets totales'}`, openTickets ? 'attention' : 'ok');
     container.className = 'personal-grid';
     if (!tickets.length) {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
       return;
     }
     const rows = tickets.map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td><strong>${escapeHtml(ticket.business_area_name || 'Sin área')}</strong><small>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
-    const moduleLink = canOpen(profile, 'tickets') ? '<a class="personal-link" href="/tickets/">Abrir gestión completa en MRTI Tickets →</a>' : '';
-    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis solicitudes</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div>${moduleLink}</article>`;
+    const moduleLink = canOpen(profile, 'tickets') ? '<a class="personal-link" href="/tickets/">Abrir gestión completa en MRTI-Tickets →</a>' : '';
+    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div>${moduleLink}</article>`;
   } catch (error) {
-    setHomeStat('requests-stat', '—', 'Solicitudes no disponible', 'unavailable');
+    setHomeStat('requests-stat', '—', 'Tickets no disponibles', 'unavailable');
     container.className = 'notice error';
     container.textContent = error.message;
   }
