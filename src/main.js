@@ -4,12 +4,12 @@ import './ticket-self-service.css';
 const app = document.querySelector('#app');
 const FALLBACK_MODULES = [
   {
-    code: 'mrti-obs', title: 'MRTI-Obs', href: '/mrti-obs/',
+    code: 'mrti-obs', title: 'MRTI Monitor', href: '/mrti-obs/',
     description: 'Observabilidad, topología, disponibilidad y alertas de la infraestructura tecnológica.',
     features: ['Monitoreo', 'Topología', 'Alertas'],
   },
   {
-    code: 'tickets', title: 'MRTI-Tickets', href: '/tickets/',
+    code: 'tickets', title: 'MRTI Tickets', href: '/tickets/',
     description: 'Gestión centralizada de tickets, asignaciones, prioridades y niveles de servicio.',
     features: ['Tickets', 'Asignaciones', 'SLA'],
   },
@@ -429,7 +429,7 @@ async function loadTicketsDashboard(profile, flash = '') {
       return;
     }
     const rows = tickets.map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td><strong>${escapeHtml(ticket.business_area_name || 'Sin área')}</strong><small>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
-    const moduleLink = canOpen(profile, 'tickets') ? '<a class="personal-link" href="/tickets/">Abrir gestión completa en MRTI-Tickets →</a>' : '';
+    const moduleLink = canOpen(profile, 'tickets') ? '<a class="personal-link" href="/tickets/">Abrir gestión completa en MRTI Tickets →</a>' : '';
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div>${moduleLink}</article>`;
   } catch (error) {
     setHomeStat('requests-stat', '—', 'Tickets no disponibles', 'unavailable');
@@ -887,7 +887,7 @@ async function renderControlCenter(profile, flash = '') {
       <button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Administración</p><h1>Centro de control</h1>
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
-      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI-Obs → Sitios</strong></a> y asigna un área a cada activo.</div>'}
+      ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
       <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button></nav>
       <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>

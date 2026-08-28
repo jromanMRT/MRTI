@@ -9,7 +9,7 @@ import { listAssignableAssets, setPrimaryAsset } from '../assetsClient.js';
 export const accessControlRouter = Router();
 
 const FALLBACK_MODULE_CATALOG = [
-  { code: 'mrti-obs', name: 'MRTI-Obs' },
+  { code: 'mrti-obs', name: 'MRTI Monitor' },
   { code: 'tickets', name: 'MRTI Tickets' },
   { code: 'agent-core', name: 'MRTI Agent Core' },
   { code: 'activos', name: 'MRTI Activos' },

@@ -64,7 +64,7 @@ export async function setPrimaryDevice({ userId, deviceId, userName, authorizati
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(body.error || `MRTI-Obs respondió ${response.status}`);
+    const error = new Error(body.error || `MRTI Monitor respondió ${response.status}`);
     error.status = response.status;
     throw error;
   }

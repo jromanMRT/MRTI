@@ -17,7 +17,7 @@ if [[ ! -f /var/www/mrt/MRTI/MRTI/dist/index.html ]]; then
 fi
 
 if [[ ! -f /var/www/mrt/MRTI/MRTI-Infra/dist/index.html ]]; then
-  echo "No existe el build de MRTI-Obs en MRTI-Infra/dist/." >&2
+  echo "No existe el build de MRTI Monitor en MRTI-Infra/dist/." >&2
   exit 1
 fi
 
@@ -43,5 +43,5 @@ fi
 systemctl reload nginx
 
 echo "MRTI quedó publicado en http://192.168.1.203/"
-echo "MRTI-Obs quedó publicado en http://192.168.1.203/mrti-obs/"
+echo "MRTI Monitor quedó publicado en http://192.168.1.203/mrti-obs/"
 echo "MRTI RH quedó publicado en http://192.168.1.203/rh/"
