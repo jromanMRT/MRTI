@@ -134,3 +134,12 @@ test('GET /api/auth/access-control — administrator => 200 con la forma esperad
     assert.ok(key in body, `access-control debe incluir "${key}"`);
   }
 });
+
+test('GET /api/auth/assignees — incluye a cualquier usuario activo aunque aún no tenga acceso a Tickets', async () => {
+  const response = await fetch(`${BASE_URL}/api/auth/assignees`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.ok(body.data.some((person) => person.id === viewer.id && person.role === 'viewer'));
+});

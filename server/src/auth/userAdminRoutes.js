@@ -50,12 +50,9 @@ userAdminRouter.post('/users', authRequired, async (req, res, next) => {
 userAdminRouter.get('/assignees', authRequired, async (_req, res, next) => {
   try {
     const [rows] = await pool.query(
-      `SELECT DISTINCT p.id, p.full_name, p.role
+      `SELECT p.id, p.full_name, p.role
          FROM user_profiles p
-         LEFT JOIN access_area_modules aam
-           ON aam.area_id = p.access_area_id AND aam.module_code = 'tickets'
         WHERE p.is_active = 1
-          AND (p.role = 'administrator' OR aam.module_code = 'tickets')
         ORDER BY p.full_name`
     );
     res.json({ data: rows });
