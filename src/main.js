@@ -167,12 +167,31 @@ function applyTheme(theme) {
   document.querySelector('#theme-toggle')?.setAttribute('aria-pressed', String(theme === 'dark'));
 }
 
+window.addEventListener('storage', (event) => {
+  if (event.key !== THEME_KEY) return;
+  applyTheme(event.newValue === 'light' || event.newValue === 'dark' ? event.newValue : preferredTheme());
+});
+
+async function persistSharedTheme(theme) {
+  userPreferences = { ...userPreferences, theme };
+  try {
+    const { preferences } = await api('/api/auth/profile/preferences/theme', {
+      method: 'PATCH', body: JSON.stringify({ theme }),
+    });
+    userPreferences = { ...userPreferences, ...preferences };
+  } catch {
+    // El cambio local sigue siendo útil si Core está momentáneamente ocupado;
+    // se reintentará en el siguiente cambio explícito del usuario.
+  }
+}
+
 function bindThemeToggle() {
   applyTheme(currentTheme());
   document.querySelector('#theme-toggle')?.addEventListener('click', () => {
     const next = currentTheme() === 'dark' ? 'light' : 'dark';
     localStorage.setItem(THEME_KEY, next);
     applyTheme(next);
+    void persistSharedTheme(next);
   });
 }
 
@@ -185,7 +204,7 @@ function themeToggleMarkup() {
 
 function appLinkMarkup(module) {
   const target = module.code === 'agent-core'
-    ? `${module.href}#token=${encodeURIComponent(token() || '')}`
+    ? `${module.href}#token=${encodeURIComponent(token() || '')}&theme=${encodeURIComponent(currentTheme())}`
     : module.href;
   const maintenance = module.status === 'maintenance';
   const icon = '<span class="nav-icon" aria-hidden="true">▦</span>';

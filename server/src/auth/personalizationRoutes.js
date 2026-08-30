@@ -26,6 +26,10 @@ function serializePreferences(row) {
   };
 }
 
+function validWorkspaceTheme(value) {
+  return ['system', 'light', 'dark'].includes(value);
+}
+
 function parseAvatarDataUrl(value) {
   const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
   if (!match || value.length > 60000) return null;
@@ -80,6 +84,29 @@ personalizationRouter.patch('/profile/preferences', authRequired, async (req, re
   }
 });
 
+// Cambio liviano usado por las barras laterales de todos los módulos. Sólo
+// actualiza el tema y conserva densidad/widgets para que un clic fuera de Core
+// no restablezca el resto de la configuración personal.
+personalizationRouter.patch('/profile/preferences/theme', authRequired, async (req, res, next) => {
+  try {
+    const theme = String(req.body?.theme || '');
+    if (!validWorkspaceTheme(theme)) {
+      return res.status(400).json({ error: 'Tema no válido' });
+    }
+    await pool.query(
+      `INSERT INTO user_workspace_preferences (user_id, theme)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE theme = VALUES(theme)`,
+      [req.user.id, theme]
+    );
+    const [rows] = await pool.query('SELECT * FROM user_workspace_preferences WHERE user_id = ? LIMIT 1', [req.user.id]);
+    await recordAudit({ req, action: 'profile.theme_updated', entityType: 'user', entityId: req.user.id, metadata: { theme } });
+    res.json({ preferences: serializePreferences(rows[0]) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 personalizationRouter.patch('/profile/avatar', authRequired, async (req, res, next) => {
   try {
     const avatarDataUrl = req.body?.avatar_data_url == null ? null : String(req.body.avatar_data_url);
@@ -119,4 +146,4 @@ personalizationRouter.get('/profile/avatar/content', authRequired, async (req, r
   }
 });
 
-export { DEFAULTS as DEFAULT_WORKSPACE_PREFERENCES, serializePreferences, validAvatarDataUrl };
+export { DEFAULTS as DEFAULT_WORKSPACE_PREFERENCES, serializePreferences, validAvatarDataUrl, validWorkspaceTheme };

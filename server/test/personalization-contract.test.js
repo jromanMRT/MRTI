@@ -33,6 +33,9 @@ test('preferencias se crean, persisten y sólo afectan al usuario autenticado', 
   const updated = await request('/api/auth/profile/preferences', { method: 'PATCH', body: JSON.stringify({ theme: 'dark', density: 'compact', show_notifications: false, show_rh: true, show_assets: false, show_tickets: true }) });
   assert.equal(updated.status, 200);
   assert.deepEqual((await updated.json()).preferences, { theme: 'dark', density: 'compact', show_notifications: false, show_rh: true, show_assets: false, show_tickets: true });
+  const themeOnly = await request('/api/auth/profile/preferences/theme', { method: 'PATCH', body: JSON.stringify({ theme: 'light' }) });
+  assert.equal(themeOnly.status, 200);
+  assert.deepEqual((await themeOnly.json()).preferences, { theme: 'light', density: 'compact', show_notifications: false, show_rh: true, show_assets: false, show_tickets: true });
 });
 
 test('foto de perfil valida firma y actualiza el perfil propio', async () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { serializePreferences, validAvatarDataUrl } from '../src/auth/personalizationRoutes.js';
+import { serializePreferences, validAvatarDataUrl, validWorkspaceTheme } from '../src/auth/personalizationRoutes.js';
 
 test('preferencias personales tienen defaults y booleanos normalizados', () => {
   assert.equal(serializePreferences(null).theme, 'system');
@@ -14,4 +14,11 @@ test('avatar sólo acepta imágenes pequeñas con firma real', () => {
   assert.equal(validAvatarDataUrl(png), true);
   assert.equal(validAvatarDataUrl('data:image/png;base64,bm8tZXMtaW1hZ2Vu'), false);
   assert.equal(validAvatarDataUrl('https://example.com/avatar.png'), false);
+});
+
+test('tema compartido sólo acepta los modos del contrato visual', () => {
+  assert.equal(validWorkspaceTheme('system'), true);
+  assert.equal(validWorkspaceTheme('light'), true);
+  assert.equal(validWorkspaceTheme('dark'), true);
+  assert.equal(validWorkspaceTheme('blue'), false);
 });
