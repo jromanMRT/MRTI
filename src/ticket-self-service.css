@@ -26,8 +26,38 @@
 .ticket-create-card[open] > summary b { font-size: 0; }
 .ticket-create-card[open] > summary b::after { content: 'Ocultar formulario'; font-size: .72rem; }
 .ticket-self-form { padding: 5px 23px 23px; }
+.ticket-detail-trigger { display: grid; gap: 3px; padding: 4px 0; border: 0; color: var(--gold-deep); background: transparent; cursor: pointer; text-align: left; }
+.ticket-detail-trigger strong { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--gold) 45%, transparent); text-underline-offset: 3px; }
+.ticket-detail-trigger small { color: var(--ink-soft); text-decoration: none; }
+.ticket-detail-trigger:hover strong,
+.ticket-detail-trigger:focus-visible strong { color: var(--gold); text-decoration-color: currentColor; }
+.ticket-detail-trigger:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 3px; }
+.ticket-list-help { margin: 14px 0 0; color: var(--ink-faint); font-size: .7rem; }
+.ticket-detail-dialog { width: min(680px, calc(100vw - 28px)); max-height: min(760px, calc(100vh - 32px)); padding: 0; overflow: hidden auto; border: 1px solid var(--line); border-radius: 18px; color: var(--ink); background: var(--surface); box-shadow: var(--shadow); }
+.ticket-detail-dialog::backdrop { background: rgba(15, 12, 8, .64); backdrop-filter: blur(3px); }
+.ticket-detail-loading,
+.ticket-detail-error { padding: 48px 24px; color: var(--ink-faint); text-align: center; }
+.ticket-detail-error p { color: var(--bad); }
+.ticket-detail-content > header { position: sticky; z-index: 1; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 22px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.ticket-detail-content > header small { color: var(--gold-deep); font-size: .63rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.ticket-detail-content > header h2 { margin: 2px 0 0; font-size: 1.2rem; }
+.ticket-detail-content > header button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-soft); background: var(--surface-soft); cursor: pointer; }
+.ticket-detail-body { padding: 22px; }
+.ticket-detail-body > h3 { margin: 0 0 18px; color: var(--ink); font-size: 1.18rem; }
+.ticket-detail-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
+.ticket-detail-meta div { min-width: 0; padding: 11px; border-radius: 9px; background: var(--surface-soft); }
+.ticket-detail-meta dt { margin-bottom: 4px; color: var(--ink-faint); font-size: .62rem; font-weight: 700; text-transform: uppercase; }
+.ticket-detail-meta dd { overflow-wrap: anywhere; margin: 0; color: var(--ink-soft); font-size: .75rem; }
+.ticket-edit-rule { margin: 0 0 18px; padding: 10px 12px; border-radius: 8px; color: var(--ink-soft); background: var(--surface-soft); font-size: .72rem; line-height: 1.5; }
+.ticket-edit-rule.editable { color: var(--info); background: var(--info-bg); }
+.ticket-description { padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.ticket-description small { color: var(--gold-deep); font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ticket-description p { margin: 9px 0 0; color: var(--ink); line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ticket-detail-form { margin-top: 0; }
 
 @media (max-width: 520px) {
   .ticket-create-card > summary { align-items: flex-start; flex-direction: column; gap: 8px; }
   .ticket-self-form .personal-form-dates { grid-template-columns: 1fr; }
+  .ticket-detail-body { padding: 17px; }
+  .ticket-detail-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

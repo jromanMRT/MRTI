@@ -67,7 +67,7 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const error = new Error(body.error?.message || body.error || `Error ${response.status}`);
     error.status = response.status;
-    error.code = body.code;
+    error.code = body.error?.code || body.code;
     throw error;
   }
   return body;
@@ -513,13 +513,63 @@ async function loadTicketsDashboard(profile, flash = '') {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
       return;
     }
-    const rows = tickets.map((ticket) => `<tr><td><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></td><td><strong>${escapeHtml(ticket.business_area_name || 'Sin área')}</strong><small>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
-    const moduleLink = canOpen(profile, 'tickets') ? '<a class="personal-link" href="/tickets/">Abrir gestión completa en MRTI Tickets →</a>' : '';
-    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div>${moduleLink}</article>`;
+    const rows = tickets.map((ticket) => `<tr><td><button class="ticket-detail-trigger" type="button" data-ticket-detail="${escapeHtml(ticket.id)}" aria-label="Ver detalle de ${escapeHtml(ticket.folio)}"><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></button></td><td><strong>${escapeHtml(ticket.business_area_name || 'Sin área')}</strong><small>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
+    container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div><p class="ticket-list-help">Selecciona un ticket para consultar su descripción sin salir de Core.</p></article><dialog class="ticket-detail-dialog" id="ticket-detail-dialog" aria-labelledby="ticket-detail-title"><div id="ticket-detail-content" class="ticket-detail-loading">Cargando ticket…</div></dialog>`;
+    const dialog = document.querySelector('#ticket-detail-dialog');
+    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    document.querySelectorAll('[data-ticket-detail]').forEach((button) => button.addEventListener('click', () => openSelfTicketDetail(profile, button.dataset.ticketDetail)));
   } catch (error) {
     setHomeStat('requests-stat', '—', 'Tickets no disponibles', 'unavailable');
     container.className = 'notice error';
     container.textContent = error.message;
+  }
+}
+
+function ticketDateTime(value) {
+  return value ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
+}
+
+async function openSelfTicketDetail(profile, ticketId) {
+  const dialog = document.querySelector('#ticket-detail-dialog');
+  const content = document.querySelector('#ticket-detail-content');
+  content.className = 'ticket-detail-loading';
+  content.textContent = 'Cargando ticket…';
+  if (!dialog.open) dialog.showModal();
+  try {
+    const { data: ticket } = await api(`/tickets-api/api/tickets-self/me/${encodeURIComponent(ticketId)}`);
+    const editMessage = ticket.editable
+      ? `Puedes corregir el título y la descripción hasta ${ticketDateTime(ticket.editable_until)}.`
+      : ticket.is_requester
+        ? 'El plazo de 10 minutos terminó. Este ticket ahora es sólo de consulta.'
+        : 'Sólo la persona que creó el ticket puede modificarlo durante los primeros 10 minutos.';
+    const editableContent = ticket.editable
+      ? `<form class="personal-form ticket-detail-form" id="ticket-detail-form"><label>Título<input name="title" maxlength="255" value="${escapeHtml(ticket.title)}" required></label><label>Descripción<textarea name="description" maxlength="10000" rows="7" placeholder="Sin descripción">${escapeHtml(ticket.description || '')}</textarea></label><div class="personal-form-message" id="ticket-detail-message" hidden></div><button class="personal-submit" type="submit">Guardar cambios</button></form>`
+      : `<section class="ticket-description"><small>Descripción</small><p>${escapeHtml(ticket.description || 'Sin descripción capturada.')}</p></section>`;
+    content.className = 'ticket-detail-content';
+    content.innerHTML = `<header><div><small>Detalle del ticket</small><h2 id="ticket-detail-title">${escapeHtml(ticket.folio)}</h2></div><button type="button" data-close-ticket-detail aria-label="Cerrar detalle">×</button></header><div class="ticket-detail-body"><h3>${escapeHtml(ticket.title)}</h3><dl class="ticket-detail-meta"><div><dt>Estatus</dt><dd><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></dd></div><div><dt>Área</dt><dd>${escapeHtml(ticket.business_area_name || 'Sin área')}</dd></div><div><dt>Categoría</dt><dd>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</dd></div><div><dt>Prioridad</dt><dd>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</dd></div><div><dt>Creado</dt><dd>${escapeHtml(ticketDateTime(ticket.created_at))}</dd></div><div><dt>Actualizado</dt><dd>${escapeHtml(ticketDateTime(ticket.updated_at))}</dd></div></dl><p class="ticket-edit-rule ${ticket.editable ? 'editable' : ''}">${escapeHtml(editMessage)}</p>${editableContent}</div>`;
+    content.querySelector('[data-close-ticket-detail]').addEventListener('click', () => dialog.close());
+    const form = content.querySelector('#ticket-detail-form');
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const values = new FormData(form);
+      const message = content.querySelector('#ticket-detail-message');
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      message.hidden = true;
+      try {
+        await api(`/tickets-api/api/tickets-self/me/${encodeURIComponent(ticketId)}`, { method: 'PATCH', body: JSON.stringify({ title: values.get('title'), description: values.get('description') }) });
+        dialog.close();
+        await loadTicketsDashboard(profile, `${ticket.folio} se actualizó correctamente.`);
+      } catch (error) {
+        message.textContent = error.message;
+        message.hidden = false;
+        button.disabled = false;
+      }
+    });
+  } catch (error) {
+    content.className = 'ticket-detail-error';
+    content.innerHTML = `<p>${escapeHtml(error.message)}</p><button class="secondary-button" type="button" data-close-ticket-detail>Cerrar</button>`;
+    content.querySelector('[data-close-ticket-detail]').addEventListener('click', () => dialog.close());
   }
 }
 
