@@ -42,6 +42,7 @@ const DEFAULT_USER_PREFERENCES = {
 let userPreferences = { ...DEFAULT_USER_PREFERENCES };
 let avatarObjectUrl = null;
 let notificationRefreshTimer = null;
+let notificationPanelController = null;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -292,7 +293,13 @@ function shellMarkup(profile, content) {
         <div class="mobile-brand">${brandMarkup()}</div>
         <div class="topbar-context"><strong>Mi espacio</strong><small>Dashboard y configuración personal</small></div>
         <div class="topbar-actions">
-          <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-dot" id="notification-dot" hidden></span></button>
+          <div class="notification-center">
+            <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones" aria-expanded="false" aria-controls="notifications-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-count" id="notification-count" hidden></span></button>
+            <section class="notification-popover" id="notifications-panel" aria-label="Notificaciones" hidden>
+              <header><div><small>Novedades</small><strong>Notificaciones</strong></div><button id="notifications-close" type="button" aria-label="Cerrar notificaciones">×</button></header>
+              <div id="notifications-dashboard" class="notification-panel-loading" aria-live="polite">Buscando novedades…</div>
+            </section>
+          </div>
           <button class="session-profile" id="topbar-profile-button" type="button" aria-label="Abrir mi configuración">${avatarMarkup(profile, 'small')}<span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span></button>
         </div>
       </header>
@@ -348,7 +355,28 @@ function bindShell(profile) {
   document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile));
   document.querySelector('#core-new-ticket-button')?.addEventListener('click', () => openCoreTicketCreation(profile));
   document.querySelector('#core-my-tickets-button')?.addEventListener('click', () => openCoreTicketHistory(profile));
-  document.querySelector('#notifications-button')?.addEventListener('click', () => document.querySelector('#notifications')?.scrollIntoView({ behavior: 'smooth' }));
+  notificationPanelController?.abort();
+  notificationPanelController = new AbortController();
+  const notificationButton = document.querySelector('#notifications-button');
+  const notificationPanel = document.querySelector('#notifications-panel');
+  const setNotificationPanelOpen = (open) => {
+    if (!notificationButton || !notificationPanel) return;
+    notificationPanel.hidden = !open;
+    notificationButton.setAttribute('aria-expanded', String(open));
+  };
+  notificationButton?.addEventListener('click', () => setNotificationPanelOpen(notificationPanel.hidden));
+  document.querySelector('#notifications-close')?.addEventListener('click', () => {
+    setNotificationPanelOpen(false);
+    notificationButton?.focus();
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.notification-center')) setNotificationPanelOpen(false);
+  }, { signal: notificationPanelController.signal });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || notificationPanel?.hidden) return;
+    setNotificationPanelOpen(false);
+    notificationButton?.focus();
+  }, { signal: notificationPanelController.signal });
   document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
   document.querySelector('#topbar-profile-button')?.addEventListener('click', () => renderAccount(profile));
@@ -362,6 +390,16 @@ function bindShell(profile) {
     window.history.replaceState({}, '', '/');
     renderLogin();
   });
+  void loadNotifications(profile);
+  if (notificationRefreshTimer) window.clearInterval(notificationRefreshTimer);
+  notificationRefreshTimer = window.setInterval(() => {
+    if (!document.querySelector('#notifications-dashboard')) {
+      window.clearInterval(notificationRefreshTimer);
+      notificationRefreshTimer = null;
+      return;
+    }
+    void loadNotifications(profile);
+  }, 60_000);
 }
 
 function renderPortal(profile) {
@@ -383,12 +421,11 @@ function renderPortal(profile) {
     <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> Mi espacio</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>Este es tu dashboard.</em></h1>
       <p>Consulta tus gestiones, entra a tus módulos y adapta este espacio a tu forma de trabajar.</p>
       <dl class="home-context"><div><dt>Fecha</dt><dd>${escapeHtml(longDate())}</dd></div><div><dt>Área</dt><dd id="home-department">${escapeHtml(profile.access_area_name || 'Sin área asignada')}</dd></div><div><dt>Puesto</dt><dd id="home-position">Consultando RH…</dd></div><div><dt>Ubicación</dt><dd>${escapeHtml(location)}</dd></div></dl></div>
-      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats">${userPreferences.show_tickets ? '<article class="home-stat" id="requests-stat"><span>Tickets abiertos</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_assets ? '<article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_notifications ? '<article class="home-stat" id="notifications-stat"><span>Novedades</span><strong>—</strong><small>Consultando…</small></article>' : ''}</div></aside></section>
+      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats">${userPreferences.show_tickets ? '<article class="home-stat" id="requests-stat"><span>Tickets abiertos</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_assets ? '<article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article>' : ''}</div></aside></section>
     <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
     ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
     : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
     <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
-    ${userPreferences.show_notifications ? '<section class="personal-dashboard notifications-section" id="notifications"><div id="notifications-dashboard" class="personal-loading">Buscando novedades…</div></section>' : ''}
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>' : ''}
       ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>' : ''}
@@ -400,18 +437,6 @@ function renderPortal(profile) {
   void loadEmployeeDashboard(profile);
   void loadAssetsDashboard(profile);
   void loadTicketsDashboard(profile);
-  void loadNotifications(profile);
-  if (notificationRefreshTimer) window.clearInterval(notificationRefreshTimer);
-  if (userPreferences.show_notifications) {
-    notificationRefreshTimer = window.setInterval(() => {
-      if (!document.querySelector('#notifications-dashboard')) {
-        window.clearInterval(notificationRefreshTimer);
-        notificationRefreshTimer = null;
-        return;
-      }
-      void loadNotifications(profile);
-    }, 60_000);
-  }
 }
 
 function shortDate(value) {
@@ -577,9 +602,8 @@ async function loadNotifications(profile) {
   ]);
 
   if (ticketsResult.status === 'rejected' && teamTicketsResult.status === 'rejected') {
-    setHomeStat('notifications-stat', '—', 'Novedades no disponibles', 'unavailable');
-    container.className = 'notice error';
-    container.textContent = 'No fue posible consultar las novedades en este momento.';
+    container.className = 'notification-panel-error';
+    container.textContent = 'No fue posible consultar las notificaciones en este momento.';
     return;
   }
 
@@ -608,16 +632,20 @@ async function loadNotifications(profile) {
       });
   }
 
-  container.className = 'personal-grid';
-  setHomeStat('notifications-stat', String(items.length), items.length === 1 ? 'Novedad reciente' : 'Novedades recientes', items.length ? 'attention' : 'ok');
-  const notificationDot = document.querySelector('#notification-dot');
-  if (notificationDot) notificationDot.hidden = items.length === 0;
+  container.className = '';
+  const notificationCount = document.querySelector('#notification-count');
+  const notificationButton = document.querySelector('#notifications-button');
+  if (notificationCount) {
+    notificationCount.textContent = items.length > 9 ? '9+' : String(items.length);
+    notificationCount.hidden = items.length === 0;
+  }
+  notificationButton?.setAttribute('aria-label', items.length ? `Ver notificaciones: ${items.length} nuevas` : 'Ver notificaciones');
   if (!items.length) {
-    container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Novedades</p><h3>Notificaciones</h3></div></div><p class="personal-empty">Sin novedades por ahora.</p></article>`;
+    container.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
     return;
   }
   const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">${item.icon}</span><span>${item.text}</span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
-  container.innerHTML = `<article class="personal-card notifications-card"><div class="personal-card-title"><div><p>Novedades</p><h3>Notificaciones</h3></div></div><ul class="notification-list">${rows}</ul></article>`;
+  container.innerHTML = `<ul class="notification-list">${rows}</ul>`;
 }
 
 async function resizeAvatar(file) {
@@ -652,7 +680,7 @@ function renderAccount(profile, { required = false } = {}) {
       </section>
       <section class="account-card"><div><p class="section-label">Foto</p><h2>Imagen de perfil</h2></div><div class="avatar-editor"><div id="avatar-preview">${avatarMarkup(profile, 'preview')}</div><div><label class="avatar-file">Elegir foto<input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="secondary-button" id="remove-avatar" type="button" ${profile.avatar_url ? '' : 'disabled'}>Quitar foto</button><small>Se recorta y optimiza localmente antes de guardarse.</small></div></div><div class="form-message" id="avatar-message" hidden></div></section>
       <section class="account-card account-preferences"><div><p class="section-label">Mi espacio</p><h2>Apariencia y contenido</h2></div>
-        <form class="control-form" id="preferences-form"><div class="preference-selects"><label>Tema<select name="theme"><option value="system" ${userPreferences.theme === 'system' ? 'selected' : ''}>Usar el del dispositivo</option><option value="light" ${userPreferences.theme === 'light' ? 'selected' : ''}>Claro</option><option value="dark" ${userPreferences.theme === 'dark' ? 'selected' : ''}>Oscuro</option></select></label><label>Densidad<select name="density"><option value="comfortable" ${userPreferences.density === 'comfortable' ? 'selected' : ''}>Cómoda</option><option value="compact" ${userPreferences.density === 'compact' ? 'selected' : ''}>Compacta</option></select></label></div><fieldset class="widget-options"><legend>Mostrar en mi dashboard</legend><label><input type="checkbox" name="show_notifications" ${checked(userPreferences.show_notifications)}> Notificaciones</label><label><input type="checkbox" name="show_rh" ${checked(userPreferences.show_rh)}> Recursos Humanos</label><label><input type="checkbox" name="show_assets" ${checked(userPreferences.show_assets)}> Activos</label><label><input type="checkbox" name="show_tickets" ${checked(userPreferences.show_tickets)}> Tickets</label></fieldset><div class="form-message" id="preferences-message" hidden></div><button class="primary-button" type="submit">Guardar preferencias</button></form>
+        <form class="control-form" id="preferences-form"><div class="preference-selects"><label>Tema<select name="theme"><option value="system" ${userPreferences.theme === 'system' ? 'selected' : ''}>Usar el del dispositivo</option><option value="light" ${userPreferences.theme === 'light' ? 'selected' : ''}>Claro</option><option value="dark" ${userPreferences.theme === 'dark' ? 'selected' : ''}>Oscuro</option></select></label><label>Densidad<select name="density"><option value="comfortable" ${userPreferences.density === 'comfortable' ? 'selected' : ''}>Cómoda</option><option value="compact" ${userPreferences.density === 'compact' ? 'selected' : ''}>Compacta</option></select></label></div><fieldset class="widget-options"><legend>Mostrar en mi dashboard</legend><label><input type="checkbox" name="show_rh" ${checked(userPreferences.show_rh)}> Recursos Humanos</label><label><input type="checkbox" name="show_assets" ${checked(userPreferences.show_assets)}> Activos</label><label><input type="checkbox" name="show_tickets" ${checked(userPreferences.show_tickets)}> Tickets</label></fieldset><div class="form-message" id="preferences-message" hidden></div><button class="primary-button" type="submit">Guardar preferencias</button></form>
       </section>
       <section class="account-card"><div><p class="section-label">Seguridad</p><h2>Cambiar contraseña</h2></div><form class="control-form" id="password-form"><label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label><label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><div class="form-message" id="password-message" hidden></div><button class="primary-button" type="submit">Guardar nueva contraseña</button></form></section>
     </div>
@@ -677,7 +705,7 @@ function renderAccount(profile, { required = false } = {}) {
 
   const preferencesForm = document.querySelector('#preferences-form');
   preferencesForm.addEventListener('submit', async (event) => {
-    event.preventDefault(); const message = document.querySelector('#preferences-message'); const values = new FormData(preferencesForm); const payload = { theme: values.get('theme'), density: values.get('density'), show_notifications: values.has('show_notifications'), show_rh: values.has('show_rh'), show_assets: values.has('show_assets'), show_tickets: values.has('show_tickets') };
+    event.preventDefault(); const message = document.querySelector('#preferences-message'); const values = new FormData(preferencesForm); const payload = { theme: values.get('theme'), density: values.get('density'), show_notifications: userPreferences.show_notifications, show_rh: values.has('show_rh'), show_assets: values.has('show_assets'), show_tickets: values.has('show_tickets') };
     try { const { preferences } = await api('/api/auth/profile/preferences', { method: 'PATCH', body: JSON.stringify(payload) }); userPreferences = preferences; if (preferences.theme === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, preferences.theme); applyTheme(currentTheme()); document.documentElement.dataset.density = preferences.density; message.className = 'form-message success'; message.textContent = 'Tu espacio quedó actualizado.'; message.hidden = false; }
     catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
   });
