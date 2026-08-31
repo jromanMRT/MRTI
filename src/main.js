@@ -271,7 +271,7 @@ function shellMarkup(profile, content) {
       <div class="sidebar-brand">${brandMarkup()}</div>
       <nav class="primary-nav" aria-label="Navegación principal">
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
-        ${ticketsAllowed ? '<a class="primary-nav-link" href="/tickets/tickets/new"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></a><a class="primary-nav-link" href="/tickets/tickets"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></a>' : ''}
+        ${ticketsAllowed ? '<button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></button>' : ''}
       </nav>
       ${appLinksMarkup(profile)}
       <div class="sidebar-section">
@@ -302,6 +302,24 @@ function shellMarkup(profile, content) {
   </div>`;
 }
 
+function openCoreTicketCreation(profile) {
+  renderPortal(profile);
+  const panel = document.querySelector('#ticket-create-panel');
+  panel.open = true;
+  requestAnimationFrame(() => {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.querySelector('#ticket-self-form [name="title"]')?.focus({ preventScroll: true });
+  });
+}
+
+function openCoreTicketHistory(profile) {
+  const wasVisible = userPreferences.show_tickets;
+  userPreferences = { ...userPreferences, show_tickets: true };
+  renderPortal(profile);
+  userPreferences = { ...userPreferences, show_tickets: wasVisible };
+  requestAnimationFrame(() => document.querySelector('#tickets-dashboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
 function bindShell(profile) {
   bindThemeToggle();
   const shell = document.querySelector('.page-shell');
@@ -328,6 +346,8 @@ function bindShell(profile) {
     button.setAttribute('title', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
   });
   document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile));
+  document.querySelector('#core-new-ticket-button')?.addEventListener('click', () => openCoreTicketCreation(profile));
+  document.querySelector('#core-my-tickets-button')?.addEventListener('click', () => openCoreTicketHistory(profile));
   document.querySelector('#notifications-button')?.addEventListener('click', () => document.querySelector('#notifications')?.scrollIntoView({ behavior: 'smooth' }));
   document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
