@@ -3,6 +3,7 @@ const SOURCES = [
   { code: 'activos', url: () => `${process.env.MRTI_ASSETS_URL || 'http://127.0.0.1:3003'}/api/activos/audit-events` },
   { code: 'mrti-obs', url: () => `${process.env.MRTI_OBS_URL || process.env.MRTI_INFRA_URL || 'http://127.0.0.1:3002'}/api/audit-events` },
   { code: 'tickets', url: () => `${process.env.MRTI_TICKETS_URL || 'http://127.0.0.1:4000'}/api/audit-events` },
+  { code: 'mrti-legal', url: () => `${process.env.MRTI_LEGAL_URL || 'http://127.0.0.1:3006'}/api/legal/audit-events` },
 ];
 
 export async function fetchRemoteAuditEvents(authorization, limit = 200) {

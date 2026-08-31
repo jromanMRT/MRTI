@@ -401,7 +401,10 @@ function bindShell(profile) {
   }, 60_000);
 }
 
-function renderPortal(profile) {
+// Los módulos enlazan aquí con ?view=account|control-center|notifications
+// para llevar al usuario directo a esa pantalla de Core (ver bindShell) en
+// lugar de dejarlo parado en el dashboard con un clic extra por dar.
+function renderPortal(profile, requestedView = new URLSearchParams(window.location.search).get('view')) {
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
   const deniedModule = portalApplications.find((module) => module.code === deniedCode);
   window.history.replaceState({}, '', '/');
@@ -431,6 +434,10 @@ function renderPortal(profile) {
       ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div>' : ''}</section>`);
   bindShell(profile);
   bindTicketSelfService(profile);
+  if (requestedView === 'account') renderAccount(profile);
+  else if (requestedView === 'control-center' && isAdministrator(profile)) void renderControlCenter(profile);
+  else if (requestedView === 'brand-assets' && isAdministrator(profile)) void renderBrandAssets(profile);
+  else if (requestedView === 'notifications') document.querySelector('#notifications-button')?.click();
   // Cada widget corre por separado: si Activos o Tickets no responden, el
   // dashboard de RH y el resto de la página no se ven afectados.
   void loadEmployeeDashboard(profile);
@@ -664,7 +671,7 @@ async function loadNotifications(_profile) {
     container.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
     return;
   }
-  const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">TK</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
+  const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">${item.module_code === 'mrti-legal' ? 'LG' : 'TK'}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
   container.innerHTML = `<ul class="notification-list">${rows}</ul>`;
 }
 
