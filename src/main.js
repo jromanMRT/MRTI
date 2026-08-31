@@ -263,7 +263,6 @@ function setHomeStat(id, value, detail, state = '') {
 }
 
 function shellMarkup(profile, content) {
-  const ticketsAllowed = canOpen(profile, 'tickets');
   const collapsed = localStorage.getItem('mrti_core_sidebar_collapsed') === '1';
   return `<div class="page-shell${collapsed ? ' sidebar-collapsed' : ''}">
     <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
@@ -272,7 +271,7 @@ function shellMarkup(profile, content) {
       <div class="sidebar-brand">${brandMarkup()}</div>
       <nav class="primary-nav" aria-label="Navegación principal">
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
-        ${ticketsAllowed ? '<button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></button>' : ''}
+        <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></button>
       </nav>
       ${appLinksMarkup(profile)}
       <div class="sidebar-section">
