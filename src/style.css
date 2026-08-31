@@ -1313,6 +1313,19 @@ footer {
 .audit-change div { margin-top: 8px; }
 .audit-change pre { width: min(480px, 70vw); max-height: 220px; margin-top: 4px; padding: 9px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-soft); background: var(--surface-soft); font: .7rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
 .audit-no-detail { color: var(--ink-faint); font-size: .72rem; }
+.ticket-limits-section { margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--line); }
+.ticket-limit-list { display: grid; gap: 10px; margin-top: 18px; }
+.ticket-limit-row { display: grid; grid-template-columns: minmax(220px, 1.5fr) minmax(105px, .55fr) minmax(120px, .65fr) minmax(170px, .8fr) auto; align-items: end; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.ticket-limit-row > label { display: grid; gap: 6px; color: var(--ink-soft); font-size: .75rem; font-weight: 700; }
+.ticket-limit-row input[type="number"] { width: 100%; min-width: 0; }
+.ticket-limit-person { display: grid; gap: 3px; min-width: 0; }
+.ticket-limit-person small { color: var(--ink-faint); overflow-wrap: anywhere; }
+.ticket-limit-person .status-badge { width: max-content; margin-top: 4px; }
+.ticket-limit-block { display: flex !important; align-items: center; min-height: 42px; }
+.ticket-limit-actions { display: flex; gap: 7px; }
+
+@media (max-width: 1180px) { .ticket-limit-row { grid-template-columns: minmax(220px, 1fr) 1fr 1fr; } .ticket-limit-actions { grid-column: 2 / -1; } }
+@media (max-width: 760px) { .ticket-limit-row { grid-template-columns: 1fr; } .ticket-limit-actions { grid-column: 1; flex-wrap: wrap; } }
 
 @media (min-width: 821px) {
   .page-shell,

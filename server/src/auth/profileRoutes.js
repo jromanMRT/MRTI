@@ -14,24 +14,26 @@ profileRouter.get('/me', authRequired, (req, res) => {
 profileRouter.patch('/profile', authRequired, async (req, res, next) => {
   try {
     const fullName = String(req.body?.full_name || '').trim();
-    const email = String(req.body?.email || '').trim().toLowerCase();
     if (fullName.length < 2) {
       return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ error: 'El correo electrónico no es válido' });
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'email')) {
+      const requestedEmail = String(req.body.email || '').trim().toLowerCase();
+      if (requestedEmail !== String(req.user.email || '').trim().toLowerCase()) {
+        return res.status(403).json({
+          error: 'Sólo un administrador puede cambiar el correo electrónico desde el Centro de control',
+          code: 'EMAIL_ADMIN_ONLY',
+        });
+      }
     }
 
     await pool.query(
-      'UPDATE user_profiles SET full_name = ?, email = ? WHERE id = ?',
-      [fullName, email, req.user.id]
+      'UPDATE user_profiles SET full_name = ? WHERE id = ?',
+      [fullName, req.user.id]
     );
-    await recordAudit({ req, action: 'profile.updated', entityType: 'user', entityId: req.user.id, metadata: { fields: ['full_name', 'email'] } });
+    await recordAudit({ req, action: 'profile.updated', entityType: 'user', entityId: req.user.id, metadata: { fields: ['full_name'] } });
     res.json({ profile: await findProfile(req.user.id, req.headers.authorization) });
   } catch (err) {
-    if (err?.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ error: 'Ese correo electrónico ya pertenece a otro usuario' });
-    }
     next(err);
   }
 });

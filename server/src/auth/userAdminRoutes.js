@@ -83,8 +83,9 @@ userAdminRouter.patch('/users/:id', authRequired, async (req, res, next) => {
 
     const target = await findProfile(req.params.id, req.headers.authorization);
     if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
-    if (target.id === req.user.id) {
-      return res.status(400).json({ error: 'Usa Mi cuenta para modificar tus propios datos' });
+    const isSelf = target.id === req.user.id;
+    if (isSelf && req.user.role !== 'administrator') {
+      return res.status(403).json({ error: 'Sólo un administrador puede cambiar su correo desde el Centro de control' });
     }
 
     const isAdmin = req.user.role === 'administrator';
@@ -95,6 +96,9 @@ userAdminRouter.patch('/users/:id', authRequired, async (req, res, next) => {
     }
 
     const requested = req.body || {};
+    if (isSelf && ['role', 'is_active', 'password'].some((field) => Object.prototype.hasOwnProperty.call(requested, field))) {
+      return res.status(400).json({ error: 'Tu rol, estado y contraseña se administran por los controles correspondientes' });
+    }
     const updates = {};
 
     if (Object.prototype.hasOwnProperty.call(requested, 'full_name')) {

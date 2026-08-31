@@ -143,3 +143,30 @@ test('GET /api/auth/assignees — incluye a cualquier usuario activo aunque aún
   const body = await response.json();
   assert.ok(body.data.some((person) => person.id === viewer.id && person.role === 'viewer'));
 });
+
+test('PATCH /api/auth/profile — no permite que un usuario cambie su propio correo', async () => {
+  const attemptedEmail = `alternate-${randomUUID()}@contract.test`;
+  const response = await fetch(`${BASE_URL}/api/auth/profile`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${viewerToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ full_name: 'Fase 0 Contract Fixture', email: attemptedEmail }),
+  });
+  assert.equal(response.status, 403);
+  const body = await response.json();
+  assert.equal(body.code, 'EMAIL_ADMIN_ONLY');
+  const [[stored]] = await pool.query('SELECT email FROM user_profiles WHERE id = ?', [viewer.id]);
+  assert.equal(stored.email, viewer.email);
+});
+
+test('PATCH /api/auth/users/:id — administrador puede corregir su propio correo', async () => {
+  const updatedEmail = `phase0-admin-updated-${randomUUID()}@contract.test`;
+  const response = await fetch(`${BASE_URL}/api/auth/users/${admin.id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ full_name: 'Fase 0 Contract Fixture', email: updatedEmail }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.profile.email, updatedEmail);
+  admin.email = updatedEmail;
+});

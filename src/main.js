@@ -696,7 +696,7 @@ function renderAccount(profile, { required = false } = {}) {
     <div class="account-heading"><div>${avatarMarkup(profile, 'large')}</div><div><p class="section-label">Mi configuración</p><h1>${escapeHtml(profile.full_name)}</h1><p class="panel-copy">Administra tu identidad, seguridad y la forma en que usas este espacio.</p></div></div>
     <div class="account-grid">
       <section class="account-card"><div><p class="section-label">Perfil</p><h2>Datos personales</h2></div>
-        <form class="control-form" id="profile-form"><label>Nombre completo<input name="full_name" value="${escapeHtml(profile.full_name)}" minlength="2" required></label><label>Correo electrónico<input name="email" type="email" value="${escapeHtml(profile.email)}" required></label><div class="form-message" id="profile-message" hidden></div><button class="primary-button" type="submit">Guardar perfil</button></form>
+        <form class="control-form" id="profile-form"><label>Nombre completo<input name="full_name" value="${escapeHtml(profile.full_name)}" minlength="2" required></label><label>Correo electrónico<input type="email" value="${escapeHtml(profile.email)}" readonly aria-readonly="true"><small class="field-help">Sólo un administrador puede cambiarlo desde el Centro de control.</small></label><div class="form-message" id="profile-message" hidden></div><button class="primary-button" type="submit">Guardar perfil</button></form>
       </section>
       <section class="account-card"><div><p class="section-label">Foto</p><h2>Imagen de perfil</h2></div><div class="avatar-editor"><div id="avatar-preview">${avatarMarkup(profile, 'preview')}</div><div><label class="avatar-file">Elegir foto<input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="secondary-button" id="remove-avatar" type="button" ${profile.avatar_url ? '' : 'disabled'}>Quitar foto</button><small>Se recorta y optimiza localmente antes de guardarse.</small></div></div><div class="form-message" id="avatar-message" hidden></div></section>
       <section class="account-card account-preferences"><div><p class="section-label">Mi espacio</p><h2>Apariencia y contenido</h2></div>
@@ -711,7 +711,7 @@ function renderAccount(profile, { required = false } = {}) {
   const profileForm = document.querySelector('#profile-form');
   profileForm.addEventListener('submit', async (event) => {
     event.preventDefault(); const message = document.querySelector('#profile-message'); const values = new FormData(profileForm); const button = profileForm.querySelector('button'); button.disabled = true;
-    try { const { profile: updated } = await api('/api/auth/profile', { method: 'PATCH', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email') }) }); localStorage.setItem('auth_profile', JSON.stringify(updated)); message.className = 'form-message success'; message.textContent = 'Perfil actualizado.'; message.hidden = false; setTimeout(() => renderAccount(updated), 500); }
+    try { const { profile: updated } = await api('/api/auth/profile', { method: 'PATCH', body: JSON.stringify({ full_name: values.get('full_name') }) }); localStorage.setItem('auth_profile', JSON.stringify(updated)); message.className = 'form-message success'; message.textContent = 'Perfil actualizado.'; message.hidden = false; setTimeout(() => renderAccount(updated), 500); }
     catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; button.disabled = false; }
   });
 
@@ -958,14 +958,17 @@ function moduleChecks(modules, selected = []) {
 
 async function loadTicketTeamControlData() {
   try {
-    const { data: areas } = await api('/tickets-api/api/business-areas');
+    const [{ data: areas }, { data: creationLimits }] = await Promise.all([
+      api('/tickets-api/api/business-areas'),
+      api('/tickets-api/api/ticket-user-creation-limits'),
+    ]);
     const memberships = await Promise.all(areas.map(async (area) => {
       const { data: members } = await api(`/tickets-api/api/business-areas/${area.id}/members`);
       return [String(area.id), members];
     }));
-    return { areas, membersByArea: Object.fromEntries(memberships), error: null };
+    return { areas, membersByArea: Object.fromEntries(memberships), creationLimits, error: null };
   } catch (error) {
-    return { areas: [], membersByArea: {}, error: error.message };
+    return { areas: [], membersByArea: {}, creationLimits: [], error: error.message };
   }
 }
 
@@ -995,10 +998,12 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     const deviceOptions = (selected = '', ownerId = '') => `<option value="">Sin equipo habitual</option>${data.devices
       .map((device) => `<option value="${device.id}" data-area-id="${device.area_id || ''}" data-owner-id="${device.assigned_user_id || ''}" ${device.id === selected ? 'selected' : ''} ${device.assigned_user_id && device.assigned_user_id !== ownerId ? 'disabled' : ''}>${escapeHtml(`${device.internal_id} · ${device.name}${device.assigned_user_id && device.assigned_user_id !== ownerId ? ' · asignado' : ''}`)}</option>`).join('')}`;
     function ownUserFormMarkup(user) {
-      return `<form class="own-user own-location-editor" data-user-id="${user.id}"><p>Modifica tus datos personales y contraseña desde “Mi cuenta”. Aquí puedes mantener tu contexto físico.</p><div class="user-fields">
+      return `<form class="own-user own-location-editor" data-user-id="${user.id}"><p>Como administrador puedes corregir aquí el nombre y el correo de acceso. La contraseña se cambia desde “Mi cuenta”.</p><div class="user-fields">
+        <label>Nombre<input name="full_name" value="${escapeHtml(user.full_name)}" required></label>
+        <label>Correo<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions(user.physical_area_id || '')}</select></label>
         <label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '', user.id)}</select></label>
-      </div><button class="secondary-button" type="submit">Guardar ubicación</button></form>`;
+      </div><button class="secondary-button" type="submit">Guardar usuario</button></form>`;
     }
     function otherUserFormMarkup(user) {
       const identifier = userIdentifier(user.user_number);
@@ -1028,6 +1033,12 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       </summary><div class="details-body"></div></details>`;
     }).join('');
     const activeTicketCandidates = data.users.filter((user) => user.is_active);
+    const ticketLimitsByUser = new Map(ticketTeamData.creationLimits.map((limit) => [limit.user_id, limit]));
+    const ticketLimitRows = activeTicketCandidates.map((user) => {
+      const limit = ticketLimitsByUser.get(user.id) || {};
+      const summary = limit.creation_blocked ? 'Creación bloqueada' : [limit.hourly_limit && `${limit.hourly_limit}/hora`, limit.daily_limit && `${limit.daily_limit}/24 h`].filter(Boolean).join(' · ') || 'Sin límites';
+      return `<form class="ticket-limit-row" data-ticket-limit-user="${escapeHtml(user.id)}"><div class="ticket-limit-person"><strong>${escapeHtml(user.full_name)}</strong><small>${escapeHtml(user.email)}</small><span class="status-badge ${limit.creation_blocked ? 'inactive' : 'active'}">${escapeHtml(summary)}</span></div><label>Por hora<input name="hourly_limit" type="number" min="1" max="100" value="${limit.hourly_limit || ''}" placeholder="Sin límite"></label><label>Por 24 horas<input name="daily_limit" type="number" min="1" max="1000" value="${limit.daily_limit || ''}" placeholder="Sin límite"></label><label class="ticket-limit-block"><input name="creation_blocked" type="checkbox" ${limit.creation_blocked ? 'checked' : ''}> Impedir que cree tickets</label><div class="ticket-limit-actions"><button class="primary-button" type="submit">Guardar</button><button class="secondary-button" type="button" data-ticket-limit-reset="${escapeHtml(user.id)}">Restablecer</button></div></form>`;
+    }).join('');
     const ticketTeamCards = ticketTeamData.areas.map((area) => {
       const members = ticketTeamData.membersByArea[String(area.id)] || [];
       const memberIds = new Set(members.map((member) => member.user_id));
@@ -1076,7 +1087,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
       </form><p class="field-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
       <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span>${data.areas.length} configuradas</span></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div></div></div>
-      <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Mi espacio las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div>`}</div></div>
+      <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Mi espacio las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div><section class="ticket-limits-section"><div class="users-heading"><div><h2>Límites de creación por usuario</h2><span>Control contra uso indebido</span></div></div><p class="field-help">Deja un campo vacío para no limitarlo. “Por 24 horas” usa una ventana móvil desde el momento de cada intento. El bloqueo impide crear tanto desde Mi espacio como desde la API de Tickets.</p><div class="ticket-limit-list">${ticketLimitRows || '<p>No hay usuarios activos.</p>'}</div></section>`}</div></div>
       <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span>${applicationData.data.length} registradas</span></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
         <div class="application-admin-grid">${applicationCards}</div></div></div>
@@ -1105,6 +1116,21 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       try {
         await api(`/tickets-api/api/business-areas/${button.dataset.ticketAreaId}/members/${encodeURIComponent(button.dataset.ticketTeamRemove)}`, { method: 'DELETE' });
         await renderControlCenter(profile, 'El integrante fue retirado del equipo.', 'ticket-teams');
+      } catch (error) { window.alert(error.message); button.disabled = false; }
+    }));
+    document.querySelectorAll('.ticket-limit-row').forEach((form) => form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const values = new FormData(form); const button = form.querySelector('button[type="submit"]'); button.disabled = true;
+      try {
+        await api(`/tickets-api/api/ticket-user-creation-limits/${encodeURIComponent(form.dataset.ticketLimitUser)}`, { method: 'PUT', body: JSON.stringify({ hourly_limit: values.get('hourly_limit') || null, daily_limit: values.get('daily_limit') || null, creation_blocked: values.get('creation_blocked') === 'on' }) });
+        await renderControlCenter(profile, 'Límite de creación actualizado.', 'ticket-teams');
+      } catch (error) { window.alert(error.message); button.disabled = false; }
+    }));
+    document.querySelectorAll('[data-ticket-limit-reset]').forEach((button) => button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await api(`/tickets-api/api/ticket-user-creation-limits/${encodeURIComponent(button.dataset.ticketLimitReset)}`, { method: 'DELETE' });
+        await renderControlCenter(profile, 'El usuario quedó sin límites de creación.', 'ticket-teams');
       } catch (error) { window.alert(error.message); button.disabled = false; }
     }));
     document.querySelector('#provision-rh-users').addEventListener('click', async (event) => {
@@ -1182,8 +1208,10 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     async function handleOwnLocationSubmit(event) {
       event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
       try {
+        const result = await api(`/api/auth/users/${form.dataset.userId}`, { method: 'PATCH', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email') }) });
         await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
-        await renderControlCenter(profile, 'Ubicación actualizada correctamente.');
+        localStorage.setItem('auth_profile', JSON.stringify(result.profile));
+        await renderControlCenter(result.profile, 'Usuario actualizado correctamente.');
       } catch (error) { window.alert(error.message); }
     }
     document.querySelectorAll('.user-list-item').forEach((details) => {
