@@ -589,47 +589,18 @@ async function bindTicketSelfService(profile) {
   });
 }
 
-// Notificaciones consolidadas (Fase 7, último ítem del checklist): no hay
-// tabla ni estado de leído/no leído — se derivan al vuelo de los mismos
-// datos que ya muestra Tickets. Los enlaces operativos sólo aparecen cuando
-// el usuario tiene permiso de abrir el módulo correspondiente.
-async function loadNotifications(profile) {
+// La API de Core normaliza estas novedades una sola vez para que esta misma
+// campanilla pueda reutilizarse desde todos los módulos del portal.
+async function loadNotifications(_profile) {
   const container = document.querySelector('#notifications-dashboard');
   if (!container) return;
-  const [ticketsResult, teamTicketsResult] = await Promise.allSettled([
-    api('/tickets-api/api/tickets-self/me'),
-    api('/tickets-api/api/tickets-self/team-notifications'),
-  ]);
-
-  if (ticketsResult.status === 'rejected' && teamTicketsResult.status === 'rejected') {
+  let items;
+  try {
+    ({ data: items } = await api('/api/portal/v1/notifications'));
+  } catch {
     container.className = 'notification-panel-error';
     container.textContent = 'No fue posible consultar las notificaciones en este momento.';
     return;
-  }
-
-  const items = [];
-  if (ticketsResult.status === 'fulfilled') {
-    ticketsResult.value.data
-      .filter((ticket) => ticket.assigned_to === profile.id && TICKET_OPEN_STATUSES.includes(ticket.status_code))
-      .slice(0, 3)
-      .forEach((ticket) => {
-        items.push({
-          icon: 'TK',
-          text: `Tienes asignado el ticket <strong>${escapeHtml(ticket.folio)}</strong>: ${escapeHtml(ticket.title)} (${escapeHtml(ticket.status_name)}).`,
-          href: canOpen(profile, 'tickets') ? '/tickets/' : null,
-        });
-      });
-  }
-  if (teamTicketsResult.status === 'fulfilled') {
-    teamTicketsResult.value.data
-      .slice(0, 3)
-      .forEach((ticket) => {
-        items.push({
-          icon: 'TK',
-          text: `Llegó el ticket <strong>${escapeHtml(ticket.folio)}</strong> al equipo de <strong>${escapeHtml(ticket.business_area_name || 'tu área')}</strong>: ${escapeHtml(ticket.title)}.`,
-          href: canOpen(profile, 'tickets') ? `/tickets/tickets/${encodeURIComponent(ticket.id)}` : null,
-        });
-      });
   }
 
   container.className = '';
@@ -644,7 +615,7 @@ async function loadNotifications(profile) {
     container.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
     return;
   }
-  const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">${item.icon}</span><span>${item.text}</span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
+  const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">TK</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
   container.innerHTML = `<ul class="notification-list">${rows}</ul>`;
 }
 

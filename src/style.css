@@ -453,6 +453,9 @@ a {
 .notification-popover .notification-item { align-items: flex-start; }
 .notification-popover .notification-item .personal-icon { width: 36px; height: 36px; font-size: .62rem; }
 .notification-popover .notification-item span:nth-child(2) { line-height: 1.45; }
+.notification-popover .notification-item span:nth-child(2) strong,
+.notification-popover .notification-item span:nth-child(2) small { display: block; }
+.notification-popover .notification-item span:nth-child(2) small { margin-top: 3px; color: var(--ink-faint); font-size: .7rem; }
 .notification-popover .notification-item .personal-link { align-self: center; }
 .notification-button[aria-expanded="true"] {
   border-color: var(--gold);
