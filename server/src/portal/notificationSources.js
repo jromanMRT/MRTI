@@ -83,6 +83,29 @@ function legalUrl(path) {
   return `${base.replace(/\/$/, '')}${path}`;
 }
 
+function rhUrl(path) {
+  const base = process.env.MRTI_RH_URL || 'http://127.0.0.1:3004';
+  return `${base.replace(/\/$/, '')}${path}`;
+}
+
+// Igual que Legal, RH entrega los items ya en la forma final (autoservicio,
+// acotado al empleado autenticado -- ver /api/rh-self/me/documents/notifications).
+export async function fetchRhNotifications({ authorization, canOpenRh }) {
+  try {
+    const response = await fetch(rhUrl('/api/rh-self/me/documents/notifications'), {
+      headers: { Authorization: authorization },
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    const items = (Array.isArray(body.data) ? body.data : [])
+      .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh ? item.href : null }));
+    return { items, sources: [{ source: 'rh', ok: true, error: null }] };
+  } catch (error) {
+    return { items: [], sources: [{ source: 'rh', ok: false, error: error.message }] };
+  }
+}
+
 // MRTI Legal ya entrega sus items en la forma final que espera la campanilla
 // (id/title/message/timestamp/href) -- a diferencia de Tickets no hace falta
 // normalizar dos fuentes distintas, sólo etiquetar de qué módulo vienen.
