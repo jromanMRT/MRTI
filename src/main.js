@@ -262,7 +262,7 @@ function setHomeStat(id, value, detail, state = '') {
   card.querySelector('small').textContent = detail;
 }
 
-function shellMarkup(profile, content, reportTitle = '') {
+function shellMarkup(profile, content) {
   const collapsed = localStorage.getItem('mrti_core_sidebar_collapsed') === '1';
   return `<div class="page-shell${collapsed ? ' sidebar-collapsed' : ''}">
     <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
@@ -292,7 +292,6 @@ function shellMarkup(profile, content, reportTitle = '') {
         <div class="mobile-brand">${brandMarkup()}</div>
         <div class="topbar-context"><strong>Mi espacio</strong><small>Dashboard y configuración personal</small></div>
         <div class="topbar-actions">
-          ${reportTitle ? '<button class="print-report-button" id="print-report-button" type="button" title="Imprimir reporte de esta vista" aria-label="Imprimir reporte de esta vista"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z" /></svg><span>Imprimir reporte</span></button>' : ''}
           <div class="notification-center">
             <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones" aria-expanded="false" aria-controls="notifications-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-count" id="notification-count" hidden></span></button>
             <section class="notification-popover" id="notifications-panel" aria-label="Notificaciones" hidden>
@@ -303,7 +302,7 @@ function shellMarkup(profile, content, reportTitle = '') {
           <button class="session-profile" id="topbar-profile-button" type="button" aria-label="Abrir mi configuración">${avatarMarkup(profile, 'small')}<span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span></button>
         </div>
       </header>
-      <main>${reportTitle ? `<div class="print-report-header" aria-hidden="true"><div><strong>MRTI</strong><span>Core · ${escapeHtml(reportTitle)}</span></div><small>Generado ${escapeHtml(new Date().toLocaleString('es-MX'))}</small></div>` : ''}${content}</main>
+      <main>${content}</main>
       <footer><span>MRTI</span><span class="footer-separator"></span><span>La puerta de entrada digital de Minera Río Tinto</span><span class="copyright">© ${new Date().getFullYear()} MRTI</span></footer>
     </div>
   </div>`;
@@ -353,7 +352,6 @@ function bindShell(profile) {
     button.setAttribute('title', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
   });
   document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile));
-  document.querySelector('#print-report-button')?.addEventListener('click', () => window.print());
   document.querySelector('#core-new-ticket-button')?.addEventListener('click', () => openCoreTicketCreation(profile));
   document.querySelector('#core-my-tickets-button')?.addEventListener('click', () => openCoreTicketHistory(profile));
   notificationPanelController?.abort();
@@ -433,7 +431,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>' : ''}
       ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>' : ''}
-      ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div>' : ''}</section>`, 'Mi espacio');
+      ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div>' : ''}</section>`);
   bindShell(profile);
   bindTicketSelfService(profile);
   if (requestedView === 'account') renderAccount(profile);
@@ -870,7 +868,7 @@ async function renderBrandAssets(profile, flash = '') {
       ${adminPanel}
       <div class="asset-grid">${cards || '<p class="brand-empty">Aún no hay recursos de marca disponibles.</p>'}</div>
       ${isAdministrator(profile) ? '<p class="panel-note">Quitar un recurso lo oculta de inmediato, pero conserva su historial para recuperación y auditoría.</p>' : ''}
-    </section>`, 'Recursos de marca');
+    </section>`);
     bindShell(profile);
     document.querySelector('#back-portal').addEventListener('click', () => { clearBrandObjectUrls(); renderPortal(profile); });
 
@@ -1102,7 +1100,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
         <div class="application-admin-grid">${applicationCards}</div></div></div>
       <div class="control-panel" data-control-panel="audit" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Historial de actividad de la plataforma</h2><span id="audit-visible-count">${auditData.data.length} eventos</span></div><div class="audit-filters"><input id="audit-search" type="search" placeholder="Usuario, acción o registro…"><select id="audit-module-filter"><option value="all">Todos los módulos</option>${auditModules.map((moduleCode) => `<option value="${escapeHtml(moduleCode)}">${escapeHtml(moduleCode)}</option>`).join('')}</select></div></div>${auditSourceFailures.length ? `<div class="notice">Historial parcial: no respondieron ${auditSourceFailures.map((source) => escapeHtml(source.source)).join(', ')}.</div>` : ''}<p class="field-help">Los datos sensibles se redactan automáticamente. Cada módulo conserva su historial y Core reúne aquí una vista de consulta.</p><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Módulo</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Cambios</th></tr></thead><tbody id="audit-table-body">${auditRows || '<tr><td colspan="6" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div><p class="personal-empty" id="audit-empty" hidden>No hay eventos que coincidan con los filtros.</p></div></div>
-    </section>`, 'Centro de control');
+    </section>`);
     bindShell(profile);
     document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
     document.querySelectorAll('.control-tab').forEach((tab) => tab.addEventListener('click', () => {
