@@ -42,6 +42,12 @@ const DEFAULT_USER_PREFERENCES = {
 let userPreferences = { ...DEFAULT_USER_PREFERENCES };
 let avatarObjectUrl = null;
 let notificationRefreshTimer = null;
+// Activo preseleccionado al abrir el formulario de ticket desde el botón
+// "Crear ticket" del popup de un activo en MRTI-Activos (Fase 1 de la
+// integración de plataforma, ?openTicket=1&asset_uid=...&asset_label=...).
+// Vive fuera de cualquier función porque bindTicketSelfService la lee al
+// enviar el formulario, en un ciclo de render distinto al que la fija.
+let pendingTicketAsset = null;
 let notificationPanelController = null;
 let deferredInstallPrompt = null;
 let serviceWorkerRegistrationPromise = null;
@@ -510,7 +516,8 @@ function shellMarkup(profile, content) {
   </div>`;
 }
 
-function openCoreTicketCreation(profile) {
+function openCoreTicketCreation(profile, presetAsset = null) {
+  pendingTicketAsset = presetAsset;
   renderPortal(profile);
   const panel = document.querySelector('#ticket-create-panel');
   panel.open = true;
@@ -630,7 +637,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
     <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
     ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
     : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
-    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form"><label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
+    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form">${pendingTicketAsset ? `<div class="notice" id="ticket-preset-asset">Activo relacionado: <strong>${escapeHtml(pendingTicketAsset.asset_label)}</strong> <button type="button" id="ticket-preset-asset-clear" class="text-download" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;">Quitar</button></div>` : ''}<label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>' : ''}
       ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>' : ''}
@@ -795,6 +802,10 @@ async function bindTicketSelfService(profile) {
     panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
     form.elements.title.focus({ preventScroll: true });
   });
+  document.querySelector('#ticket-preset-asset-clear')?.addEventListener('click', () => {
+    pendingTicketAsset = null;
+    document.querySelector('#ticket-preset-asset')?.remove();
+  });
   try {
     const { data } = await api('/tickets-api/api/tickets-self/options');
     businessArea.innerHTML = `<option value="">Seleccionar área</option>${data.business_areas.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
@@ -835,10 +846,12 @@ async function bindTicketSelfService(profile) {
           category_id: values.get('category_id'),
           subcategory_id: values.get('subcategory_id') || null,
           priority_code: values.get('priority_code') || 'P3',
+          asset_uid: pendingTicketAsset?.asset_uid || null,
         }),
       });
       form.reset();
       panel.open = false;
+      pendingTicketAsset = null;
       await loadTicketsDashboard(profile, `${result.data.folio} fue enviado correctamente.`);
       document.querySelector('#tickets-dashboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
@@ -1553,6 +1566,16 @@ async function initialize() {
     if (destination && destination !== '/') {
       const destinationModule = portalApplications.find((module) => destination.startsWith(module.href));
       if (!destinationModule || canOpen(profile, destinationModule.code)) return window.location.replace(destination);
+    }
+    // Botón "Crear ticket" del popup de un activo en MRTI-Activos:
+    // ?openTicket=1&asset_uid=...&asset_label=... -- se lee aquí, antes de
+    // que renderPortal limpie la URL con history.replaceState.
+    const openTicketParams = new URLSearchParams(window.location.search);
+    if (openTicketParams.get('openTicket') === '1' && openTicketParams.get('asset_uid')) {
+      return openCoreTicketCreation(profile, {
+        asset_uid: openTicketParams.get('asset_uid'),
+        asset_label: openTicketParams.get('asset_label') || openTicketParams.get('asset_uid'),
+      });
     }
     renderPortal(profile);
   } catch { localStorage.removeItem('auth_token'); localStorage.removeItem('auth_profile'); renderLogin('Tu sesión expiró. Inicia sesión nuevamente.'); }
