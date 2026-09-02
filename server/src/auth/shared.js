@@ -19,12 +19,16 @@ export function normalizeProfile(profile) {
   return profile ? { ...profile, is_active: Boolean(profile.is_active) } : null;
 }
 
-// authorizationHeader es opcional: se reenvía a MRTI-Obs para resolver el
-// nombre del área física/piso/edificio/sitio (topología, propiedad de
-// módulo de observabilidad. Sin ese header, o si MRTI-Obs no responde, esos
-// campos quedan en null; nunca se rompe el perfil
-// por eso.
-export async function findProfile(userId, authorizationHeader) {
+// Perfil de identidad: sólo lectura local (MySQL), sin llamar a ningún otro
+// servicio. Es lo único que `authRequired` necesita para autorizar (rol,
+// módulos permitidos, cuenta activa). Deliberadamente NO incluye el nombre
+// de la ubicación física — eso requiere preguntarle a MRTI-Obs, y Obs valida
+// sus propias sesiones llamando de vuelta a Core (ver `findProfile` abajo).
+// Si `authRequired` dependiera de esa llamada a Obs, cualquier ruta de Core
+// gatillaría Core→Obs→Core→Obs… en ciclo hasta agotar el primer timeout de
+// la cadena (así se manifestó: `PATCH /users/:id/location` fallando con
+// "The operation was aborted due to timeout" al guardar la ubicación).
+export async function findProfileIdentity(userId) {
   const [rows] = await pool.query(
     `SELECT p.id, p.user_number, p.email, p.full_name, p.role, p.access_area_id,
             p.physical_area_id, p.avatar_url, p.is_active, p.created_at, p.updated_at,
@@ -36,13 +40,6 @@ export async function findProfile(userId, authorizationHeader) {
   );
   const profile = normalizeProfile(rows[0] || null);
   if (!profile) return null;
-
-  const physicalArea = await getPhysicalArea(profile.physical_area_id, authorizationHeader);
-  profile.physical_area_name = physicalArea?.name ?? null;
-  profile.physical_floor_name = physicalArea?.floor_name ?? null;
-  profile.physical_building_name = physicalArea?.building_name ?? null;
-  profile.physical_site_id = physicalArea?.site_id ?? null;
-  profile.physical_site_name = physicalArea?.site_name ?? null;
   if (profile.role === 'administrator') {
     const [applications] = await pool.query("SELECT code FROM applications WHERE status <> 'inactive' ORDER BY sort_order, name");
     profile.allowed_modules = normalizeModuleCodes(applications.map(({ code }) => code));
@@ -61,6 +58,24 @@ export async function findProfile(userId, authorizationHeader) {
   return profile;
 }
 
+// Perfil completo: identidad + nombre de área física/piso/edificio/sitio,
+// resuelto contra MRTI-Obs. authorizationHeader es opcional: se reenvía a
+// Obs para esa resolución; sin él, o si Obs no responde, esos campos quedan
+// en null (nunca se rompe el perfil por eso). Úsese sólo en handlers que
+// necesiten mostrar la ubicación (perfil propio, ficha de usuario, contexto
+// de tickets) — nunca dentro de `authRequired`, ver nota arriba.
+export async function findProfile(userId, authorizationHeader) {
+  const profile = await findProfileIdentity(userId);
+  if (!profile) return null;
+  const physicalArea = await getPhysicalArea(profile.physical_area_id, authorizationHeader);
+  profile.physical_area_name = physicalArea?.name ?? null;
+  profile.physical_floor_name = physicalArea?.floor_name ?? null;
+  profile.physical_building_name = physicalArea?.building_name ?? null;
+  profile.physical_site_id = physicalArea?.site_id ?? null;
+  profile.physical_site_name = physicalArea?.site_name ?? null;
+  return profile;
+}
+
 export function signToken(userId) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: TOKEN_TTL });
 }
@@ -73,7 +88,7 @@ export async function authRequired(req, res, next) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    const profile = await findProfile(payload.sub, header);
+    const profile = await findProfileIdentity(payload.sub);
     if (!profile || !profile.is_active) {
       return res.status(401).json({ error: 'Usuario inválido o inactivo' });
     }

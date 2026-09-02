@@ -1,19 +1,24 @@
 import { Router } from 'express';
 import { authRequired } from './shared.js';
-import { listDevices } from '../infraClient.js';
+import { listDevices, getPhysicalArea } from '../infraClient.js';
 import { listMyAssets } from '../assetsClient.js';
 
 export const ticketContextRouter = Router();
 
 ticketContextRouter.get('/ticket-context', authRequired, async (req, res, next) => {
   try {
-    const location = req.user.physical_area_id ? {
+    // req.user es el perfil "de identidad" (sin datos de ubicación, ver
+    // findProfileIdentity en shared.js) — se resuelve aquí explícitamente.
+    const physicalArea = req.user.physical_area_id
+      ? await getPhysicalArea(req.user.physical_area_id, req.headers.authorization)
+      : null;
+    const location = physicalArea ? {
       area_id: req.user.physical_area_id,
-      area_name: req.user.physical_area_name,
-      floor_name: req.user.physical_floor_name,
-      building_name: req.user.physical_building_name,
-      site_id: req.user.physical_site_id,
-      site_name: req.user.physical_site_name,
+      area_name: physicalArea.name,
+      floor_name: physicalArea.floor_name,
+      building_name: physicalArea.building_name,
+      site_id: physicalArea.site_id,
+      site_name: physicalArea.site_name,
     } : null;
     const [normalizedDevices, assignedAssets] = await Promise.all([
       req.user.physical_area_id

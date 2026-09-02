@@ -47,20 +47,36 @@ Los módulos con Tailwind conservan nombres utilitarios existentes (`slate`,
 El patrón común incluye:
 
 1. Barra lateral de `256px`, colapsable a `64px` en escritorio.
-2. Marca y nombre del módulo en la parte superior.
+2. Cabecera de marca de `61px`: logotipo de `42px`, título literal **MRTI** en
+   **Big Shoulders Display** a `1.15rem` y subtítulo **Minera Río Tinto** en
+   **IBM Plex Sans** a `.78rem`, con las mismas medidas en cada módulo. El
+   nombre del módulo pertenece al encabezado de contenido, no a esta marca.
 3. Navegación con icono, texto y estado activo dorado.
-4. Enlace visible de regreso al portal Core.
+4. El logotipo es el único enlace de regreso a **Mi espacio**; no se duplica
+   con una opción textual “Volver al Core”.
 5. Selector de tema en el pie de la barra.
-6. Drawer lateral con backdrop, cierre por navegación y tecla `Escape` en
+6. Botón de **cerrar sesión** en el pie de la barra (o en el encabezado si el
+   módulo ya expone ahí los controles de sesión), funcional sin depender de
+   volver a Core: limpia `auth_token`/`auth_profile` de `localStorage`,
+   notifica a Core con `POST /api/auth/logout` (best-effort) y redirige a `/`.
+7. Sección "Mi cuenta" con accesos directos a las pantallas que sólo existen
+   en Core — **Perfil** (`/?view=account`), **Notificaciones**
+   (`/?view=notifications`, opcional si el módulo ya tiene un panel de
+   alertas propio) y, sólo para `profile.role === 'administrator'`,
+   **Recursos de marca** (`/?view=brand-assets`) y **Centro de control**
+   (`/?view=control-center`). Estas pantallas no se reconstruyen por módulo:
+   Core las abre directo gracias al parámetro `view` (ver `renderPortal` en
+   `src/main.js`).
+8. Drawer lateral con backdrop, cierre por navegación y tecla `Escape` en
    pantallas pequeñas.
-7. Encabezado de contenido de `72px` cuando el módulo necesita búsqueda,
+9. Encabezado de contenido de `72px` cuando el módulo necesita búsqueda,
    contexto o controles de sesión.
-8. En escritorio, la barra permanece fija y cubre todo el alto visible
-   (`100dvh`, con respaldo `100vh`) aunque el documento tenga desplazamiento.
-9. El contenido reserva exactamente `256px` o `64px` según el estado de la
-   barra y anima también su ancho; los contenedores generales deben aprovechar
-   ese espacio. Los límites de ancho se conservan sólo en formularios o fichas
-   donde mejoren la lectura.
+10. En escritorio, la barra permanece fija y cubre todo el alto visible
+    (`100dvh`, con respaldo `100vh`) aunque el documento tenga desplazamiento.
+11. El contenido reserva exactamente `256px` o `64px` según el estado de la
+    barra y anima también su ancho; los contenedores generales deben
+    aprovechar ese espacio. Los límites de ancho se conservan sólo en
+    formularios o fichas donde mejoren la lectura.
 
 La pantalla informativa de pared de MRTI-Obs (`/news-screen`) es una excepción:
 usa un shell de visualización a distancia, aunque mantiene contraste específico

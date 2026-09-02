@@ -43,6 +43,208 @@ let userPreferences = { ...DEFAULT_USER_PREFERENCES };
 let avatarObjectUrl = null;
 let notificationRefreshTimer = null;
 let notificationPanelController = null;
+let deferredInstallPrompt = null;
+let serviceWorkerRegistrationPromise = null;
+let notificationAudioContext = null;
+let notificationToastTimer = null;
+
+const DEVICE_NOTIFICATIONS_KEY = 'mrti_device_notifications';
+const DEFAULT_DOCUMENT_TITLE = document.title;
+
+function unlockNotificationAudio() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return null;
+  if (!notificationAudioContext) notificationAudioContext = new AudioContext();
+  if (notificationAudioContext.state === 'suspended') void notificationAudioContext.resume();
+  return notificationAudioContext;
+}
+
+async function playNotificationChime() {
+  const context = unlockNotificationAudio();
+  if (!context) return;
+  if (context.state === 'suspended') await context.resume().catch(() => {});
+  if (context.state !== 'running') return;
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
+  gain.connect(context.destination);
+  [659.25, 783.99].forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    oscillator.connect(gain);
+    oscillator.start(context.currentTime + index * 0.12);
+    oscillator.stop(context.currentTime + 0.32 + index * 0.12);
+  });
+}
+
+function showInAppNotificationToast(message = 'Tienes una nueva notificación. Abre la campanilla para consultar los detalles.') {
+  document.querySelector('#device-notification-toast')?.remove();
+  if (notificationToastTimer) window.clearTimeout(notificationToastTimer);
+  const toast = document.createElement('section');
+  toast.className = 'device-notification-toast';
+  toast.id = 'device-notification-toast';
+  toast.setAttribute('role', 'status');
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'device-notification-copy';
+  const title = document.createElement('strong');
+  title.textContent = 'MRTI';
+  const body = document.createElement('span');
+  body.textContent = message;
+  copy.append(title, body);
+  copy.addEventListener('click', () => {
+    toast.remove();
+    document.querySelector('#notifications-button')?.click();
+  });
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'device-notification-close';
+  close.setAttribute('aria-label', 'Cerrar aviso');
+  close.textContent = '×';
+  close.addEventListener('click', () => toast.remove());
+  toast.append(copy, close);
+  document.body.append(toast);
+  notificationToastTimer = window.setTimeout(() => toast.remove(), 9000);
+}
+
+document.addEventListener('pointerdown', () => {
+  if (localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) === '1') unlockNotificationAudio();
+}, { once: true });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') document.title = DEFAULT_DOCUMENT_TITLE;
+});
+
+function isStandaloneApp() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function supportsMobileAppFeatures() {
+  return window.isSecureContext && 'serviceWorker' in navigator;
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  updateMobileAppControls();
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  updateMobileAppControls('MRTI quedó instalada en este dispositivo.');
+});
+
+function registerMobileApp() {
+  if (!supportsMobileAppFeatures()) return Promise.resolve(null);
+  if (!serviceWorkerRegistrationPromise) {
+    serviceWorkerRegistrationPromise = navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch((error) => {
+        console.error('No fue posible activar la aplicación móvil de MRTI.', error);
+        serviceWorkerRegistrationPromise = null;
+        return null;
+      });
+  }
+  return serviceWorkerRegistrationPromise;
+}
+
+function updateMobileAppControls(message = '') {
+  const status = document.querySelector('#mobile-app-status');
+  const installButton = document.querySelector('#install-app-button');
+  const notificationButton = document.querySelector('#enable-device-notifications');
+  if (!status || !installButton || !notificationButton) return;
+
+  const notificationSupported = supportsMobileAppFeatures() && 'Notification' in window;
+  const notificationPermission = notificationSupported ? Notification.permission : 'unsupported';
+  const internalNotificationsEnabled = localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) === '1';
+  const deviceNotificationsEnabled = notificationPermission === 'granted' && internalNotificationsEnabled;
+  installButton.hidden = isStandaloneApp();
+  installButton.disabled = !deferredInstallPrompt;
+  notificationButton.disabled = notificationSupported && notificationPermission === 'denied';
+  notificationButton.textContent = deviceNotificationsEnabled
+    ? 'Notificaciones activadas'
+    : notificationPermission === 'denied' ? 'Notificaciones bloqueadas'
+      : !notificationSupported && internalNotificationsEnabled ? 'Avisos internos activados' : 'Activar notificaciones';
+
+  if (message) status.textContent = message;
+  else if (!window.isSecureContext) status.textContent = internalNotificationsEnabled
+    ? 'Los avisos internos están activos. Para obtener ventanas de Windows, prepara esta PC con el archivo disponible abajo y reinicia Chrome o Edge.'
+    : 'Sin HTTPS puedes activar sonido, contador y avisos dentro de MRTI. Para ventanas de Windows, prepara esta PC con el archivo disponible abajo.';
+  else if (!('serviceWorker' in navigator)) status.textContent = 'Este navegador no admite la instalación de aplicaciones web.';
+  else if (isStandaloneApp()) status.textContent = deviceNotificationsEnabled
+    ? 'La aplicación y las notificaciones están activas en este dispositivo.'
+    : 'La aplicación está instalada. Activa las notificaciones cuando quieras recibir avisos del sistema.';
+  else if (deferredInstallPrompt) status.textContent = 'Este dispositivo ya permite instalar MRTI como una aplicación.';
+  else status.textContent = 'En iPhone usa Compartir → Agregar a inicio. En Android también puedes usar el menú del navegador.';
+}
+
+function bindMobileAppControls() {
+  const installButton = document.querySelector('#install-app-button');
+  const notificationButton = document.querySelector('#enable-device-notifications');
+  if (!installButton || !notificationButton) return;
+  updateMobileAppControls();
+
+  installButton.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return updateMobileAppControls();
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    updateMobileAppControls();
+  });
+
+  notificationButton.addEventListener('click', async () => {
+    if (!supportsMobileAppFeatures() || !('Notification' in window)) {
+      localStorage.setItem(DEVICE_NOTIFICATIONS_KEY, '1');
+      unlockNotificationAudio();
+      await playNotificationChime();
+      showInAppNotificationToast('Los avisos internos quedaron activados en esta PC.');
+      updateMobileAppControls('Avisos internos activados: MRTI mostrará una tarjeta, actualizará la pestaña y reproducirá un sonido. Para ventanas de Windows usa la preparación de PC disponible abajo.');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return updateMobileAppControls('El navegador no concedió permiso. Puedes cambiarlo desde la configuración del sitio o del teléfono.');
+    localStorage.setItem(DEVICE_NOTIFICATIONS_KEY, '1');
+    const registration = await registerMobileApp();
+    await registration?.showNotification('MRTI', {
+      body: 'Las notificaciones quedaron activadas en este dispositivo.',
+      icon: '/company-logo.svg',
+      badge: '/company-logo.svg',
+      tag: 'mrti-notifications-enabled',
+      data: { url: '/?view=notifications' },
+    });
+    updateMobileAppControls('Las notificaciones quedaron activadas correctamente.');
+  });
+}
+
+async function syncDeviceNotifications(profile, items) {
+  if ('setAppBadge' in navigator) {
+    if (items.length) await navigator.setAppBadge(items.length).catch(() => {});
+    else if ('clearAppBadge' in navigator) await navigator.clearAppBadge().catch(() => {});
+  }
+  const seenKey = `mrti_seen_notifications_${profile.id}`;
+  let previous = [];
+  try { previous = JSON.parse(localStorage.getItem(seenKey) || '[]'); } catch { previous = []; }
+  const current = items.map((item) => String(item.id));
+  localStorage.setItem(seenKey, JSON.stringify(current.slice(0, 200)));
+  if (!previous.length || localStorage.getItem(DEVICE_NOTIFICATIONS_KEY) !== '1') return;
+
+  const previousIds = new Set(previous);
+  const newItems = items.filter((item) => !previousIds.has(String(item.id))).slice(0, 3);
+  if (!newItems.length) return;
+  void playNotificationChime();
+  if (document.visibilityState === 'visible') showInAppNotificationToast();
+  else document.title = `(${newItems.length}) ${DEFAULT_DOCUMENT_TITLE}`;
+  if (!supportsMobileAppFeatures() || !('Notification' in window) || Notification.permission !== 'granted' || document.visibilityState === 'visible') return;
+  const registration = await registerMobileApp();
+  await Promise.all(newItems.map((item) => registration?.showNotification('MRTI', {
+    body: 'Tienes una nueva notificación. Abre MRTI para consultar los detalles.',
+    icon: '/company-logo.svg',
+    badge: '/company-logo.svg',
+    tag: `mrti-${item.id}`,
+    data: { url: item.href || '/?view=notifications' },
+  })));
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
@@ -384,6 +586,7 @@ function bindShell(profile) {
     try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* cierre local garantizado */ }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_profile');
+    if ('clearAppBadge' in navigator) void navigator.clearAppBadge().catch(() => {});
     if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
     avatarObjectUrl = null;
     window.history.replaceState({}, '', '/');
@@ -647,7 +850,7 @@ async function bindTicketSelfService(profile) {
 
 // La API de Core normaliza estas novedades una sola vez para que esta misma
 // campanilla pueda reutilizarse desde todos los módulos del portal.
-async function loadNotifications(_profile) {
+async function loadNotifications(profile) {
   const container = document.querySelector('#notifications-dashboard');
   if (!container) return;
   let items;
@@ -667,6 +870,7 @@ async function loadNotifications(_profile) {
     notificationCount.hidden = items.length === 0;
   }
   notificationButton?.setAttribute('aria-label', items.length ? `Ver notificaciones: ${items.length} nuevas` : 'Ver notificaciones');
+  void syncDeviceNotifications(profile, items);
   if (!items.length) {
     container.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
     return;
@@ -706,7 +910,8 @@ function renderAccount(profile, { required = false } = {}) {
       <section class="account-card"><div><p class="section-label">Perfil</p><h2>Datos personales</h2></div>
         <form class="control-form" id="profile-form"><label>Nombre completo<input name="full_name" value="${escapeHtml(profile.full_name)}" minlength="2" required></label><label>Correo electrónico<input type="email" value="${escapeHtml(profile.email)}" readonly aria-readonly="true"><small class="field-help">Sólo un administrador puede cambiarlo desde el Centro de control.</small></label><div class="form-message" id="profile-message" hidden></div><button class="primary-button" type="submit">Guardar perfil</button></form>
       </section>
-      <section class="account-card"><div><p class="section-label">Foto</p><h2>Imagen de perfil</h2></div><div class="avatar-editor"><div id="avatar-preview">${avatarMarkup(profile, 'preview')}</div><div><label class="avatar-file">Elegir foto<input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="secondary-button" id="remove-avatar" type="button" ${profile.avatar_url ? '' : 'disabled'}>Quitar foto</button><small>Se recorta y optimiza localmente antes de guardarse.</small></div></div><div class="form-message" id="avatar-message" hidden></div></section>
+      <section class="account-card"><div><p class="section-label">Foto</p><h2>Imagen de perfil</h2></div><div class="avatar-editor"><div id="avatar-preview">${avatarMarkup(profile, 'preview')}</div><div><label class="avatar-file">Tomar foto<input id="avatar-camera" type="file" accept="image/*" capture="user"></label><label class="avatar-file secondary-avatar-file">Elegir archivo<input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="secondary-button" id="remove-avatar" type="button" ${profile.avatar_url ? '' : 'disabled'}>Quitar foto</button><small>En el teléfono puedes abrir la cámara directamente. La imagen se recorta y optimiza antes de guardarse.</small></div></div><div class="form-message" id="avatar-message" hidden></div></section>
+      <section class="account-card mobile-app-card"><div><p class="section-label">Aplicación y notificaciones</p><h2>MRTI en este dispositivo</h2></div><p class="mobile-app-status" id="mobile-app-status" role="status">Comprobando capacidades del dispositivo…</p><div class="mobile-app-actions"><button class="primary-button" id="install-app-button" type="button" disabled>Instalar aplicación</button><button class="secondary-button" id="enable-device-notifications" type="button">Activar notificaciones</button></div>${window.isSecureContext ? '' : '<div class="desktop-http-tools"><strong>Ventanas de notificación en Windows sin HTTPS</strong><span>Descarga y ejecuta como administrador la preparación de esta PC. Después cierra por completo y vuelve a abrir Chrome o Edge.</span><div><a class="secondary-button" href="/tools/preparar-notificaciones-mrti-windows.cmd" download>Preparar esta PC</a><a class="text-download" href="/tools/revertir-notificaciones-mrti-windows.cmd" download>Descargar reversión</a></div></div>'}<small class="field-help">MRTI consulta la campanilla cada minuto mientras la página permanece abierta. En HTTP, los avisos internos usan sonido, contador y una tarjeta flotante.</small></section>
       <section class="account-card account-preferences"><div><p class="section-label">Mi espacio</p><h2>Apariencia y contenido</h2></div>
         <form class="control-form" id="preferences-form"><div class="preference-selects"><label>Tema<select name="theme"><option value="system" ${userPreferences.theme === 'system' ? 'selected' : ''}>Usar el del dispositivo</option><option value="light" ${userPreferences.theme === 'light' ? 'selected' : ''}>Claro</option><option value="dark" ${userPreferences.theme === 'dark' ? 'selected' : ''}>Oscuro</option></select></label><label>Densidad<select name="density"><option value="comfortable" ${userPreferences.density === 'comfortable' ? 'selected' : ''}>Cómoda</option><option value="compact" ${userPreferences.density === 'compact' ? 'selected' : ''}>Compacta</option></select></label></div><fieldset class="widget-options"><legend>Mostrar en mi dashboard</legend><label><input type="checkbox" name="show_rh" ${checked(userPreferences.show_rh)}> Recursos Humanos</label><label><input type="checkbox" name="show_assets" ${checked(userPreferences.show_assets)}> Activos</label><label><input type="checkbox" name="show_tickets" ${checked(userPreferences.show_tickets)}> Tickets</label></fieldset><div class="form-message" id="preferences-message" hidden></div><button class="primary-button" type="submit">Guardar preferencias</button></form>
       </section>
@@ -728,8 +933,11 @@ function renderAccount(profile, { required = false } = {}) {
     try { const { profile: updated } = await api('/api/auth/profile/avatar', { method: 'PATCH', body: JSON.stringify({ avatar_data_url: avatarDataUrl }) }); localStorage.setItem('auth_profile', JSON.stringify(updated)); await refreshAvatar(updated); renderAccount(updated); }
     catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
   };
-  document.querySelector('#avatar-file').addEventListener('change', async (event) => { const [file] = event.target.files; if (!file) return; try { await saveAvatar(await resizeAvatar(file)); } catch (error) { const message = document.querySelector('#avatar-message'); message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; } });
+  const handleAvatarFile = async (event) => { const [file] = event.target.files; if (!file) return; try { await saveAvatar(await resizeAvatar(file)); } catch (error) { const message = document.querySelector('#avatar-message'); message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; } };
+  document.querySelector('#avatar-file').addEventListener('change', handleAvatarFile);
+  document.querySelector('#avatar-camera').addEventListener('change', handleAvatarFile);
   document.querySelector('#remove-avatar').addEventListener('click', () => saveAvatar(null));
+  bindMobileAppControls();
 
   const preferencesForm = document.querySelector('#preferences-form');
   preferencesForm.addEventListener('submit', async (event) => {
@@ -1350,4 +1558,5 @@ async function initialize() {
   } catch { localStorage.removeItem('auth_token'); localStorage.removeItem('auth_profile'); renderLogin('Tu sesión expiró. Inicia sesión nuevamente.'); }
 }
 
+void registerMobileApp();
 void initialize();

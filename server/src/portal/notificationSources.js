@@ -88,22 +88,38 @@ function rhUrl(path) {
   return `${base.replace(/\/$/, '')}${path}`;
 }
 
-// Igual que Legal, RH entrega los items ya en la forma final (autoservicio,
-// acotado al empleado autenticado -- ver /api/rh-self/me/documents/notifications).
-export async function fetchRhNotifications({ authorization, canOpenRh }) {
+async function fetchRhSource(path, authorization) {
   try {
-    const response = await fetch(rhUrl('/api/rh-self/me/documents/notifications'), {
+    const response = await fetch(rhUrl(path), {
       headers: { Authorization: authorization },
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const body = await response.json();
-    const items = (Array.isArray(body.data) ? body.data : [])
-      .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh ? item.href : null }));
-    return { items, sources: [{ source: 'rh', ok: true, error: null }] };
+    return { ok: true, data: Array.isArray(body.data) ? body.data : [], error: null };
   } catch (error) {
-    return { items: [], sources: [{ source: 'rh', ok: false, error: error.message }] };
+    return { ok: false, data: [], error: error.message };
   }
+}
+
+// RH entrega cada fuente ya en la forma final (autoservicio, acotada al
+// empleado autenticado); aquí solo se combinan documentos laborales y salas
+// de juntas (mismo patrón de dos fuentes que fetchTicketNotifications).
+export async function fetchRhNotifications({ authorization, canOpenRh }) {
+  const [documents, rooms] = await Promise.all([
+    fetchRhSource('/api/rh-self/me/documents/notifications', authorization),
+    fetchRhSource('/api/rh-self/me/meeting-room-bookings/notifications', authorization),
+  ]);
+  const items = [...documents.data, ...rooms.data]
+    .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh ? item.href : null }))
+    .sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
+  return {
+    items,
+    sources: [
+      { source: 'rh-documents', ok: documents.ok, error: documents.error },
+      { source: 'rh-meeting-rooms', ok: rooms.ok, error: rooms.error },
+    ],
+  };
 }
 
 // MRTI Legal ya entrega sus items en la forma final que espera la campanilla

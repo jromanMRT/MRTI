@@ -7,7 +7,20 @@ import { recordAudit } from '../audit.js';
 
 export const profileRouter = Router();
 
-profileRouter.get('/me', authRequired, (req, res) => {
+profileRouter.get('/me', authRequired, async (req, res, next) => {
+  try {
+    res.json({ profile: await findProfile(req.user.id, req.headers.authorization) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Variante liviana de /me: sólo identidad local (rol, módulos permitidos,
+// cuenta activa), sin resolver la ubicación física contra MRTI-Obs. Pensada
+// para que otros servicios (Obs, Activos, RH, Tickets) validen sesiones sin
+// disparar una llamada cruzada a Obs en cada request — ver la nota en
+// findProfileIdentity (shared.js) sobre el ciclo Core↔Obs que esto evita.
+profileRouter.get('/identity', authRequired, (req, res) => {
   res.json({ profile: req.user });
 });
 

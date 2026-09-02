@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "MRTI | Portal empresarial",
+  "short_name": "MRTI",
+  "description": "Portal empresarial de Minera Río Tinto",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#17120c",
+  "theme_color": "#211a11",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/company-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
