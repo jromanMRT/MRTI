@@ -411,27 +411,17 @@ function themeToggleMarkup() {
   </button>`;
 }
 
-function appLinkMarkup(module) {
+function moduleOptionMarkup(module) {
   const target = module.code === 'agent-core'
     ? `${module.href}#token=${encodeURIComponent(token() || '')}&theme=${encodeURIComponent(currentTheme())}`
     : module.href;
   const maintenance = module.status === 'maintenance';
-  const icon = '<span class="nav-icon" aria-hidden="true">▦</span>';
-  if (maintenance) {
-    return `<span class="nav-button is-disabled">${icon}<span class="nav-label">${escapeHtml(module.title)}</span><span class="nav-status">Mantenimiento</span></span>`;
-  }
-  return `<a class="nav-button" href="${escapeHtml(target)}">${icon}<span class="nav-label">${escapeHtml(module.title)}</span></a>`;
+  return `<option value="${escapeHtml(target)}"${maintenance ? ' disabled' : ''}>${escapeHtml(module.title)}${maintenance ? ' · Mantenimiento' : ''}</option>`;
 }
 
-// Los módulos se listan como enlaces directos en la barra lateral (en lugar
-// de un desplegable) para que el acceso sea de un solo clic.
-function appLinksMarkup(profile) {
+function moduleSwitcherMarkup(profile) {
   const available = portalApplications.filter((module) => canOpen(profile, module.code));
-  if (!available.length) return '';
-  return `<div class="sidebar-section">
-    <span class="sidebar-section-label">Aplicaciones</span>
-    ${available.map(appLinkMarkup).join('')}
-  </div>`;
+  return `<label class="header-module-switcher"><span>Cambiar módulo</span><select id="header-module-select" aria-label="Cambiar de módulo"><option value="" selected disabled>Mi espacio</option>${available.map(moduleOptionMarkup).join('')}</select></label>`;
 }
 
 function brandMarkup() {
@@ -481,7 +471,6 @@ function shellMarkup(profile, content) {
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
         <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></button>
       </nav>
-      ${appLinksMarkup(profile)}
       <div class="sidebar-section">
         <span class="sidebar-section-label">Espacio de trabajo</span>
         <button class="nav-button" id="brand-button" type="button"><span class="nav-icon" aria-hidden="true">◆</span><span class="nav-label">Recursos de marca</span></button>
@@ -498,6 +487,7 @@ function shellMarkup(profile, content) {
       <header class="topbar">
         <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">☰</button>
         <div class="mobile-brand">${brandMarkup()}</div>
+        ${moduleSwitcherMarkup(profile)}
         <div class="topbar-context"><strong>Mi espacio</strong><small>Dashboard y configuración personal</small></div>
         <div class="topbar-actions">
           <div class="notification-center">
@@ -549,6 +539,9 @@ function bindShell(profile) {
     mobileButton.setAttribute('aria-expanded', String(open));
   });
   document.querySelector('#sidebar-backdrop')?.addEventListener('click', closeMobileMenu);
+  document.querySelector('#header-module-select')?.addEventListener('change', (event) => {
+    if (event.target.value) window.location.assign(event.target.value);
+  });
   document.querySelector('#portal-sidebar')?.addEventListener('click', (event) => {
     if (event.target.closest('a, button')) closeMobileMenu();
   });

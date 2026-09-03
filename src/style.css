@@ -280,6 +280,9 @@ a {
 .topbar-context { display: grid; gap: 2px; }
 .topbar-context strong { color: var(--ink); font-size: .86rem; }
 .topbar-context small { color: var(--ink-faint); font-size: .68rem; }
+.header-module-switcher { display: grid; flex: 0 0 auto; gap: 2px; }
+.header-module-switcher > span { color: var(--ink-faint); font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.header-module-switcher select { min-width: 150px; max-width: 210px; height: 34px; padding: 0 30px 0 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface); font: inherit; font-size: .75rem; font-weight: 700; cursor: pointer; }
 
 .brand {
   display: inline-flex;
@@ -1235,6 +1238,8 @@ footer {
   .portal-workspace > footer { width: min(100% - 36px, var(--content-max)); }
   .topbar { gap: 12px; }
   .topbar-context { margin-right: auto; }
+  .header-module-switcher > span { display: none; }
+  .header-module-switcher select { min-width: 0; max-width: 132px; }
   .login-shell { min-height: 0; grid-template-columns: 1fr; }
   .login-story { min-height: 270px; padding: 30px; }
   .login-story-copy { margin: 32px 0 0; padding: 0; }
@@ -1280,6 +1285,7 @@ footer {
   }
 
   .session-user { display: none; }
+  .topbar-context { display: none; }
   .topbar-actions { gap: 10px; }
   .notification-popover { position: fixed; top: 64px; right: 12px; left: 12px; width: auto; max-height: calc(100vh - 80px); }
   .notification-item { flex-wrap: wrap; }
