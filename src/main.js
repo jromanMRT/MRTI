@@ -425,9 +425,9 @@ function moduleSwitcherMarkup(profile) {
 }
 
 function brandMarkup() {
-  return `<a class="brand" href="/" aria-label="Minera Río Tinto, inicio">
+  return `<a class="brand" href="/" aria-label="Ir a MRTI Core" title="Ir a MRTI Core">
     <span class="brand-mark"><img src="${escapeHtml(brandAppearance.portal_logo.content_url || '/company-logo.svg')}" alt=""></span>
-    <span><strong>MRTI</strong><small>Minera Río Tinto</small></span>
+    <span><strong><span>MRTI</span><span class="brand-module">Core</span></strong><small>Minera Río Tinto</small></span>
   </a>`;
 }
 
@@ -471,16 +471,9 @@ function shellMarkup(profile, content) {
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
         <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></button>
       </nav>
-      <div class="sidebar-section">
-        <span class="sidebar-section-label">Espacio de trabajo</span>
-        <button class="nav-button" id="brand-button" type="button"><span class="nav-icon" aria-hidden="true">◆</span><span class="nav-label">Recursos de marca</span></button>
-        <button class="nav-button" id="account-button" type="button"><span class="nav-icon" aria-hidden="true">○</span><span class="nav-label">Perfil</span></button>
-        ${isAdministrator(profile) ? '<button class="nav-button" id="control-button" type="button"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Centro de control</span></button>' : ''}
-      </div>
       <div class="sidebar-footer">
         ${themeToggleMarkup()}
         <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral" title="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral">${collapsed ? '»' : '«'}</button>
-        <button class="logout-button" id="logout-button" type="button"><span class="nav-label">Cerrar sesión</span><span class="collapsed-only" aria-hidden="true">↪</span></button>
       </div>
     </aside>
     <div class="portal-workspace">
@@ -497,7 +490,15 @@ function shellMarkup(profile, content) {
               <div id="notifications-dashboard" class="notification-panel-loading" aria-live="polite">Buscando novedades…</div>
             </section>
           </div>
-          <button class="session-profile" id="topbar-profile-button" type="button" aria-label="Abrir mi configuración">${avatarMarkup(profile, 'small')}<span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span></button>
+          <div class="account-menu" id="account-menu">
+            <button class="session-profile" id="topbar-profile-button" type="button" aria-label="Abrir menú de usuario" aria-expanded="false" aria-controls="account-menu-panel">${avatarMarkup(profile, 'small')}<span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span><span class="account-menu-chevron" aria-hidden="true">⌄</span></button>
+            <div class="account-menu-panel" id="account-menu-panel" role="menu" hidden>
+              <button type="button" id="account-button" role="menuitem"><span aria-hidden="true">○</span>Perfil</button>
+              <button type="button" id="brand-button" role="menuitem"><span aria-hidden="true">◆</span>Recursos de marca</button>
+              ${isAdministrator(profile) ? '<button type="button" id="control-button" role="menuitem"><span aria-hidden="true">⚙</span>Centro de control</button>' : ''}
+              <button type="button" class="account-menu-logout" id="logout-button" role="menuitem"><span aria-hidden="true">↪</span>Cerrar sesión</button>
+            </div>
+          </div>
         </div>
       </header>
       <main>${content}</main>
@@ -578,9 +579,25 @@ function bindShell(profile) {
     setNotificationPanelOpen(false);
     notificationButton?.focus();
   }, { signal: notificationPanelController.signal });
+  const accountMenu = document.querySelector('#account-menu');
+  const accountButton = document.querySelector('#topbar-profile-button');
+  const accountPanel = document.querySelector('#account-menu-panel');
+  const setAccountMenuOpen = (open) => {
+    if (!accountButton || !accountPanel) return;
+    accountPanel.hidden = !open;
+    accountButton.setAttribute('aria-expanded', String(open));
+  };
+  accountButton?.addEventListener('click', () => setAccountMenuOpen(accountPanel.hidden));
+  document.addEventListener('click', (event) => {
+    if (!accountMenu?.contains(event.target)) setAccountMenuOpen(false);
+  }, { signal: notificationPanelController.signal });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || accountPanel?.hidden) return;
+    setAccountMenuOpen(false);
+    accountButton?.focus();
+  }, { signal: notificationPanelController.signal });
   document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
-  document.querySelector('#topbar-profile-button')?.addEventListener('click', () => renderAccount(profile));
   document.querySelector('#control-button')?.addEventListener('click', () => renderControlCenter(profile));
   document.querySelector('#logout-button')?.addEventListener('click', async () => {
     try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* cierre local garantizado */ }
