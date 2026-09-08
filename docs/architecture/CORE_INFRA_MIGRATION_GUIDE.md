@@ -504,6 +504,16 @@ eliminaron al finalizar. Nginx se activó el 2026-08-12 con `nginx -t`
 correcto: `/mrti-obs/` y sus assets responden 200; `/mrti-infra/` y una ruta
 profunda redirigen 301 conservando el destino.
 
+Nota de alcance 2026-09-08: `MRTI-Activos@d15e7ba` añadió una integración
+de sólo lectura, fuera de esta fase, para validar en vivo una referencia de
+ubicación física elegida por un administrador al clasificar el campo legado
+`activos.unidad` (`server/src/integrations/obsClient.js`, mismo patrón que
+`MRTI-RH/server/src/integrations/infraClient.js`: reenvía la sesión,
+degrada a `null`/`[]`, nunca copia la tabla). No mueve datos ni resuelve
+"registros huérfanos, duplicados y dispositivos no patrimoniales" — ese
+punto del checklist sigue pendiente. Detalle y decisiones de negocio
+pendientes en `MRTI-Activos/docs/UNIT_REVIEW_PLAN.md`.
+
 Criterio de terminado:
 
 - Solo Activos puede modificar asignaciones y datos patrimoniales.
