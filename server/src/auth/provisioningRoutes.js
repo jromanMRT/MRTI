@@ -21,19 +21,22 @@ provisioningRouter.get('/password-status', authRequired, async (req, res, next) 
 provisioningRouter.post('/users/provision-rh', authRequired, async (req, res, next) => {
   try {
     if (req.user.role !== 'administrator') return res.status(403).json({ error: 'Sólo un administrador puede aprovisionar usuarios' });
-    const result = await provisionRhUsers(req.headers.authorization);
-    await recordAudit({
-      req,
-      action: 'users.provisioned_from_rh',
-      entityType: 'user',
-      metadata: {
-        created: result.created.length,
-        existing: result.existing,
-        linked: result.linked,
-        ambiguous: result.ambiguous.length,
-        conflicts: result.conflicts.length,
-      },
-    });
+    const dryRun = req.body?.dry_run === true;
+    const result = await provisionRhUsers(req.headers.authorization, { dryRun });
+    if (!dryRun) {
+      await recordAudit({
+        req,
+        action: 'users.provisioned_from_rh',
+        entityType: 'user',
+        metadata: {
+          created: result.created.length,
+          existing: result.existing,
+          linked: result.linked,
+          ambiguous: result.ambiguous.length,
+          conflicts: result.conflicts.length,
+        },
+      });
+    }
     res.json(result);
   } catch (error) {
     next(error);

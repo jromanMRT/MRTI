@@ -624,7 +624,7 @@ function bindShell(profile) {
 // Los módulos enlazan aquí con ?view=account|control-center|notifications
 // para llevar al usuario directo a esa pantalla de Core (ver bindShell) en
 // lugar de dejarlo parado en el dashboard con un clic extra por dar.
-function renderPortal(profile, requestedView = new URLSearchParams(window.location.search).get('view')) {
+function renderPortal(profile, requestedView = new URLSearchParams(window.location.search).get('view'), requestedPanel = new URLSearchParams(window.location.search).get('panel')) {
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
   const deniedModule = portalApplications.find((module) => module.code === deniedCode);
   window.history.replaceState({}, '', '/');
@@ -655,7 +655,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
   bindShell(profile);
   bindTicketSelfService(profile);
   if (requestedView === 'account') renderAccount(profile);
-  else if (requestedView === 'control-center' && isAdministrator(profile)) void renderControlCenter(profile);
+  else if (requestedView === 'control-center' && isAdministrator(profile)) void renderControlCenter(profile, '', requestedPanel || 'users');
   else if (requestedView === 'brand-assets' && isAdministrator(profile)) void renderBrandAssets(profile);
   else if (requestedView === 'notifications') document.querySelector('#notifications-button')?.click();
   // Cada widget corre por separado: si Activos o Tickets no responden, el
@@ -1029,7 +1029,9 @@ async function authenticatedImageUrl(path) {
   return objectUrl;
 }
 
-async function renderBrandAssets(profile, flash = '') {
+async function renderBrandAssets(profile, flash = '', returnTo = 'portal') {
+  const backLabel = returnTo === 'control-center' ? '← Volver al centro de control' : '← Volver al portal';
+  const goBack = () => { clearBrandObjectUrls(); return returnTo === 'control-center' ? renderControlCenter(profile) : renderPortal(profile); };
   clearBrandObjectUrls();
   app.innerHTML = shellMarkup(profile, '<section class="workspace-panel"><p>Cargando recursos de marca…</p></section>');
   bindShell(profile);
@@ -1092,7 +1094,7 @@ async function renderBrandAssets(profile, flash = '') {
     </section>` : '';
 
     app.innerHTML = shellMarkup(profile, `<section class="workspace-panel">
-      <button class="back-button" id="back-portal" type="button">← Volver al portal</button>
+      <button class="back-button" id="back-portal" type="button">${backLabel}</button>
       <p class="section-label">Identidad de marca</p><h1>Recursos de marca</h1>
       <p class="panel-copy">Logotipos e imágenes oficiales disponibles para documentos, presentaciones y materiales corporativos.</p>
       ${flash ? `<div class="form-message success brand-flash">${escapeHtml(flash)}</div>` : ''}
@@ -1101,7 +1103,7 @@ async function renderBrandAssets(profile, flash = '') {
       ${isAdministrator(profile) ? '<p class="panel-note">Quitar un recurso lo oculta de inmediato, pero conserva su historial para recuperación y auditoría.</p>' : ''}
     </section>`);
     bindShell(profile);
-    document.querySelector('#back-portal').addEventListener('click', () => { clearBrandObjectUrls(); renderPortal(profile); });
+    document.querySelector('#back-portal').addEventListener('click', () => void goBack());
 
     document.querySelectorAll('[data-brand-appearance]').forEach((form) => form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -1184,10 +1186,10 @@ async function renderBrandAssets(profile, flash = '') {
     });
   } catch (error) {
     clearBrandObjectUrls();
-    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel"><button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Identidad de marca</p><h1>No fue posible cargar los recursos</h1><p class="panel-copy">${escapeHtml(error.message)}</p><button class="primary-button" id="retry-brand-assets" type="button">Intentar de nuevo</button></section>`);
+    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel"><button class="back-button" id="back-portal" type="button">${backLabel}</button><p class="section-label">Identidad de marca</p><h1>No fue posible cargar los recursos</h1><p class="panel-copy">${escapeHtml(error.message)}</p><button class="primary-button" id="retry-brand-assets" type="button">Intentar de nuevo</button></section>`);
     bindShell(profile);
-    document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
-    document.querySelector('#retry-brand-assets').addEventListener('click', () => renderBrandAssets(profile));
+    document.querySelector('#back-portal').addEventListener('click', () => void goBack());
+    document.querySelector('#retry-brand-assets').addEventListener('click', () => renderBrandAssets(profile, '', returnTo));
   }
 }
 
@@ -1223,7 +1225,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       loadTicketTeamControlData(),
     ]);
     const activeAreas = data.areas.filter((area) => area.is_active);
-    const areaCards = data.areas.map((area) => `<form class="area-card" data-area-id="${area.id}">
+    const areaCards = data.areas.map((area) => `<form class="area-card" data-area-id="${area.id}" data-area-search="${escapeHtml((area.name || '').toLocaleLowerCase('es-MX'))}">
       <div class="area-heading"><input class="area-name" name="name" value="${escapeHtml(area.name)}" required><label class="active-toggle"><input name="is_active" type="checkbox" ${area.is_active ? 'checked' : ''}> Activa</label></div>
       <input name="description" value="${escapeHtml(area.description || '')}" placeholder="Descripción del área">
       <div class="module-options">${moduleChecks(data.modules, area.module_codes)}</div>
@@ -1289,7 +1291,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     const applicationStatusOptions = (selected = 'active') => [
       ['active', 'Activa'], ['maintenance', 'Mantenimiento'], ['inactive', 'Inactiva'],
     ].map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>`).join('');
-    const applicationCards = applicationData.data.map((application) => `<form class="application-admin-card" data-application-id="${application.id}">
+    const applicationCards = applicationData.data.map((application) => `<form class="application-admin-card" data-application-id="${application.id}" data-application-search="${escapeHtml(`${application.name} ${application.code} ${application.category}`.toLocaleLowerCase('es-MX'))}">
       <div class="area-heading"><strong>${escapeHtml(application.name)}</strong><span class="status-badge ${application.status === 'active' ? 'active' : 'inactive'}">${escapeHtml(application.status)}</span></div>
       <div class="application-admin-fields"><label>Código<input name="code" value="${escapeHtml(application.code)}" readonly></label><label>Nombre<input name="name" value="${escapeHtml(application.name)}" required></label><label>Ruta interna<input name="url" value="${escapeHtml(application.url)}" required></label><label>Categoría<input name="category" value="${escapeHtml(application.category)}" required></label><label>Estado<select name="status">${applicationStatusOptions(application.status)}</select></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="${application.sort_order}" required></label><label class="application-wide">Descripción<textarea name="description" rows="2" required>${escapeHtml(application.description)}</textarea></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" value="${escapeHtml(application.features.join(', '))}"></label></div>
       <button class="secondary-button" type="submit">Guardar aplicación</button></form>`).join('');
@@ -1317,28 +1319,33 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
-      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button></nav>
-      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
+      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button></nav>
+      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
         <label>Rol<select name="role">${roleOptions()}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions()}</select></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions()}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions()}</select></label>
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
       </form><p class="field-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
-      <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span>${data.areas.length} configuradas</span></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div></div></div>
+      <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><p class="field-help">Un área de acceso agrupa a los usuarios que deben entrar a los mismos módulos (por ejemplo, "Sistemas" o "Compras") -- es distinta de la ubicación física de un usuario (sitio/edificio/piso), que se administra desde MRTI Monitor.</p><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span id="areas-visible-count">${data.areas.length} configuradas</span></div><div class="user-filters"><input id="area-search" type="search" placeholder="Buscar por nombre de área…"></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div><p class="empty-users" id="empty-areas" hidden>No se encontraron áreas.</p></div></div>
       <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Mi espacio las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div><section class="ticket-limits-section"><div class="users-heading"><div><h2>Límites de creación por usuario</h2><span>Control contra uso indebido</span></div></div><p class="field-help">Deja un campo vacío para no limitarlo. “Por 24 horas” usa una ventana móvil desde el momento de cada intento. El bloqueo impide crear tanto desde Mi espacio como desde la API de Tickets.</p><div class="ticket-limit-list">${ticketLimitRows || '<p>No hay usuarios activos.</p>'}</div></section>`}</div></div>
-      <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span>${applicationData.data.length} registradas</span></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
+      <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span id="applications-visible-count">${applicationData.data.length} registradas</span></div><div class="user-filters"><input id="application-search" type="search" placeholder="Buscar por nombre, código o categoría…"></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
-        <div class="application-admin-grid">${applicationCards}</div></div></div>
+        <div class="application-admin-grid">${applicationCards}</div><p class="empty-users" id="empty-applications" hidden>No se encontraron aplicaciones.</p></div></div>
       <div class="control-panel" data-control-panel="audit" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Historial de actividad de la plataforma</h2><span id="audit-visible-count">${auditData.data.length} eventos</span></div><div class="audit-filters"><input id="audit-search" type="search" placeholder="Usuario, acción o registro…"><select id="audit-module-filter"><option value="all">Todos los módulos</option>${auditModules.map((moduleCode) => `<option value="${escapeHtml(moduleCode)}">${escapeHtml(moduleCode)}</option>`).join('')}</select></div></div>${auditSourceFailures.length ? `<div class="notice">Historial parcial: no respondieron ${auditSourceFailures.map((source) => escapeHtml(source.source)).join(', ')}.</div>` : ''}<p class="field-help">Los datos sensibles se redactan automáticamente. Cada módulo conserva su historial y Core reúne aquí una vista de consulta.</p><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Módulo</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Cambios</th></tr></thead><tbody id="audit-table-body">${auditRows || '<tr><td colspan="6" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div><p class="personal-empty" id="audit-empty" hidden>No hay eventos que coincidan con los filtros.</p></div></div>
     </section>`);
     bindShell(profile);
     document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
-    document.querySelectorAll('.control-tab').forEach((tab) => tab.addEventListener('click', () => {
-      document.querySelectorAll('.control-tab').forEach((item) => item.classList.toggle('active', item === tab));
+    // Cada pestaña actualiza la URL (sin recargar) para que se pueda
+    // compartir o recargar sin volver siempre a Usuarios -- ver
+    // renderPortal, que lee ?panel= al entrar por ?view=control-center.
+    document.querySelectorAll('.control-tab[data-control-target]').forEach((tab) => tab.addEventListener('click', () => {
+      document.querySelectorAll('.control-tab[data-control-target]').forEach((item) => item.classList.toggle('active', item === tab));
       document.querySelectorAll('[data-control-panel]').forEach((panel) => { panel.hidden = panel.dataset.controlPanel !== tab.dataset.controlTarget; });
+      window.history.replaceState({}, '', `/?view=control-center&panel=${encodeURIComponent(tab.dataset.controlTarget)}`);
     }));
     document.querySelector(`[data-control-target="${initialPanel}"]`)?.click();
+    document.querySelector('#control-tab-brand').addEventListener('click', () => void renderBrandAssets(profile, '', 'control-center'));
     document.querySelectorAll('.ticket-team-add').forEach((form) => form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const userId = String(new FormData(form).get('user_id') || '');
@@ -1374,19 +1381,43 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     }));
     document.querySelector('#provision-rh-users').addEventListener('click', async (event) => {
       const button = event.currentTarget;
-      if (!window.confirm('Se crearán cuentas lectoras sin módulos para los correos corporativos únicos y activos de RH. ¿Continuar?')) return;
-      button.disabled = true; button.textContent = 'Aprovisionando…';
+      const dialog = document.querySelector('#provision-rh-dialog');
+      const content = document.querySelector('#provision-rh-content');
+      content.className = 'ticket-detail-loading';
+      content.textContent = 'Consultando candidatos en RH…';
+      dialog.addEventListener('click', (dialogEvent) => { if (dialogEvent.target === dialog) dialog.close(); });
+      if (!dialog.open) dialog.showModal();
+      let preview;
       try {
-        const result = await api('/api/auth/users/provision-rh', { method: 'POST' });
-        if (result.created.length) {
-          const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-          const csv = ['Nombre,Correo,Contraseña temporal', ...result.created.map((item) => [item.full_name, item.email, item.temporary_password].map(quote).join(','))].join('\r\n');
-          const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
-          const anchor = document.createElement('a'); anchor.href = url; anchor.download = `usuarios-core-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url);
-        }
-        const ambiguousCount = result.ambiguous.reduce((total, item) => total + Number(item.active_records || 0), 0);
-        await renderControlCenter(profile, `${result.created.length} cuentas creadas, ${result.linked} expedientes vinculados.${ambiguousCount ? ` ${ambiguousCount} expedientes quedaron fuera por correo duplicado.` : ''}`);
-      } catch (error) { window.alert(error.message); button.disabled = false; button.textContent = 'Aprovisionar desde RH'; }
+        preview = await api('/api/auth/users/provision-rh', { method: 'POST', body: JSON.stringify({ dry_run: true }) });
+      } catch (error) {
+        content.className = 'ticket-detail-error';
+        content.innerHTML = `<p>${escapeHtml(error.message)}</p><button class="secondary-button" type="button" data-close-provision-preview>Cerrar</button>`;
+        content.querySelector('[data-close-provision-preview]').addEventListener('click', () => dialog.close());
+        return;
+      }
+      const ambiguousCount = preview.ambiguous.reduce((total, item) => total + Number(item.active_records || 0), 0);
+      const rows = preview.toCreate.map((item) => `<tr><td>${escapeHtml(item.full_name || '—')}</td><td>${escapeHtml(item.email)}</td></tr>`).join('');
+      content.className = 'ticket-detail-content';
+      content.innerHTML = `<header><div><small>Vista previa</small><h2 id="provision-rh-title">Aprovisionar desde RH</h2></div><button type="button" data-close-provision-preview aria-label="Cerrar vista previa">×</button></header><div class="ticket-detail-body"><p>${preview.toCreate.length ? `Se crearán <strong>${preview.toCreate.length}</strong> cuenta${preview.toCreate.length === 1 ? '' : 's'} lectora${preview.toCreate.length === 1 ? '' : 's'} sin módulos, con correo @mrtcorporativo.mx.` : 'No hay expedientes nuevos por crear; sólo se actualizarían vínculos existentes.'}</p>${rows ? `<div class="personal-table-scroll"><table><thead><tr><th>Nombre</th><th>Correo</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}<dl class="ticket-detail-meta"><div><dt>Ya existentes</dt><dd>${preview.existing}</dd></div><div><dt>Conflictos</dt><dd>${preview.conflicts.length}</dd></div><div><dt>Correos duplicados en RH</dt><dd>${ambiguousCount}</dd></div></dl>${preview.toCreate.length ? '<p class="ticket-edit-rule">Se descargará un CSV con las contraseñas temporales al confirmar.</p>' : ''}<div class="dialog-actions"><button class="secondary-button" type="button" data-close-provision-preview>Cancelar</button><button class="primary-button" type="button" id="provision-rh-confirm">Confirmar y crear</button></div></div>`;
+      content.querySelectorAll('[data-close-provision-preview]').forEach((closeButton) => closeButton.addEventListener('click', () => dialog.close()));
+      content.querySelector('#provision-rh-confirm')?.addEventListener('click', async (confirmEvent) => {
+        const confirmButton = confirmEvent.currentTarget;
+        confirmButton.disabled = true; confirmButton.textContent = 'Aprovisionando…';
+        button.disabled = true; button.textContent = 'Aprovisionando…';
+        try {
+          const result = await api('/api/auth/users/provision-rh', { method: 'POST', body: JSON.stringify({ dry_run: false }) });
+          if (result.created.length) {
+            const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+            const csv = ['Nombre,Correo,Contraseña temporal', ...result.created.map((item) => [item.full_name, item.email, item.temporary_password].map(quote).join(','))].join('\r\n');
+            const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+            const anchor = document.createElement('a'); anchor.href = url; anchor.download = `usuarios-core-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url);
+          }
+          const createdAmbiguousCount = result.ambiguous.reduce((total, item) => total + Number(item.active_records || 0), 0);
+          dialog.close();
+          await renderControlCenter(profile, `${result.created.length} cuentas creadas, ${result.linked} expedientes vinculados.${createdAmbiguousCount ? ` ${createdAmbiguousCount} expedientes quedaron fuera por correo duplicado.` : ''}`);
+        } catch (error) { window.alert(error.message); confirmButton.disabled = false; confirmButton.textContent = 'Confirmar y crear'; button.disabled = false; button.textContent = 'Aprovisionar desde RH'; }
+      });
     });
     const filterUsers = () => {
       const term = document.querySelector('#user-search').value.trim().toLocaleLowerCase('es-MX');
@@ -1403,6 +1434,30 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     };
     document.querySelector('#user-search').addEventListener('input', filterUsers);
     document.querySelector('#user-status-filter').addEventListener('change', filterUsers);
+    const filterAreas = () => {
+      const term = document.querySelector('#area-search').value.trim().toLocaleLowerCase('es-MX');
+      let visible = 0;
+      document.querySelectorAll('.area-card').forEach((card) => {
+        const matches = !term || card.dataset.areaSearch.includes(term);
+        card.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      document.querySelector('#areas-visible-count').textContent = `${visible} ${visible === 1 ? 'configurada' : 'configuradas'}`;
+      document.querySelector('#empty-areas').hidden = visible !== 0;
+    };
+    document.querySelector('#area-search').addEventListener('input', filterAreas);
+    const filterApplications = () => {
+      const term = document.querySelector('#application-search').value.trim().toLocaleLowerCase('es-MX');
+      let visible = 0;
+      document.querySelectorAll('.application-admin-card').forEach((card) => {
+        const matches = !term || card.dataset.applicationSearch.includes(term);
+        card.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      document.querySelector('#applications-visible-count').textContent = `${visible} ${visible === 1 ? 'registrada' : 'registradas'}`;
+      document.querySelector('#empty-applications').hidden = visible !== 0;
+    };
+    document.querySelector('#application-search').addEventListener('input', filterApplications);
     const filterAudit = () => {
       const term = document.querySelector('#audit-search').value.trim().toLocaleLowerCase('es-MX');
       const moduleCode = document.querySelector('#audit-module-filter').value;
@@ -1478,12 +1533,12 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     });
     document.querySelector('#create-area').addEventListener('submit', async (event) => {
       event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
-      try { await api('/api/auth/access-areas', { method: 'POST', body: JSON.stringify({ name: values.get('name'), description: values.get('description'), module_codes: [...form.querySelectorAll('input[type="checkbox"]:checked')].map((item) => item.value) }) }); await renderControlCenter(profile, 'Área creada correctamente.'); }
+      try { await api('/api/auth/access-areas', { method: 'POST', body: JSON.stringify({ name: values.get('name'), description: values.get('description'), module_codes: [...form.querySelectorAll('input[type="checkbox"]:checked')].map((item) => item.value) }) }); await renderControlCenter(profile, 'Área creada correctamente.', 'access'); }
       catch (error) { window.alert(error.message); }
     });
     document.querySelectorAll('.area-card').forEach((form) => form.addEventListener('submit', async (event) => {
       event.preventDefault(); const values = new FormData(form);
-      try { await api(`/api/auth/access-areas/${form.dataset.areaId}`, { method: 'PATCH', body: JSON.stringify({ name: values.get('name'), description: values.get('description'), is_active: values.get('is_active') === 'on', module_codes: [...form.querySelectorAll('.module-options input:checked')].map((item) => item.value) }) }); await renderControlCenter(profile, 'Área actualizada.'); }
+      try { await api(`/api/auth/access-areas/${form.dataset.areaId}`, { method: 'PATCH', body: JSON.stringify({ name: values.get('name'), description: values.get('description'), is_active: values.get('is_active') === 'on', module_codes: [...form.querySelectorAll('.module-options input:checked')].map((item) => item.value) }) }); await renderControlCenter(profile, 'Área actualizada.', 'access'); }
       catch (error) { window.alert(error.message); }
     }));
     const applicationPayload = (form) => {
@@ -1492,12 +1547,12 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     };
     document.querySelector('#create-application').addEventListener('submit', async (event) => {
       event.preventDefault(); const form = event.currentTarget;
-      try { await api('/api/portal/v1/admin/applications', { method: 'POST', body: JSON.stringify(applicationPayload(form)) }); await refreshApplications(); await renderControlCenter(profile, 'Aplicación registrada correctamente. Ya puedes asignarla a un área.'); }
+      try { await api('/api/portal/v1/admin/applications', { method: 'POST', body: JSON.stringify(applicationPayload(form)) }); await refreshApplications(); await renderControlCenter(profile, 'Aplicación registrada correctamente. Ya puedes asignarla a un área.', 'applications'); }
       catch (error) { window.alert(error.message); }
     });
     document.querySelectorAll('.application-admin-card').forEach((form) => form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      try { const payload = applicationPayload(form); delete payload.code; await api(`/api/portal/v1/admin/applications/${form.dataset.applicationId}`, { method: 'PATCH', body: JSON.stringify(payload) }); await refreshApplications(); await renderControlCenter(profile, 'Aplicación actualizada correctamente.'); }
+      try { const payload = applicationPayload(form); delete payload.code; await api(`/api/portal/v1/admin/applications/${form.dataset.applicationId}`, { method: 'PATCH', body: JSON.stringify(payload) }); await refreshApplications(); await renderControlCenter(profile, 'Aplicación actualizada correctamente.', 'applications'); }
       catch (error) { window.alert(error.message); }
     }));
   } catch (error) {

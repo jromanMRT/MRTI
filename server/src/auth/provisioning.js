@@ -7,7 +7,11 @@ export function generateTemporaryPassword() {
   return `${randomBytes(18).toString('base64url')}!7a`;
 }
 
-export async function provisionRhUsers(authorization) {
+// dryRun sólo lee -- ni escribe user_profiles ni llama a RH para vincular
+// expedientes -- para que el botón "Aprovisionar desde RH" pueda mostrar a
+// quién se va a crear antes de que exista de verdad, en vez de un
+// window.confirm() de una sola línea sobre una acción irreversible.
+export async function provisionRhUsers(authorization, { dryRun = false } = {}) {
   const source = await listRhPortalCandidates(authorization);
   const candidates = Array.isArray(source.data) ? source.data : [];
   const emails = [...new Set(candidates.map((item) => String(item.email || '').trim().toLowerCase()))];
@@ -18,6 +22,29 @@ export async function provisionRhUsers(authorization) {
       emails
     );
     existing.forEach((user) => existingByEmail.set(user.email.toLowerCase(), user));
+  }
+
+  if (dryRun) {
+    const toCreate = [];
+    const conflicts = [];
+    let existingCount = 0;
+    for (const candidate of candidates) {
+      const email = String(candidate.email || '').trim().toLowerCase();
+      const user = existingByEmail.get(email);
+      if (candidate.portal_user_id && (!user || user.id !== candidate.portal_user_id)) {
+        conflicts.push({ email, reason: 'existing_rh_link_mismatch' });
+        continue;
+      }
+      if (!user) toCreate.push({ full_name: candidate.full_name, email });
+      else existingCount += 1;
+    }
+    return {
+      dryRun: true,
+      toCreate,
+      existing: existingCount,
+      ambiguous: Array.isArray(source.ambiguous) ? source.ambiguous : [],
+      conflicts,
+    };
   }
 
   const credentials = [];

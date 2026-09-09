@@ -1093,7 +1093,10 @@ button:disabled { cursor: wait; opacity: .58; }
 .control-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 12px; border: 0; border-radius: 8px; color: var(--ink-soft); background: transparent; font-weight: 700; white-space: nowrap; cursor: pointer; }
 .control-tab span { padding: 2px 6px; border-radius: 999px; color: var(--ink-faint); background: var(--surface); font-size: .65rem; }
 .control-tab:hover, .control-tab.active { color: var(--gold-deep); background: var(--surface); box-shadow: var(--shadow-soft); }
+.control-tab-link { margin-left: auto; color: var(--ink-faint); }
+.control-tab-link:hover { color: var(--gold-deep); background: var(--surface); box-shadow: none; }
 .control-panel[hidden] { display: none; }
+.area-card[hidden], .application-admin-card[hidden] { display: none; }
 .control-create { margin-bottom: 18px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
 .control-create > summary { padding: 13px 15px; color: var(--ink); font-weight: 750; cursor: pointer; }
 .control-create > form { padding: 0 15px 15px; }
