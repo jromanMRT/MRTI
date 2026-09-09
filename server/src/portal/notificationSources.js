@@ -28,31 +28,49 @@ async function fetchTicketSource(path, authorization) {
   }
 }
 
+// El estado de SLA ya viaja en ambas fuentes (ver selfTicketSelect en
+// ticketsSelf.ts y listTeamTicketNotifications en teamNotifications.ts) --
+// aquí sólo se usa para que un ticket vencido o por vencer se distinga en
+// la campanilla sin abrir el dashboard operativo de Tickets. No cambia el
+// orden (sigue siendo cronológico): un ticket urgente que nadie ha visto
+// sigue mezclado con el resto, sólo se nota cuál es cuál.
+function slaUrgencyLabel(ticket) {
+  if (ticket.sla_state === 'overdue') return 'SLA vencido';
+  if (ticket.sla_state === 'at_risk') return 'SLA por vencer';
+  return null;
+}
+
 export function normalizeTicketNotifications({ ownTickets = [], teamTickets = [], userId, canOpenTickets }) {
   const assigned = ownTickets
     .filter((ticket) => String(ticket.assigned_to || '') === String(userId) && OPEN_TICKET_STATUSES.has(ticket.status_code))
-    .map((ticket) => ({
-      id: `assigned-ticket:${ticket.id}`,
-      ticket_id: String(ticket.id),
-      kind: 'assigned_ticket',
-      title: `${ticket.folio || 'Ticket'} asignado a ti`,
-      message: `${ticket.title || 'Sin título'} · ${ticket.status_name || 'En atención'}`,
-      timestamp: ticket.updated_at || ticket.created_at || null,
-      href: canOpenTickets ? `/tickets/tickets/${encodeURIComponent(ticket.id)}` : null,
-    }));
+    .map((ticket) => {
+      const urgency = slaUrgencyLabel(ticket);
+      return {
+        id: `assigned-ticket:${ticket.id}`,
+        ticket_id: String(ticket.id),
+        kind: urgency ? 'assigned_ticket_sla' : 'assigned_ticket',
+        title: `${urgency ? '⚠️ ' : ''}${ticket.folio || 'Ticket'} asignado a ti`,
+        message: `${ticket.title || 'Sin título'} · ${urgency || ticket.status_name || 'En atención'}`,
+        timestamp: ticket.updated_at || ticket.created_at || null,
+        href: canOpenTickets ? `/tickets/tickets/${encodeURIComponent(ticket.id)}` : null,
+      };
+    });
 
   const assignedIds = new Set(assigned.map((item) => item.ticket_id));
   const team = teamTickets
     .filter((ticket) => !assignedIds.has(String(ticket.id)))
-    .map((ticket) => ({
-      id: `team-ticket:${ticket.id}`,
-      ticket_id: String(ticket.id),
-      kind: 'team_ticket',
-      title: `${ticket.folio || 'Nuevo ticket'} para ${ticket.business_area_name || 'tu equipo'}`,
-      message: ticket.title || 'Hay un ticket nuevo pendiente de atención.',
-      timestamp: ticket.updated_at || ticket.created_at || null,
-      href: canOpenTickets ? `/tickets/tickets/${encodeURIComponent(ticket.id)}` : null,
-    }));
+    .map((ticket) => {
+      const urgency = slaUrgencyLabel(ticket);
+      return {
+        id: `team-ticket:${ticket.id}`,
+        ticket_id: String(ticket.id),
+        kind: urgency ? 'team_ticket_sla' : 'team_ticket',
+        title: `${urgency ? '⚠️ ' : ''}${ticket.folio || 'Nuevo ticket'} para ${ticket.business_area_name || 'tu equipo'}`,
+        message: urgency ? `${ticket.title || 'Sin título'} · ${urgency}` : (ticket.title || 'Hay un ticket nuevo pendiente de atención.'),
+        timestamp: ticket.updated_at || ticket.created_at || null,
+        href: canOpenTickets ? `/tickets/tickets/${encodeURIComponent(ticket.id)}` : null,
+      };
+    });
 
   return [...assigned, ...team]
     .sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime())
