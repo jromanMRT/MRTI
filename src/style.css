@@ -237,6 +237,14 @@ a {
   mask-image: linear-gradient(to bottom, black, transparent 80%);
 }
 
+.ambient-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .ambient {
   position: absolute;
   z-index: -1;

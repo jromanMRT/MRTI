@@ -463,7 +463,7 @@ function setHomeStat(id, value, detail, state = '') {
 function shellMarkup(profile, content) {
   const collapsed = localStorage.getItem('mrti_core_sidebar_collapsed') === '1';
   return `<div class="page-shell${collapsed ? ' sidebar-collapsed' : ''}">
-    <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
+    <div class="ambient-layer" aria-hidden="true"><div class="ambient ambient-one"></div><div class="ambient ambient-two"></div></div>
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Cerrar navegación" tabindex="-1"></button>
     <aside class="portal-sidebar" id="portal-sidebar" aria-label="Navegación del portal">
       <div class="sidebar-brand">${brandMarkup()}</div>
