@@ -1,0 +1,122 @@
+[
+  {
+    "name": "MRTI-build",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "build",
+      "--",
+      "--outDir",
+      "/tmp/mrti-qa-20260910/MRTI-dist"
+    ]
+  },
+  {
+    "name": "MRTI-Infra-build",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "build",
+      "--",
+      "--outDir",
+      "/tmp/mrti-qa-20260910/MRTI-Infra-dist"
+    ]
+  },
+  {
+    "name": "MRTI-RH-build",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "build",
+      "--",
+      "--outDir",
+      "/tmp/mrti-qa-20260910/MRTI-RH-dist"
+    ]
+  },
+  {
+    "name": "MRTI-Activos-build",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "build",
+      "--",
+      "--outDir",
+      "/tmp/mrti-qa-20260910/MRTI-Activos-dist"
+    ]
+  },
+  {
+    "name": "MRTI-Legal-build",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "build",
+      "--",
+      "--outDir",
+      "/tmp/mrti-qa-20260910/MRTI-Legal-dist"
+    ]
+  },
+  {
+    "name": "Tickets-frontend-build",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "build",
+      "--",
+      "--outDir",
+      "/tmp/mrti-qa-20260910/Tickets-dist"
+    ]
+  },
+  {
+    "name": "Tickets-backend-build",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "build",
+      "--",
+      "--outDir",
+      "/tmp/mrti-qa-20260910/Tickets-backend-dist"
+    ]
+  },
+  {
+    "name": "Infra-typecheck",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "typecheck"
+    ]
+  },
+  {
+    "name": "Infra-lint",
+    "code": 1,
+    "cmd": [
+      "npm",
+      "run",
+      "lint"
+    ]
+  },
+  {
+    "name": "Tickets-frontend-lint",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "lint"
+    ]
+  },
+  {
+    "name": "Tickets-backend-lint",
+    "code": 0,
+    "cmd": [
+      "npm",
+      "run",
+      "lint"
+    ]
+  }
+]

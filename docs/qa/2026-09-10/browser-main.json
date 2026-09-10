@@ -1,0 +1,918 @@
+{
+  "api": [
+    {
+      "endpoint": "/api/db/devices",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/api/db/devices",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/api/db/devices",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/api/db/devices",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    }
+  ],
+  "pages": [
+    {
+      "path": "/",
+      "width": 1440,
+      "title": "MRTI | Portal empresarial",
+      "heading": "Buenos días, QA.Este es tu dashboard.",
+      "textLength": 1416,
+      "overflow": false,
+      "errors": [],
+      "http": [
+        {
+          "path": "/rh-api/api/rh-self/me",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "/mrti-obs/",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Dashboard",
+      "textLength": 4487,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/sites",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Sitios y Ubicaciones",
+      "textLength": 729,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/monitoring",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Monitoreo",
+      "textLength": 1661,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/floor-plans",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Planos",
+      "textLength": 513,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/alerts",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Alertas",
+      "textLength": 2062,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/discovery",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Descubrimiento",
+      "textLength": 3614,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/racks",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Racks",
+      "textLength": 468,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/history",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Historial de incidencias",
+      "textLength": 265953,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/settings",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Configuración",
+      "textLength": 937,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/ups",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "UPS",
+      "textLength": 1409,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/servers",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Servidores",
+      "textLength": 544,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Dashboard de activos",
+      "textLength": 2637,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/inventario",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Inventario de equipos",
+      "textLength": 46731,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/inventario/unidades",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Inventario por unidad",
+      "textLength": 2471,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/alertas",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Alertas de activos",
+      "textLength": 29172,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/bajas-personal",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Devolución de activos",
+      "textLength": 8403,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/nuevo",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Inventario de equipos | Nuevo activo",
+      "textLength": 47527,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Resumen operativo",
+      "textLength": 1967,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/empleados",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Directorio de colaboradores",
+      "textLength": 9742,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/empleados/nuevo",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Nuevo colaborador",
+      "textLength": 7373,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/organigrama",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Organigrama de personas",
+      "textLength": 2689,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/estructura-organizacional",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Diseño organizacional",
+      "textLength": 2724,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/puestos",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Catálogo de puestos",
+      "textLength": 83432,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/unidades",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Unidades organizacionales",
+      "textLength": 11658,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/vacaciones",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Vacaciones y permisos",
+      "textLength": 786,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/salas",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Salas de juntas",
+      "textLength": 891,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/calendario",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Calendario de celebraciones",
+      "textLength": 1184,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/control-contpaq",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Control de réplica CONTPAQi",
+      "textLength": 4369,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/historial",
+      "width": 1440,
+      "title": "MRTI RH",
+      "heading": "Historial de RH",
+      "textLength": 7037,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/",
+      "width": 1440,
+      "title": "MRTI Tickets",
+      "heading": "Centro operativo",
+      "textLength": 1251,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/tickets",
+      "width": 1440,
+      "title": "MRTI Tickets",
+      "heading": "Tickets",
+      "textLength": 2120,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/tickets/new",
+      "width": 1440,
+      "title": "MRTI Tickets",
+      "heading": "Crear ticket",
+      "textLength": 750,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/knowledge-base",
+      "width": 1440,
+      "title": "MRTI Tickets",
+      "heading": "Base de conocimiento",
+      "textLength": 1086,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/settings/sla-policies",
+      "width": 1440,
+      "title": "MRTI Tickets",
+      "heading": "Políticas de SLA",
+      "textLength": 874,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/",
+      "width": 1440,
+      "title": "MRTI Legal",
+      "heading": "Resumen",
+      "textLength": 810,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/expedientes",
+      "width": 1440,
+      "title": "MRTI Legal",
+      "heading": "Expedientes",
+      "textLength": 829,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/expedientes/nuevo",
+      "width": 1440,
+      "title": "MRTI Legal",
+      "heading": "Alta de expediente legal",
+      "textLength": 719,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/auditoria",
+      "width": 1440,
+      "title": "MRTI Legal",
+      "heading": "Auditoría",
+      "textLength": 714,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/",
+      "width": 390,
+      "title": "MRTI | Portal empresarial",
+      "heading": "Buenos días, QA.Este es tu dashboard.",
+      "textLength": 1269,
+      "overflow": false,
+      "errors": [],
+      "http": [
+        {
+          "path": "/rh-api/api/rh-self/me",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "/mrti-obs/",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Dashboard",
+      "textLength": 4252,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/sites",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Sitios y Ubicaciones",
+      "textLength": 501,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/monitoring",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Monitoreo",
+      "textLength": 1431,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/floor-plans",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Planos",
+      "textLength": 285,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/alerts",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Alertas",
+      "textLength": 1834,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/discovery",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Descubrimiento",
+      "textLength": 3386,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/racks",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Racks",
+      "textLength": 240,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/history",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Historial de incidencias",
+      "textLength": 335639,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/settings",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Configuración",
+      "textLength": 709,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/ups",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "UPS",
+      "textLength": 1173,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/servers",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Servidores",
+      "textLength": 317,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Dashboard de activos",
+      "textLength": 2337,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/inventario",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Inventario de equipos",
+      "textLength": 46441,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/inventario/unidades",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Inventario por unidad",
+      "textLength": 2170,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/alertas",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Alertas de activos",
+      "textLength": 28885,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/bajas-personal",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Devolución de activos",
+      "textLength": 8106,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/nuevo",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Inventario de equipos | Nuevo activo",
+      "textLength": 47235,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Resumen operativo",
+      "textLength": 1661,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/empleados",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Directorio de colaboradores",
+      "textLength": 9433,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/empleados/nuevo",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Nuevo colaborador",
+      "textLength": 7057,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/organigrama",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Organigrama de personas",
+      "textLength": 2324,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/estructura-organizacional",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Diseño organizacional",
+      "textLength": 2386,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/puestos",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Catálogo de puestos",
+      "textLength": 83126,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/unidades",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Unidades organizacionales",
+      "textLength": 11351,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/vacaciones",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Vacaciones y permisos",
+      "textLength": 466,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/salas",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Salas de juntas",
+      "textLength": 576,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/calendario",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Calendario de celebraciones",
+      "textLength": 858,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/control-contpaq",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Control de réplica CONTPAQi",
+      "textLength": 4043,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/rh/historial",
+      "width": 390,
+      "title": "MRTI RH",
+      "heading": "Historial de RH",
+      "textLength": 6732,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/",
+      "width": 390,
+      "title": "MRTI Tickets",
+      "heading": "Centro operativo",
+      "textLength": 1177,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/tickets",
+      "width": 390,
+      "title": "MRTI Tickets",
+      "heading": "Tickets",
+      "textLength": 2046,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/tickets/new",
+      "width": 390,
+      "title": "MRTI Tickets",
+      "heading": "Crear ticket",
+      "textLength": 671,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/knowledge-base",
+      "width": 390,
+      "title": "MRTI Tickets",
+      "heading": "Base de conocimiento",
+      "textLength": 999,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/tickets/settings/sla-policies",
+      "width": 390,
+      "title": "MRTI Tickets",
+      "heading": "Políticas de SLA",
+      "textLength": 791,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/",
+      "width": 390,
+      "title": "MRTI Legal",
+      "heading": "Resumen",
+      "textLength": 637,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/expedientes",
+      "width": 390,
+      "title": "MRTI Legal",
+      "heading": "Expedientes",
+      "textLength": 652,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/expedientes/nuevo",
+      "width": 390,
+      "title": "MRTI Legal",
+      "heading": "Alta de expediente legal",
+      "textLength": 537,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-legal/auditoria",
+      "width": 390,
+      "title": "MRTI Legal",
+      "heading": "Auditoría",
+      "textLength": 539,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    }
+  ],
+  "residualFixtures": 0,
+  "failures": 0
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "port": 3002,
+    "status": 200,
+    "json": true
+  },
+  {
+    "port": 3003,
+    "status": 200,
+    "json": true
+  },
+  {
+    "port": 3004,
+    "status": 200,
+    "json": true
+  },
+  {
+    "port": 3005,
+    "status": 200,
+    "json": true
+  },
+  {
+    "port": 3006,
+    "status": 200,
+    "json": true
+  },
+  {
+    "port": 4000,
+    "status": 200,
+    "json": true
+  }
+]

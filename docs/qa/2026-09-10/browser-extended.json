@@ -1,0 +1,468 @@
+{
+  "api": [
+    {
+      "endpoint": "/api/db/devices",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/api/db/devices",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/api/db/devices",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/api/db/devices",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/activos-api/api/activos",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/rh-api/api/rh/employees",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/tickets-api/api/tickets",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "none",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "invalid",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "administrator",
+      "status": 200,
+      "expected": 200
+    },
+    {
+      "endpoint": "/legal-api/api/legal/cases",
+      "role": "viewer",
+      "status": 403,
+      "expected": 403
+    }
+  ],
+  "pages": [
+    {
+      "path": "/?view=account",
+      "width": 1440,
+      "title": "MRTI | Portal empresarial",
+      "heading": "QA temporal plataforma",
+      "textLength": 1423,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/?view=control-center",
+      "width": 1440,
+      "title": "MRTI | Portal empresarial",
+      "heading": "Centro de control",
+      "textLength": 2978,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/news-screen",
+      "width": 1440,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Centro informativo",
+      "textLength": 1268,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/credenciales",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Credenciales de equipos",
+      "textLength": 22899,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/componentes",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Componentes",
+      "textLength": 14361,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/impresoras",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Impresoras",
+      "textLength": 5138,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/nvr",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "NVR y CCTV",
+      "textLength": 1905,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/passwords",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Contraseñas de red",
+      "textLength": 1926,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/starlink",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Starlink",
+      "textLength": 2603,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/fortigate",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "FortiGate",
+      "textLength": 1375,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/dominios",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Dominios",
+      "textLength": 680,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/mantenimientos",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Mantenimientos",
+      "textLength": 640,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/unidades",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Catálogo de unidades de inventario",
+      "textLength": 1801,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/documentos",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Documentos",
+      "textLength": 8012,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/config-alertas",
+      "width": 1440,
+      "title": "MRTI Activos",
+      "heading": "Configuración de alertas",
+      "textLength": 633,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "http://127.0.0.1:8477/",
+      "width": 1440,
+      "title": "MRTI Agent Core",
+      "heading": "",
+      "textLength": 1878,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "http://127.0.0.1:8477/downloads/",
+      "width": 1440,
+      "title": "Descargar MRTI Agent",
+      "heading": "Instala MRTI Agent",
+      "textLength": 820,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/?view=account",
+      "width": 390,
+      "title": "MRTI | Portal empresarial",
+      "heading": "QA temporal plataforma",
+      "textLength": 1276,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/?view=control-center",
+      "width": 390,
+      "title": "MRTI | Portal empresarial",
+      "heading": "Centro de control",
+      "textLength": 2147,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/mrti-obs/news-screen",
+      "width": 390,
+      "title": "MRTI Monitor | Observabilidad y topología TI",
+      "heading": "Centro informativo",
+      "textLength": 1042,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/credenciales",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Credenciales de equipos",
+      "textLength": 22599,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/componentes",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Componentes",
+      "textLength": 14061,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/impresoras",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Impresoras",
+      "textLength": 4838,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/nvr",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "NVR y CCTV",
+      "textLength": 1605,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/passwords",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Contraseñas de red",
+      "textLength": 1626,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/starlink",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Starlink",
+      "textLength": 2303,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/fortigate",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "FortiGate",
+      "textLength": 1075,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/dominios",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Dominios",
+      "textLength": 380,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/mantenimientos",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Mantenimientos",
+      "textLength": 340,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/unidades",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Catálogo de unidades de inventario",
+      "textLength": 1501,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/documentos",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Documentos",
+      "textLength": 7712,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "/activos/catalogos/config-alertas",
+      "width": 390,
+      "title": "MRTI Activos",
+      "heading": "Configuración de alertas",
+      "textLength": 333,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "http://127.0.0.1:8477/",
+      "width": 390,
+      "title": "MRTI Agent Core",
+      "heading": "",
+      "textLength": 1791,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    },
+    {
+      "path": "http://127.0.0.1:8477/downloads/",
+      "width": 390,
+      "title": "Descargar MRTI Agent",
+      "heading": "Instala MRTI Agent",
+      "textLength": 734,
+      "overflow": false,
+      "errors": [],
+      "http": []
+    }
+  ],
+  "residualFixtures": 0,
+  "failures": 0
+}

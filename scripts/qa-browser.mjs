@@ -18,6 +18,9 @@ const users=['administrator','viewer'].map(role=>({role,id:randomUUID(),email:`q
 const report={api:[],pages:[]};let browser;
 let failures=0;
 const paths=['/','/mrti-obs/','/mrti-obs/sites','/mrti-obs/monitoring','/mrti-obs/floor-plans','/mrti-obs/alerts','/mrti-obs/discovery','/mrti-obs/racks','/mrti-obs/history','/mrti-obs/settings','/mrti-obs/ups','/mrti-obs/servers','/activos/','/activos/inventario','/activos/inventario/unidades','/activos/alertas','/activos/bajas-personal','/activos/nuevo','/rh/','/rh/empleados','/rh/empleados/nuevo','/rh/organigrama','/rh/estructura-organizacional','/rh/puestos','/rh/unidades','/rh/vacaciones','/rh/salas','/rh/calendario','/rh/control-contpaq','/rh/historial','/tickets/','/tickets/tickets','/tickets/tickets/new','/tickets/knowledge-base','/tickets/settings/sla-policies','/mrti-legal/','/mrti-legal/expedientes','/mrti-legal/expedientes/nuevo','/mrti-legal/auditoria'];
+const extraPaths=['/?view=account','/?view=control-center','/mrti-obs/news-screen',...['credenciales','componentes','impresoras','nvr','passwords','starlink','fortigate','dominios','mantenimientos','unidades','documentos','config-alertas'].map(key=>'/activos/catalogos/'+key),'http://127.0.0.1:8477/','http://127.0.0.1:8477/downloads/'];
+paths.push(...extraPaths);
+const selectedPaths=process.env.MRTI_QA_EXTRA_ONLY==='1'?extraPaths:paths;
 try {
  const password=randomUUID();const hash=await bcrypt.hash(password,10);
  for(const u of users){
@@ -36,12 +39,12 @@ try {
  browser=await chromium.launch({headless:true, executablePath:process.env.MRTI_CHROMIUM_PATH || undefined});
  for(const viewport of [{width:1440,height:900},{width:390,height:844}]){
   const context=await browser.newContext({viewport,serviceWorkers:'block'});
-  await context.addInitScript(({token,profile})=>{localStorage.setItem('auth_token',token);localStorage.setItem('auth_profile',JSON.stringify(profile));},users[0].session);
-  for(const path of paths){
+  await context.addInitScript(({token,profile})=>{localStorage.setItem('auth_token',token);sessionStorage.setItem('mrti_portal_token',token);localStorage.setItem('auth_profile',JSON.stringify(profile));},users[0].session);
+  for(const path of selectedPaths){
    const page=await context.newPage();const errors=[];const http=[];
    page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)http.push({path:new URL(r.url()).pathname,status:r.status()});});
    try{
-    await page.goto(base+path,{waitUntil:'domcontentloaded',timeout:20000});await page.waitForTimeout(1000);
+    await page.goto(path.startsWith('http')?path:base+path,{waitUntil:'domcontentloaded',timeout:20000});await page.waitForTimeout(1000);
     const info=await page.evaluate(()=>({title:document.title,heading:[...document.querySelectorAll('h1')].map(x=>x.textContent).join(' | '),textLength:document.body.innerText.length,overflow:document.documentElement.scrollWidth>innerWidth+2}));
     const unexpected=http.filter(r=>!(path==='/' && r.path==='/rh-api/api/rh-self/me' && r.status===404));
     if(errors.length || unexpected.length || info.overflow || info.textLength<40) failures++;

@@ -732,6 +732,9 @@ Actualizar una fila solo con evidencia verificable.
 
 | MRTI Activos. Inventario por unidad | Completa | 2026-09-08 | Activos `9001a2f`. El catálogo deja de ser una entrada aislada del menú: Inventario y Dashboard abren una vista de uso con equipos por estado, asignaciones, nombres fuera del catálogo, catálogo sin equipos y unidades inactivas/archivadas. La ruta antigua conserva administración y compatibilidad. Nueva lectura protegida `GET /api/activos-suite/unit-inventory` y filtros aditivos `unidad_operativa`/`sin_unidad`; no modifica esquema ni datos (migración no aplica). Evidencia: 49/49 pruebas, integración de lectura con 38 grupos/272 equipos y todos sus conteos coincidentes, build aislado que preserva el cambio ajeno en remisión, sintaxis y diff correctos. Smoke Nginx: 401 sin sesión e inválida, 403 sin módulo, 200 administrador y 38 filtros con conteos exactos; frontend/bundle/health 200, PM2 online, sincronización normal correcta y 0 fixtures. Chromium no inició por bibliotecas del sistema faltantes: no se afirma validación visual. Rollback y evidencia en `MRTI-Activos/docs/UNIT_INVENTORY.md`: revertir el commit, reconstruir frontend y reiniciar sólo Activos, sin reversión de datos. |
 
+
+| QA transversal. Regresiones, disponibilidad y navegador | Correcciones publicadas; cobertura acotada documentada | 2026-09-10 | MRTI-Infra `04c38677e923`, MRTI-RH `b7853528813c`, MRTI-Activos `42892edf7483`, MRTI-Legal `edc020d1c6c1`, MRTI `feb5e3ac5ea7`, MRTI-Agent `53890f168241`. 310 pruebas JavaScript, Go sin caché, siete builds iniciales y 112 vistas de navegador finales sin fallos inesperados. Sin migración, secretos ni eliminación de compatibilidad; cambios previos preservados. Evidencia, límites y rollback en `../qa/2026-09-10/REPORT.md`. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -836,6 +839,9 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-08 | Mostrar los adjuntos de activos con un visor temporal de PDF e imágenes en otra pestaña | El usuario necesita leerlos sin guardar una descarga manual | Se reutiliza la ruta protegida y se mantiene el token en el encabezado, nunca en la URL. Sólo PDF/JPG/PNG se incrustan; otros formatos siguen disponibles por descarga. La URL temporal se libera al cerrar el visor; no cambia la propiedad ni el almacenamiento privado de documentos. |
 
 | 2026-09-08 | Dar uso al catálogo de unidades de Activos mediante una proyección de inventario y revisión de etiquetas, conservando la propiedad laboral en RH y física en Monitor | Los 35 nombres heredados mezclan sitios, áreas y etiquetas como Dañada, DONADA o Sin Asignar; convertirlos en una nueva autoridad laboral o física propagaría esa ambigüedad. El inventario contiene además 10 equipos sin unidad y dos nombres fuera del catálogo | Se agregan consultas y filtros, sin recaptura de datos laborales, escritura en SAP ni unión automática de alias. El estado patrimonial y la asignación se derivan de campos propios, nunca del nombre de unidad. Catálogos duplicados no multiplican equipos; los nombres archivados/inactivos siguen permitiendo consultar sus equipos. La ruta de catálogo permanece disponible para administración y rollback. |
+
+
+| 2026-09-10 | Distinguir indisponibilidad de Core de rechazo de identidad en los middlewares obligatorios de RH, Activos y Legal; acotar a cinco segundos la consulta de permisos de Agent | Un fallo de transporte o respuesta inválida devolvía 401 en autoservicio, y Agent podía esperar indefinidamente. Eso confundía una caída de dependencia con expiración y agotaba solicitudes | Se devuelve 503 sin autorizar; 401/403 conservan su significado. Las lecturas auxiliares best-effort siguen devolviendo null. No cambia la autoridad de identidad, UUID, esquema ni compatibilidad. Pruebas con dobles de Core, sin apagar servicios reales. |
 
 ## 11. Definición final de terminado
 
