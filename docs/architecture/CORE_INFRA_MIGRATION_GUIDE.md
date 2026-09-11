@@ -735,6 +735,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | QA transversal. Regresiones, disponibilidad y navegador | Correcciones publicadas; cobertura acotada documentada | 2026-09-10 | MRTI-Infra `04c38677e923`, MRTI-RH `b7853528813c`, MRTI-Activos `42892edf7483`, MRTI-Legal `edc020d1c6c1`, MRTI `feb5e3ac5ea7`, MRTI-Agent `53890f168241`. 310 pruebas JavaScript, Go sin caché, siete builds iniciales y 112 vistas de navegador finales sin fallos inesperados. Sin migración, secretos ni eliminación de compatibilidad; cambios previos preservados. Evidencia, límites y rollback en `../qa/2026-09-10/REPORT.md`. |
 
+| MRTI Activos. Historial de responsables y unidad patrimonial | Completa | 2026-09-11 | Activos `8a59e41`. La pestaña Asignación muestra movimientos ya registrados (persona por referencia estable, fechas, estado y notas); resuelve nombres actuales por API de RH y degrada a referencias si falla. Unidad asignada al activo usa `activos.unidad`, sin sustituirla por empresa/estructura de nómina. Sin migración ni cambios de backend/datos. Evidencia: 124/124 pruebas, build y diff correctos, ficha publicada en escritorio/móvil sin errores, contrato historial 401/401/403/200 y 0 cuentas temporales residuales. Cambio ajeno en remisión preservado. Rollback y límites en `MRTI-Activos/docs/ASSIGNMENT_HISTORY_AND_UNIT.md`; assets previos conservados. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -842,6 +844,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 
 
 | 2026-09-10 | Distinguir indisponibilidad de Core de rechazo de identidad en los middlewares obligatorios de RH, Activos y Legal; acotar a cinco segundos la consulta de permisos de Agent | Un fallo de transporte o respuesta inválida devolvía 401 en autoservicio, y Agent podía esperar indefinidamente. Eso confundía una caída de dependencia con expiración y agotaba solicitudes | Se devuelve 503 sin autorizar; 401/403 conservan su significado. Las lecturas auxiliares best-effort siguen devolviendo null. No cambia la autoridad de identidad, UUID, esquema ni compatibilidad. Pruebas con dobles de Core, sin apagar servicios reales. |
+
+| 2026-09-11 | Mostrar en Asignación la unidad registrada por Activos y reutilizar su historial de responsables, conservando RH como autoridad de la ficha laboral | La unidad laboral de RH puede representar una raíz organizacional con nombre de nómina y no indica dónde está asignado el equipo. El historial ya existía pero no estaba expuesto en la ficha | El frontend separa explícitamente unidad patrimonial y empresa laboral; los nombres históricos se resuelven por referencias estables sin copiar maestros ni inventar movimientos. Fechas/notas permanecen en Activos, y una caída de RH no elimina la consulta del historial. No modifica la unidad laboral en RH ni topología de Monitor. |
 
 ## 11. Definición final de terminado
 
