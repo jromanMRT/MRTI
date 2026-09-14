@@ -11,9 +11,20 @@ export function generateTemporaryPassword() {
 // expedientes -- para que el botón "Aprovisionar desde RH" pueda mostrar a
 // quién se va a crear antes de que exista de verdad, en vez de un
 // window.confirm() de una sola línea sobre una acción irreversible.
-export async function provisionRhUsers(authorization, { dryRun = false } = {}) {
+export function selectProvisioningCandidates(candidates, employeeId) {
+  if (employeeId === null || employeeId === undefined) return candidates;
+  return candidates.filter((candidate) => Number(candidate.employee_id) === Number(employeeId));
+}
+
+export async function provisionRhUsers(authorization, { dryRun = false, employeeId = null } = {}) {
   const source = await listRhPortalCandidates(authorization);
-  const candidates = Array.isArray(source.data) ? source.data : [];
+  const allCandidates = Array.isArray(source.data) ? source.data : [];
+  const candidates = selectProvisioningCandidates(allCandidates, employeeId);
+  if (employeeId !== null && employeeId !== undefined && candidates.length !== 1) {
+    const error = new Error('El empleado no tiene un correo corporativo único o confirmado en RH');
+    error.status = 409;
+    throw error;
+  }
   const emails = [...new Set(candidates.map((item) => String(item.email || '').trim().toLowerCase()))];
   const existingByEmail = new Map();
   if (emails.length) {
@@ -42,7 +53,7 @@ export async function provisionRhUsers(authorization, { dryRun = false } = {}) {
       dryRun: true,
       toCreate,
       existing: existingCount,
-      ambiguous: Array.isArray(source.ambiguous) ? source.ambiguous : [],
+      ambiguous: employeeId === null ? (Array.isArray(source.ambiguous) ? source.ambiguous : []) : [],
       conflicts,
     };
   }
@@ -88,7 +99,7 @@ export async function provisionRhUsers(authorization, { dryRun = false } = {}) {
     created: credentials,
     existing: links.length - credentials.length,
     linked: linked.linked,
-    ambiguous: Array.isArray(source.ambiguous) ? source.ambiguous : [],
+    ambiguous: employeeId === null ? (Array.isArray(source.ambiguous) ? source.ambiguous : []) : [],
     conflicts: [...conflicts, ...(linked.conflicts || [])],
   };
 }

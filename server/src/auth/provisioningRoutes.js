@@ -22,7 +22,11 @@ provisioningRouter.post('/users/provision-rh', authRequired, async (req, res, ne
   try {
     if (req.user.role !== 'administrator') return res.status(403).json({ error: 'Sólo un administrador puede aprovisionar usuarios' });
     const dryRun = req.body?.dry_run === true;
-    const result = await provisionRhUsers(req.headers.authorization, { dryRun });
+    const employeeId = req.body?.employee_id === undefined ? null : Number(req.body.employee_id);
+    if (employeeId !== null && (!Number.isInteger(employeeId) || employeeId < 1)) {
+      return res.status(400).json({ error: 'employee_id no es válido' });
+    }
+    const result = await provisionRhUsers(req.headers.authorization, { dryRun, employeeId });
     if (!dryRun) {
       await recordAudit({
         req,
@@ -34,6 +38,7 @@ provisioningRouter.post('/users/provision-rh', authRequired, async (req, res, ne
           linked: result.linked,
           ambiguous: result.ambiguous.length,
           conflicts: result.conflicts.length,
+          employee_id: employeeId,
         },
       });
     }
