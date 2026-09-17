@@ -746,6 +746,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | MRTI Activos. Nombre asignado en Inventario | Completa | 2026-09-17 | Activos `567ae77`. Usuario asignado presenta `full_name` de la ficha RH ya consultada por referencia estable para número y empresa, con fallback al nombre histórico. Sin migración, cambio de API ni datos. Verificación: tres escenarios SSR del renglón real (nombre RH con ID, prioridad del nombre vigente, fallback), build aislado, diff correcto, Inventario/bundle `index-B0QU6P1y.js`/health 200. No se verificó sesión gráfica real. Cambios ajenos preservados. Rollback: restaurar `dist/index.html` desde `/tmp/activos-assigned-name-rollback-fbiqbxpj/dist/index.html`, con assets anteriores conservados, o revertir el commit y reconstruir desde checkout limpio. |
 
+| MRTI Activos. Búsqueda por persona vinculada en RH | Completa | 2026-09-17 | Activos `3018e51`. El buscador resuelve por API las referencias asignadas y agrega coincidencias de nombre/número al filtro SQL antes de orden/límite, conservando los filtros patrimoniales. Coincidencia por palabras sin distinguir mayúsculas/acentos; lotes de hasta 1000 referencias y 503 explícito si RH falla. Sin migración ni escritura de datos maestros. Pruebas 133/133, sintaxis y diff correctos; no requiere build frontend. Integración aislada y Nginx autenticado confirmaron TI-00274 para nombre completo, acentuado, parcial, 1931 y código TI; filtro adicional incompatible devolvió vacío. Health 200, sin sesión 401, PM2 online. Primer smoke durante arranque obtuvo 502; repetición con API lista aprobó todos los casos. Sin fixtures persistentes; logs muestran sincronización SAP completada y advertencia TLS conocida. Rollback: revertir `3018e51` y reiniciar únicamente mrti-activos-api; no requiere reversión de datos. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -867,6 +869,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-17 | Normalizar únicamente la presentación del historial de unidad en Activos | MySQL puede entregar las columnas JSON como objetos; aplicar JSON.parse de nuevo lanzaba la excepción que dejaba Administración en negro | Se aceptan objetos y cadenas históricas. Un dato ilegible se distingue de una unidad vacía; no cambia el historial persistido, la autorización ni la reversión en servidor. |
 
 | 2026-09-17 | Mostrar en Inventario el nombre vigente de RH junto al número de empleado | El campo histórico `usuario_asignado` puede estar vacío aunque el activo conserve asignación estable y la ficha RH ya esté cargada | Se reutiliza la consulta existente sin duplicar datos ni agregar peticiones; ante indisponibilidad de RH se conserva el nombre histórico disponible. |
+
+| 2026-09-17 | Resolver búsqueda de responsables mediante las referencias actuales a RH antes de limitar el inventario | El nombre heredado de TI-00274 estaba nulo aunque rh_employee_id=1417 conservaba correctamente su asignación; filtrar sólo ese campo ocultaba el equipo | RH mantiene nombres/números y Activos sus asignaciones. Se consulta el contrato por lote existente, sin FK ni copia de maestros, y se informa indisponibilidad en vez de presentar una búsqueda falsamente vacía. |
 
 ## 11. Definición final de terminado
 
