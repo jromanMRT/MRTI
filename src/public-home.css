@@ -1,0 +1,12 @@
+.news-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.news-date { margin: 2px 0 0; color: var(--ink-faint); font-size: .68rem; }
+.news-body { margin: 14px 0; color: var(--ink); font-size: .86rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.core-home { min-height: 100vh; padding: 28px 24px 60px; background: var(--bg); }
+.home-public-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1080px; margin: 0 auto 40px; }
+.home-public-hero { max-width: 1080px; margin: 0 auto 44px; text-align: left; }
+.home-public-hero h1 { margin: 8px 0 12px; color: var(--ink); font-size: clamp(1.6rem, 3vw, 2.4rem); }
+.home-public-hero p { max-width: 640px; color: var(--ink-soft); font-size: .94rem; line-height: 1.6; }
+.home-news-section { max-width: 1080px; margin: 0 auto; }
+.public-home-link { display: inline-block; text-decoration: none; }
+.home-public-header > a { flex-shrink: 0; text-decoration: none; text-align: center; }
+@media (max-width: 480px) { .home-public-header { flex-wrap: wrap; } }

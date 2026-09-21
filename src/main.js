@@ -1,3 +1,4 @@
+import { renderPublicHome } from './public-home.js';
 import './style.css';
 import './ticket-self-service.css';
 
@@ -1569,6 +1570,7 @@ function loginMarkup() {
       <div class="login-story-copy"><p class="login-eyebrow">Portal empresarial</p><h1>Tu entrada digital a la empresa.</h1><p>Solicita, consulta e infórmate desde un solo lugar, con acceso personalizado según tu función.</p></div>
       <div class="login-story-footer"><span>${escapeHtml(longDate())}</span><small>Acceso interno protegido</small></div></aside>
     <section class="login-panel"><div class="login-mobile-brand"><img src="${escapeHtml(logoUrl)}" alt=""><span><strong>MRTI</strong><small>Minera Río Tinto</small></span></div>
+      <a class="back-button public-home-link" id="back-home" href="/home">Ver información de la empresa →</a>
       <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para continuar al MRTI Home.</p>
       <form id="login-form" class="login-form"><label>Correo o usuario<input name="email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="nombre@empresa.com" required></label>
         <label>Contraseña<div class="password-field"><input name="password" id="login-password" type="password" autocomplete="current-password" required><button id="toggle-password" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div></label>
@@ -1617,6 +1619,9 @@ function renderLogin(message = '') {
 
 async function initialize() {
   await refreshBrandAppearance();
+  if (['/home', '/home/'].includes(window.location.pathname)) {
+    return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize });
+  }
   if (!token()) return renderLogin();
   try {
     const [{ profile }, passwordStatus] = await Promise.all([
