@@ -752,6 +752,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | Core. Login raíz y portal informativo independiente | Completa | 2026-09-21 | Core `4f98cb7`. `/` abre login sin sesión y conserva Mi espacio con sesión; `/home` y `/home/` muestran información pública con navegación nativa. Presentación separada en public-home.js/css; noticias y editor locales previos preservados, sin migración de datos ni cambio de API/Nginx. 13/13 contratos reales y 14 escenarios Chromium en escritorio/móvil, build/sintaxis/diff correctos, health/noticias 200, sin errores JS ni fixtures. Publicado conservando assets previos; rollback validado por hashes contra respaldo. Evidencia y reversión en `PUBLIC_HOME_ROUTES.md`. |
 
+| Core. Home empresarial canónico en raíz | Web publicada; activación de enlaces Agent pendiente | 2026-09-21 | MRTI `37461bb`; MRTI-Activos `6e8eb70`; MRTI-RH `23aa2f4`; MRTI-Legal `f3e8242`; MRTI-Infra `730bfbe`; MRTI-Tickets `abf7cb7`; MRTI-Agent `f28e90e`. `/` siempre informativo; `/login` acceso; `/mi-espacio` dashboard; alias y queries antiguos compatibles. 13/13 contratos, seis builds, Go test/build, 28 checks Chromium de rutas y seis de navegación; fixtures 0, health 200. Cambios ajenos preservados. Agent tiene binario listo pero reinicio rechazado por privilegios del SO; proceso anterior continúa activo. Sin migración de datos. Evidencia y rollback: `PUBLIC_HOME_ROUTES.md`. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -879,6 +881,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-17 | Guardar referencias técnicas como notas generales de Activos con vínculo opcional al UUID patrimonial | El usuario necesita encontrar baterías, números de parte y productos compatibles por serie o descripción, sin depender de archivos ni de un equipo único; eligió explícitamente sección general buscable | Activos conserva texto y referencias de compra; Core sólo aporta UUID del autor. No hay FK cruzada ni escritura a SAP. Autor/administrador edita y archiva de forma recuperable; las referencias generales pueden describir varios modelos y el enlace a inventario usa asset_uid estable. |
 
 | 2026-09-21 | Separar login e información empresarial por rutas en la misma IP | El usuario eligió `/` para acceso y `/home` para información; intercambiar pantallas sin URL propia impedía enlazarlas y recargarlas | La portada pública tiene módulo de presentación propio y usa las noticias existentes. Core conserva sesión, permisos y Mi espacio en `/` para compatibilidad; visitar `/home` no valida ni borra una sesión. Sin otro proveedor de identidad ni duplicación de datos. |
+
+| 2026-09-21 | Convertir `/` en el verdadero home empresarial y separar `/login` de `/mi-espacio` | El usuario confirmó expresamente esta distribución después de la primera entrega con `/home` | La raíz muestra información incluso con sesión; `/home` queda como alias, y las consultas heredadas siguen resolviendo tareas personales. Se actualizan enlaces de navegación por repositorio sin cambiar identidad ni datos. Sustituye la elección anterior de login en raíz; Agent requiere activación administrativa de su binario preparado. |
 
 ## 11. Definición final de terminado
 

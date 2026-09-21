@@ -1,45 +1,76 @@
-# Acceso e información empresarial — 2026-09-21
+# Home empresarial en la raíz — 2026-09-21
 
-Rutas publicadas en el mismo origen:
+Configuración vigente, solicitada después de la primera separación de rutas:
 
-- `/`: login sin sesión; Mi espacio con sesión vigente, compatible con enlaces existentes.
-- `/home` y `/home/`: información empresarial accesible con o sin sesión.
-- Los enlaces entre ambas páginas usan navegación nativa; recarga, Atrás y Adelante conservan el destino.
-- `returnTo`, permisos, cambio obligatorio de contraseña y cierre de sesión mantienen el flujo de Core.
+- `/`: información empresarial, siempre pública, incluso con sesión vigente.
+- `/login`: inicio de sesión; una sesión vigente continúa a Mi espacio.
+- `/mi-espacio`: dashboard personal; sin sesión abre login y conserva el destino.
+- `/home` y `/home/`: compatibilidad mediante redirección a `/`.
+- Los enlaces antiguos `/?view=...`, `/?openTicket=...`, `/?accessDenied=...`
+  y `/?returnTo=...` se resuelven en las rutas nuevas conservando parámetros.
+- Mi espacio y las marcas de regreso a Core de Activos, RH, Legal, Monitor y
+  Tickets apuntan a `/mi-espacio`. El home público conserva su marca hacia `/`.
 
-La presentación pública vive en `src/public-home.js` y `src/public-home.css`.
-Consume la API de noticias que ya estaba activa (`/api/portal/v1/company-news`).
-El editor, backend y migraciones de noticias encontrados como cambios locales
-se preservaron sin incluirlos en este commit. La publicación conserva esos cambios
-que ya formaban parte de la plataforma. El módulo público muestra un error si
-esa API no está disponible; no inventa información empresarial.
+Core conserva identidad, UUID, permisos, API y noticias existentes. No hay
+migración de datos ni cambios de Nginx/dependencias. El cambio de rutas es
+aditivo y su despliegue se puede repetir sin modificar datos.
 
-No hay migración de datos: expansión aditiva de rutas; Nginx ya tiene fallback
-hacia index.html. Publicación repetible copiando assets y reemplazando index.html
-al final, sin borrar assets previos ni reiniciar APIs.
+## Código y publicación
 
-## Verificación
+MRTI `37461bb`; MRTI-Activos `6e8eb70`; MRTI-RH `23aa2f4`; MRTI-Legal `f3e8242`; MRTI-Infra `730bfbe`; MRTI-Tickets `abf7cb7`; MRTI-Agent `f28e90e`.
 
-- `node --check src/main.js` y `node --check src/public-home.js`: correctos.
-- `CONTRACT_TEST_URL=http://192.168.1.203 node --test test/auth-contract.test.js`
-  desde server: 13/13 contratos reales aprobados.
-- `npm run build -- --outDir /tmp/mrti-home-build`: correcto.
-- `git diff --check`: correcto.
-- Chromium sobre la IP publicada, anchos 1440 y 390: 14 escenarios aprobados
-  (login inicial, navegación/recarga/responsive, login real, home con sesión,
-  logout, returnTo y sesión expirada). Sin errores JavaScript ni overflow móvil.
-- Atrás/Adelante y `/home/` verificados. Cuenta temporal y auditoría retiradas,
-  cero usuarios de prueba residuales. No se crearon noticias.
-- API pública de noticias 200 (0 publicaciones), health Core 200;
-  error.log de Nginx sin contenido al terminar.
-- Evidencia local: `/tmp/mrti-home-browser-results.json`,
-  `/tmp/mrti-home-1440.png`, `/tmp/mrti-home-390.png`.
-- No se cambiaron dependencias, configuración Nginx, secretos ni servicios.
+Core y los cinco módulos web publicados; Tickets recreó sólo frontend.
+Activos y RH se compilaron desde HEAD más los cambios de navegación, excluyendo
+los cambios locales ajenos en remisión, puestos y backend. Core preserva sus
+cambios locales previos del editor/backend de noticias sin incluirlos en el commit.
+
+Agent compilado y probado: el binario actualizado está instalado en
+`/var/www/mrt/MRTI/bin/mrti-monitor`, pero el proceso sigue usando la versión
+anterior. Tanto sudo no interactivo como systemctl sin pedir contraseña
+rechazaron reiniciar por falta de autorización del sistema operativo.
+Pendiente exclusivamente activar sus enlaces con:
+
+```sh
+sudo systemctl restart mrti-monitor.service
+```
+
+Hasta entonces, sus enlaces antiguos a raíz llegan al home público; desde allí
+el acceso permite volver al dashboard. No se afirma publicado el enlace nuevo
+ni se interrumpió el proceso actual de Agent.
+
+## Evidencia
+
+Directorio local de trabajo y respaldo: `/tmp/mrti-root-home-a6tj38ut`.
+
+- Sintaxis de Core y `git diff --check` de siete repositorios: correctos.
+- 13/13 contratos de autenticación contra la IP publicada:
+  `CONTRACT_TEST_URL=http://192.168.1.203 node --test test/auth-contract.test.js`.
+- Seis builds frontend correctos; Tickets incluye TypeScript.
+- `go test ./...` y `go build ./cmd/mrti-monitor` correctos con Go local 1.26.5.
+- Chromium publicado: 28 comprobaciones de rutas en 1440 y 390 px, además de
+  recarga, Atrás/Adelante, login real, logout, raíz con sesión, sesión inválida,
+  returnTo y prevención de bucle al pedir volver a login. Sin errores JS ni
+  overflow en home móvil. Un primer intento del script usó un selector inexistente
+  de perfil; corregido a #profile-form, la ejecución completa pasó.
+- Seis comprobaciones adicionales: Mi espacio desde cinco módulos y Centro de
+  control heredado con panel de equipos. Todas correctas.
+- Cuentas y auditorías temporales retiradas: cero usuarios de fixture residuales.
+- Core health y Agent actual 200, log de errores Nginx vacío al verificar.
+- Evidencia: `browser-results.json`, `modules-browser-results.json`,
+  `home-1440.png`, `home-390.png`, logs de build/Go y `commits.json` en el directorio.
 
 ## Rollback
 
-Respaldo previo completo: `/tmp/mrti-home-rollback-5lwqz91s/dist`.
-Restaurar su `index.html` en `MRTI/dist/index.html`; los assets previos se
-conservaron y todos los archivos del respaldo siguen disponibles.
-Para revertir código, revertir el commit de rutas conservando los cambios locales
-del editor de noticias y reconstruir el frontend. Sin reversión de datos.
+- Core, Activos, RH, Legal y Monitor: restaurar su `index.html` desde
+  `<directorio>/<repositorio>/index.html` a `<repositorio>/dist/index.html`.
+  Los assets anteriores se conservaron; las entradas y archivos referenciados
+  siguen disponibles. No borrar assets durante reversión.
+- Tickets: respaldo de dist en `tickets-rollback-dist`, imagen anterior en
+  `tickets-rollback-image`. Restaurar ese dist en `/app/dist` del frontend o
+  recrear sólo frontend usando la imagen anterior; no tocar backend ni base.
+- Agent: restaurar `mrti-monitor.rollback` desde el directorio de respaldo hacia
+  `bin/mrti-monitor` mediante un archivo temporal y rename. Si ya se activó la
+  versión nueva, reiniciar con privilegios. Mientras no se active, su proceso
+  sigue ejecutando el binario anterior.
+- Código: revertir únicamente los commits indicados por repositorio y reconstruir,
+  preservando las modificaciones locales ajenas. No requiere revertir datos.
