@@ -425,8 +425,8 @@ function moduleSwitcherMarkup(profile) {
   return `<label class="header-module-switcher"><span>Cambiar módulo</span><select id="header-module-select" aria-label="Cambiar de módulo"><option value="" selected disabled>Mi espacio</option>${available.map(moduleOptionMarkup).join('')}</select></label>`;
 }
 
-function brandMarkup() {
-  return `<a class="brand" href="/" aria-label="Ir a MRTI Core" title="Ir a MRTI Core">
+function brandMarkup(href = '/mi-espacio') {
+  return `<a class="brand" href="${href}" aria-label="Ir a MRTI Core" title="Ir a MRTI Core">
     <span class="brand-mark"><img src="${escapeHtml(brandAppearance.portal_logo.content_url || '/company-logo.svg')}" alt=""></span>
     <span><strong><span>MRTI</span><span class="brand-module">Core</span></strong><small>Minera Río Tinto</small></span>
   </a>`;
@@ -607,7 +607,7 @@ function bindShell(profile) {
     if ('clearAppBadge' in navigator) void navigator.clearAppBadge().catch(() => {});
     if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
     avatarObjectUrl = null;
-    window.history.replaceState({}, '', '/');
+    window.history.replaceState({}, '', '/login');
     renderLogin();
   });
   void loadNotifications(profile);
@@ -628,7 +628,8 @@ function bindShell(profile) {
 function renderPortal(profile, requestedView = new URLSearchParams(window.location.search).get('view'), requestedPanel = new URLSearchParams(window.location.search).get('panel')) {
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
   const deniedModule = portalApplications.find((module) => module.code === deniedCode);
-  window.history.replaceState({}, '', '/');
+  window.history.replaceState({}, '', '/mi-espacio');
+  document.title = 'MRTI | Mi espacio';
   const banner = deniedModule
     ? `<div class="notice error">Tu área no tiene permiso para entrar a <strong>${escapeHtml(deniedModule.title)}</strong>. Si lo necesitas, solicítalo a un administrador.</div>`
     : '';
@@ -1343,7 +1344,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     document.querySelectorAll('.control-tab[data-control-target]').forEach((tab) => tab.addEventListener('click', () => {
       document.querySelectorAll('.control-tab[data-control-target]').forEach((item) => item.classList.toggle('active', item === tab));
       document.querySelectorAll('[data-control-panel]').forEach((panel) => { panel.hidden = panel.dataset.controlPanel !== tab.dataset.controlTarget; });
-      window.history.replaceState({}, '', `/?view=control-center&panel=${encodeURIComponent(tab.dataset.controlTarget)}`);
+      window.history.replaceState({}, '', `/mi-espacio?view=control-center&panel=${encodeURIComponent(tab.dataset.controlTarget)}`);
     }));
     document.querySelector(`[data-control-target="${initialPanel}"]`)?.click();
     document.querySelector('#control-tab-brand').addEventListener('click', () => void renderBrandAssets(profile, '', 'control-center'));
@@ -1570,8 +1571,8 @@ function loginMarkup() {
       <div class="login-story-copy"><p class="login-eyebrow">Portal empresarial</p><h1>Tu entrada digital a la empresa.</h1><p>Solicita, consulta e infórmate desde un solo lugar, con acceso personalizado según tu función.</p></div>
       <div class="login-story-footer"><span>${escapeHtml(longDate())}</span><small>Acceso interno protegido</small></div></aside>
     <section class="login-panel"><div class="login-mobile-brand"><img src="${escapeHtml(logoUrl)}" alt=""><span><strong>MRTI</strong><small>Minera Río Tinto</small></span></div>
-      <a class="back-button public-home-link" id="back-home" href="/home">Ver información de la empresa →</a>
-      <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para continuar al MRTI Home.</p>
+      <a class="back-button public-home-link" id="back-home" href="/">Ver información de la empresa →</a>
+      <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para entrar a Mi espacio.</p>
       <form id="login-form" class="login-form"><label>Correo o usuario<input name="email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="nombre@empresa.com" required></label>
         <label>Contraseña<div class="password-field"><input name="password" id="login-password" type="password" autocomplete="current-password" required><button id="toggle-password" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div></label>
         <div class="login-assistance" id="login-assistance" hidden>La recuperación todavía es administrada por Sistemas. Solicita el restablecimiento con el responsable de MRTI.</div>
@@ -1590,6 +1591,13 @@ function requestedDestination() {
 }
 
 function renderLogin(message = '') {
+  const current = new URL(window.location.href);
+  if (current.pathname !== '/login') {
+    const params = new URLSearchParams();
+    params.set('returnTo', `${current.pathname}${current.search}${current.hash}`);
+    window.history.replaceState({}, '', `/login?${params}`);
+  }
+  document.title = 'MRTI | Iniciar sesión';
   app.innerHTML = loginMarkup();
   const form = document.querySelector('#login-form'); const errorElement = document.querySelector('#login-error');
   const passwordInput = document.querySelector('#login-password');
@@ -1612,14 +1620,24 @@ function renderLogin(message = '') {
       localStorage.setItem('auth_token', body.token); localStorage.setItem('auth_profile', JSON.stringify(body.profile || {}));
       await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(body.profile)]);
       if (body.profile.password_change_required) return renderAccount(body.profile, { required: true });
-      const destination = requestedDestination(); if (destination && destination !== '/') window.location.replace(destination); else renderPortal(body.profile);
+      const destination = requestedDestination();
+      window.location.replace(destination && !['/login', '/login/'].includes(new URL(destination, window.location.origin).pathname) ? destination : '/mi-espacio');
     } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Iniciar sesión'; }
   });
 }
 
 async function initialize() {
+  // Keep old bookmarks from modules functional while the plain root is public.
+  const entry = new URL(window.location.href);
+  if (['/home', '/home/'].includes(entry.pathname)) {
+    return window.location.replace('/');
+  }
+  if (entry.pathname === '/' && ['returnTo', 'accessDenied', 'view', 'openTicket'].some((key) => entry.searchParams.has(key))) {
+    const path = entry.searchParams.has('returnTo') ? '/login' : '/mi-espacio';
+    window.history.replaceState({}, '', `${path}${entry.search}${entry.hash}`);
+  }
   await refreshBrandAppearance();
-  if (['/home', '/home/'].includes(window.location.pathname)) {
+  if (window.location.pathname === '/') {
     return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize });
   }
   if (!token()) return renderLogin();
@@ -1633,7 +1651,7 @@ async function initialize() {
     await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(profile)]);
     if (profile.password_change_required) return renderAccount(profile, { required: true });
     const destination = requestedDestination();
-    if (destination && destination !== '/') {
+    if (destination && !['/login', '/login/'].includes(new URL(destination, window.location.origin).pathname) && destination !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
       const destinationModule = portalApplications.find((module) => destination.startsWith(module.href));
       if (!destinationModule || canOpen(profile, destinationModule.code)) return window.location.replace(destination);
     }

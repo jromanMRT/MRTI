@@ -33,7 +33,7 @@ async function loadPublicNews() {
 function renderHome() {
   document.title = 'MRTI | Información de la empresa';
   app.innerHTML = `<main class="core-home">
-    <header class="home-public-header">${brandMarkup()}<a class="primary-button" id="home-login-button" href="/">Iniciar sesión</a></header>
+    <header class="home-public-header">${brandMarkup('/')}<a class="primary-button" id="home-login-button" href="/login">Iniciar sesión</a></header>
     <section class="home-public-hero"><p class="login-eyebrow">Portal informativo</p><h1>Noticias e información de Minera Río Tinto.</h1><p>Consulta los avisos importantes de la empresa. Inicia sesión para entrar a tus aplicaciones según tu nivel de acceso.</p></section>
     <section class="home-news-section"><div class="section-heading"><div><p class="section-label">Últimos avisos</p><h2>Noticias de la empresa</h2></div></div>
       <div id="home-news-list" class="personal-loading">Cargando noticias…</div>
