@@ -750,6 +750,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | MRTI Activos. Notas técnicas y referencias de compra | Completa | 2026-09-17 | Activos `276ae20`. Nueva sección general buscable con título, contenido, equipo/producto, serie, repuesto/P/N, URL y vínculo opcional por asset_uid; consultas por campos de la nota y código/modelo/serie del activo. Lectura/alta con acceso al módulo, edición/archivo/restauración sólo autor o administrador, concurrencia por revisión. Migración aditiva `021_asset_technical_notes.sql`: runner dos veces y DDL directo dos veces, sin duplicación. 139/139 pruebas, sintaxis/diff, build aislado de cambios ajenos. Smoke publicado 401/401/403/201/200/409/400, ocho eventos auditados; Chromium escritorio/móvil validó captura vinculada, búsqueda, edición, recarga, archivo/restauración, sin overflow ni errores JS. Notas/cuentas/auditoría QA retiradas, health/frontend 200 y PM2 online. Rollback en `MRTI-Activos/docs/TECHNICAL_NOTES.md`; conservar tabla y notas reales al revertir. |
 
+| Core. Login raíz y portal informativo independiente | Completa | 2026-09-21 | Core `4f98cb7`. `/` abre login sin sesión y conserva Mi espacio con sesión; `/home` y `/home/` muestran información pública con navegación nativa. Presentación separada en public-home.js/css; noticias y editor locales previos preservados, sin migración de datos ni cambio de API/Nginx. 13/13 contratos reales y 14 escenarios Chromium en escritorio/móvil, build/sintaxis/diff correctos, health/noticias 200, sin errores JS ni fixtures. Publicado conservando assets previos; rollback validado por hashes contra respaldo. Evidencia y reversión en `PUBLIC_HOME_ROUTES.md`. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -875,6 +877,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-17 | Resolver búsqueda de responsables mediante las referencias actuales a RH antes de limitar el inventario | El nombre heredado de TI-00274 estaba nulo aunque rh_employee_id=1417 conservaba correctamente su asignación; filtrar sólo ese campo ocultaba el equipo | RH mantiene nombres/números y Activos sus asignaciones. Se consulta el contrato por lote existente, sin FK ni copia de maestros, y se informa indisponibilidad en vez de presentar una búsqueda falsamente vacía. |
 
 | 2026-09-17 | Guardar referencias técnicas como notas generales de Activos con vínculo opcional al UUID patrimonial | El usuario necesita encontrar baterías, números de parte y productos compatibles por serie o descripción, sin depender de archivos ni de un equipo único; eligió explícitamente sección general buscable | Activos conserva texto y referencias de compra; Core sólo aporta UUID del autor. No hay FK cruzada ni escritura a SAP. Autor/administrador edita y archiva de forma recuperable; las referencias generales pueden describir varios modelos y el enlace a inventario usa asset_uid estable. |
+
+| 2026-09-21 | Separar login e información empresarial por rutas en la misma IP | El usuario eligió `/` para acceso y `/home` para información; intercambiar pantallas sin URL propia impedía enlazarlas y recargarlas | La portada pública tiene módulo de presentación propio y usa las noticias existentes. Core conserva sesión, permisos y Mi espacio en `/` para compatibilidad; visitar `/home` no valida ni borra una sesión. Sin otro proveedor de identidad ni duplicación de datos. |
 
 ## 11. Definición final de terminado
 
