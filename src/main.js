@@ -1,3 +1,4 @@
+import './login-header.css';
 import './header-navigation.css';
 import { renderPublicHome } from './public-home.js';
 import './style.css';
@@ -1567,19 +1568,22 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
 function loginMarkup() {
   const logoUrl = brandAppearance.portal_logo.content_url || '/company-logo.svg';
   const backgroundUrl = brandAppearance.login_background.content_url;
-  return `<main class="core-login"><section class="login-shell" aria-label="Acceso a MRTI">
+  return `<div class="login-page">
+    <header class="login-public-header">${brandMarkup('/')}
+      <nav aria-label="Navegación del acceso"><a class="login-home-link" id="back-home" href="/"><span aria-hidden="true">←</span> Volver al home</a></nav>
+    </header>
+    <main class="core-login"><section class="login-shell" aria-label="Acceso a MRTI">
     <aside class="login-story${backgroundUrl ? ' has-custom-background' : ''}" ${backgroundUrl ? `style="--login-background-image: url('${escapeHtml(backgroundUrl)}')"` : ''}><div class="login-company"><img src="${escapeHtml(logoUrl)}" alt="Emblema de Minera Río Tinto"><div><span>Minera Río Tinto</span><strong>MRTI</strong></div></div>
       <div class="login-story-copy"><p class="login-eyebrow">Portal empresarial</p><h1>Tu entrada digital a la empresa.</h1><p>Solicita, consulta e infórmate desde un solo lugar, con acceso personalizado según tu función.</p></div>
       <div class="login-story-footer"><span>${escapeHtml(longDate())}</span><small>Acceso interno protegido</small></div></aside>
     <section class="login-panel"><div class="login-mobile-brand"><img src="${escapeHtml(logoUrl)}" alt=""><span><strong>MRTI</strong><small>Minera Río Tinto</small></span></div>
-      <a class="back-button public-home-link" id="back-home" href="/">Ver información de la empresa →</a>
       <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para entrar a Dashboard.</p>
       <form id="login-form" class="login-form"><label>Correo o usuario<input name="email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="nombre@empresa.com" required></label>
         <label>Contraseña<div class="password-field"><input name="password" id="login-password" type="password" autocomplete="current-password" required><button id="toggle-password" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div></label>
         <div class="login-assistance" id="login-assistance" hidden>La recuperación todavía es administrada por Sistemas. Solicita el restablecimiento con el responsable de MRTI.</div>
         <div class="login-error" id="login-error" role="alert" hidden></div><button class="login-button" type="submit">Iniciar sesión</button></form>
       <div class="login-links"><button id="forgot-password" type="button">¿Olvidaste tu contraseña?</button><span>Las cuentas son creadas por un administrador.</span></div>
-    </section></section></main>`;
+    </section></section></main></div>`;
 }
 
 function requestedDestination() {
