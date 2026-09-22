@@ -427,10 +427,10 @@ function moduleSwitcherMarkup(profile, currentLabel = 'Dashboard') {
   return `<nav class="portal-header-navigation" aria-label="Navegación de la plataforma"><a class="portal-dashboard-link" href="/dashboard">Dashboard</a><label class="header-module-switcher"><span>Cambiar módulo</span><select id="header-module-select" aria-label="Cambiar de módulo"><option value="" selected disabled>${currentLabel}</option>${available.map(moduleOptionMarkup).join('')}</select></label></nav>`;
 }
 
-function brandMarkup(href = '/') {
+function brandMarkup(href = '/', showModule = true) {
   return `<a class="brand" href="${href}" aria-label="Ir al home" title="Ir al home">
     <span class="brand-mark"><img src="${escapeHtml(brandAppearance.portal_logo.content_url || '/company-logo.svg')}" alt=""></span>
-    <span><strong><span>MRTI</span><span class="brand-module">Core</span></strong><small>Minera Río Tinto</small></span>
+    <span><strong><span>MRTI</span>${showModule ? '<span class="brand-module">Core</span>' : ''}</strong><small>Minera Río Tinto</small></span>
   </a>`;
 }
 
@@ -1569,9 +1569,7 @@ function loginMarkup() {
   const logoUrl = brandAppearance.portal_logo.content_url || '/company-logo.svg';
   const backgroundUrl = brandAppearance.login_background.content_url;
   return `<div class="login-page">
-    <header class="login-public-header">${brandMarkup('/')}
-      <nav aria-label="Navegación del acceso"><a class="login-home-link" id="back-home" href="/"><span aria-hidden="true">←</span> Volver al home</a></nav>
-    </header>
+    <header class="login-public-header">${brandMarkup('/', false)}</header>
     <main class="core-login"><section class="login-shell" aria-label="Acceso a MRTI">
     <aside class="login-story${backgroundUrl ? ' has-custom-background' : ''}" ${backgroundUrl ? `style="--login-background-image: url('${escapeHtml(backgroundUrl)}')"` : ''}><div class="login-company"><img src="${escapeHtml(logoUrl)}" alt="Emblema de Minera Río Tinto"><div><span>Minera Río Tinto</span><strong>MRTI</strong></div></div>
       <div class="login-story-copy"><p class="login-eyebrow">Portal empresarial</p><h1>Tu entrada digital a la empresa.</h1><p>Solicita, consulta e infórmate desde un solo lugar, con acceso personalizado según tu función.</p></div>
