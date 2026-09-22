@@ -1,3 +1,4 @@
+import { mountPublicSession } from './public-session.js';
 import './public-home.css';
 
 // Página pública: no consulta ni modifica la sesión del visitante.
@@ -39,6 +40,7 @@ function renderHome() {
       <div id="home-news-list" class="personal-loading">Cargando noticias…</div>
     </section>
   </main>`;
+  mountPublicSession();
   void loadPublicNews();
 }
 

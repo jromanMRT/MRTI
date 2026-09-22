@@ -1,3 +1,4 @@
+import './header-navigation.css';
 import { renderPublicHome } from './public-home.js';
 import './style.css';
 import './ticket-self-service.css';
@@ -420,13 +421,13 @@ function moduleOptionMarkup(module) {
   return `<option value="${escapeHtml(target)}"${maintenance ? ' disabled' : ''}>${escapeHtml(module.title)}${maintenance ? ' · Mantenimiento' : ''}</option>`;
 }
 
-function moduleSwitcherMarkup(profile) {
+function moduleSwitcherMarkup(profile, currentLabel = 'Dashboard') {
   const available = portalApplications.filter((module) => canOpen(profile, module.code));
-  return `<label class="header-module-switcher"><span>Cambiar módulo</span><select id="header-module-select" aria-label="Cambiar de módulo"><option value="" selected disabled>Mi espacio</option>${available.map(moduleOptionMarkup).join('')}</select></label>`;
+  return `<nav class="portal-header-navigation" aria-label="Navegación de la plataforma"><a class="portal-dashboard-link" href="/dashboard">Dashboard</a><label class="header-module-switcher"><span>Cambiar módulo</span><select id="header-module-select" aria-label="Cambiar de módulo"><option value="" selected disabled>${currentLabel}</option>${available.map(moduleOptionMarkup).join('')}</select></label></nav>`;
 }
 
-function brandMarkup(href = '/mi-espacio') {
-  return `<a class="brand" href="${href}" aria-label="Ir a MRTI Core" title="Ir a MRTI Core">
+function brandMarkup(href = '/') {
+  return `<a class="brand" href="${href}" aria-label="Ir al home" title="Ir al home">
     <span class="brand-mark"><img src="${escapeHtml(brandAppearance.portal_logo.content_url || '/company-logo.svg')}" alt=""></span>
     <span><strong><span>MRTI</span><span class="brand-module">Core</span></strong><small>Minera Río Tinto</small></span>
   </a>`;
@@ -482,7 +483,7 @@ function shellMarkup(profile, content) {
         <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">☰</button>
         <div class="mobile-brand">${brandMarkup()}</div>
         ${moduleSwitcherMarkup(profile)}
-        <div class="topbar-context"><strong>Mi espacio</strong><small>Dashboard y configuración personal</small></div>
+        <div class="topbar-context"><strong>Dashboard</strong><small>Dashboard y configuración personal</small></div>
         <div class="topbar-actions">
           <div class="notification-center">
             <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones" aria-expanded="false" aria-controls="notifications-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-count" id="notification-count" hidden></span></button>
@@ -628,8 +629,8 @@ function bindShell(profile) {
 function renderPortal(profile, requestedView = new URLSearchParams(window.location.search).get('view'), requestedPanel = new URLSearchParams(window.location.search).get('panel')) {
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
   const deniedModule = portalApplications.find((module) => module.code === deniedCode);
-  window.history.replaceState({}, '', '/mi-espacio');
-  document.title = 'MRTI | Mi espacio';
+  window.history.replaceState({}, '', '/dashboard');
+  document.title = 'MRTI | Dashboard';
   const banner = deniedModule
     ? `<div class="notice error">Tu área no tiene permiso para entrar a <strong>${escapeHtml(deniedModule.title)}</strong>. Si lo necesitas, solicítalo a un administrador.</div>`
     : '';
@@ -642,7 +643,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
   ].filter(Boolean);
   app.innerHTML = shellMarkup(profile, `
     ${banner}
-    <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> Mi espacio</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>Este es tu dashboard.</em></h1>
+    <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> Dashboard</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>Este es tu dashboard.</em></h1>
       <p>Consulta tus gestiones, entra a tus módulos y adapta este espacio a tu forma de trabajar.</p>
       <dl class="home-context"><div><dt>Fecha</dt><dd>${escapeHtml(longDate())}</dd></div><div><dt>Área</dt><dd id="home-department">${escapeHtml(profile.access_area_name || 'Sin área asignada')}</dd></div><div><dt>Puesto</dt><dd id="home-position">Consultando RH…</dd></div><div><dt>Ubicación</dt><dd>${escapeHtml(location)}</dd></div></dl></div>
       <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats">${userPreferences.show_tickets ? '<article class="home-stat" id="requests-stat"><span>Tickets abiertos</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_assets ? '<article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article>' : ''}</div></aside></section>
@@ -650,7 +651,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
     ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
     : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
     <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form">${pendingTicketAsset ? `<div class="notice" id="ticket-preset-asset">Activo relacionado: <strong>${escapeHtml(pendingTicketAsset.asset_label)}</strong> <button type="button" id="ticket-preset-asset-clear" class="text-download" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;">Quitar</button></div>` : ''}<label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
-    <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Mi espacio</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
+    <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Dashboard</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
       ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>' : ''}
       ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>' : ''}
       ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div>' : ''}</section>`);
@@ -937,7 +938,7 @@ function renderAccount(profile, { required = false } = {}) {
       </section>
       <section class="account-card"><div><p class="section-label">Foto</p><h2>Imagen de perfil</h2></div><div class="avatar-editor"><div id="avatar-preview">${avatarMarkup(profile, 'preview')}</div><div><label class="avatar-file">Tomar foto<input id="avatar-camera" type="file" accept="image/*" capture="user"></label><label class="avatar-file secondary-avatar-file">Elegir archivo<input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="secondary-button" id="remove-avatar" type="button" ${profile.avatar_url ? '' : 'disabled'}>Quitar foto</button><small>En el teléfono puedes abrir la cámara directamente. La imagen se recorta y optimiza antes de guardarse.</small></div></div><div class="form-message" id="avatar-message" hidden></div></section>
       <section class="account-card mobile-app-card"><div><p class="section-label">Aplicación y notificaciones</p><h2>MRTI en este dispositivo</h2></div><p class="mobile-app-status" id="mobile-app-status" role="status">Comprobando capacidades del dispositivo…</p><div class="mobile-app-actions"><button class="primary-button" id="install-app-button" type="button" disabled>Instalar aplicación</button><button class="secondary-button" id="enable-device-notifications" type="button">Activar notificaciones</button></div>${window.isSecureContext ? '' : '<div class="desktop-http-tools"><strong>Ventanas de notificación en Windows sin HTTPS</strong><span>Descarga y ejecuta como administrador la preparación de esta PC. Después cierra por completo y vuelve a abrir Chrome o Edge.</span><div><a class="secondary-button" href="/tools/preparar-notificaciones-mrti-windows.cmd" download>Preparar esta PC</a><a class="text-download" href="/tools/revertir-notificaciones-mrti-windows.cmd" download>Descargar reversión</a></div></div>'}<small class="field-help">MRTI consulta la campanilla cada minuto mientras la página permanece abierta. En HTTP, los avisos internos usan sonido, contador y una tarjeta flotante.</small></section>
-      <section class="account-card account-preferences"><div><p class="section-label">Mi espacio</p><h2>Apariencia y contenido</h2></div>
+      <section class="account-card account-preferences"><div><p class="section-label">Dashboard</p><h2>Apariencia y contenido</h2></div>
         <form class="control-form" id="preferences-form"><div class="preference-selects"><label>Tema<select name="theme"><option value="system" ${userPreferences.theme === 'system' ? 'selected' : ''}>Usar el del dispositivo</option><option value="light" ${userPreferences.theme === 'light' ? 'selected' : ''}>Claro</option><option value="dark" ${userPreferences.theme === 'dark' ? 'selected' : ''}>Oscuro</option></select></label><label>Densidad<select name="density"><option value="comfortable" ${userPreferences.density === 'comfortable' ? 'selected' : ''}>Cómoda</option><option value="compact" ${userPreferences.density === 'compact' ? 'selected' : ''}>Compacta</option></select></label></div><fieldset class="widget-options"><legend>Mostrar en mi dashboard</legend><label><input type="checkbox" name="show_rh" ${checked(userPreferences.show_rh)}> Recursos Humanos</label><label><input type="checkbox" name="show_assets" ${checked(userPreferences.show_assets)}> Activos</label><label><input type="checkbox" name="show_tickets" ${checked(userPreferences.show_tickets)}> Tickets</label></fieldset><div class="form-message" id="preferences-message" hidden></div><button class="primary-button" type="submit">Guardar preferencias</button></form>
       </section>
       <section class="account-card"><div><p class="section-label">Seguridad</p><h2>Cambiar contraseña</h2></div><form class="control-form" id="password-form"><label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label><label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><div class="form-message" id="password-message" hidden></div><button class="primary-button" type="submit">Guardar nueva contraseña</button></form></section>
@@ -1330,7 +1331,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
       </form><p class="field-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
       <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><p class="field-help">Un área de acceso agrupa a los usuarios que deben entrar a los mismos módulos (por ejemplo, "Sistemas" o "Compras") -- es distinta de la ubicación física de un usuario (sitio/edificio/piso), que se administra desde MRTI Monitor.</p><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span id="areas-visible-count">${data.areas.length} configuradas</span></div><div class="user-filters"><input id="area-search" type="search" placeholder="Buscar por nombre de área…"></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div><p class="empty-users" id="empty-areas" hidden>No se encontraron áreas.</p></div></div>
-      <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Mi espacio las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div><section class="ticket-limits-section"><div class="users-heading"><div><h2>Límites de creación por usuario</h2><span>Control contra uso indebido</span></div></div><p class="field-help">Deja un campo vacío para no limitarlo. “Por 24 horas” usa una ventana móvil desde el momento de cada intento. El bloqueo impide crear tanto desde Mi espacio como desde la API de Tickets.</p><div class="ticket-limit-list">${ticketLimitRows || '<p>No hay usuarios activos.</p>'}</div></section>`}</div></div>
+      <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Dashboard las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div><section class="ticket-limits-section"><div class="users-heading"><div><h2>Límites de creación por usuario</h2><span>Control contra uso indebido</span></div></div><p class="field-help">Deja un campo vacío para no limitarlo. “Por 24 horas” usa una ventana móvil desde el momento de cada intento. El bloqueo impide crear tanto desde Dashboard como desde la API de Tickets.</p><div class="ticket-limit-list">${ticketLimitRows || '<p>No hay usuarios activos.</p>'}</div></section>`}</div></div>
       <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span id="applications-visible-count">${applicationData.data.length} registradas</span></div><div class="user-filters"><input id="application-search" type="search" placeholder="Buscar por nombre, código o categoría…"></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
         <div class="application-admin-grid">${applicationCards}</div><p class="empty-users" id="empty-applications" hidden>No se encontraron aplicaciones.</p></div></div>
@@ -1344,7 +1345,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     document.querySelectorAll('.control-tab[data-control-target]').forEach((tab) => tab.addEventListener('click', () => {
       document.querySelectorAll('.control-tab[data-control-target]').forEach((item) => item.classList.toggle('active', item === tab));
       document.querySelectorAll('[data-control-panel]').forEach((panel) => { panel.hidden = panel.dataset.controlPanel !== tab.dataset.controlTarget; });
-      window.history.replaceState({}, '', `/mi-espacio?view=control-center&panel=${encodeURIComponent(tab.dataset.controlTarget)}`);
+      window.history.replaceState({}, '', `/dashboard?view=control-center&panel=${encodeURIComponent(tab.dataset.controlTarget)}`);
     }));
     document.querySelector(`[data-control-target="${initialPanel}"]`)?.click();
     document.querySelector('#control-tab-brand').addEventListener('click', () => void renderBrandAssets(profile, '', 'control-center'));
@@ -1572,7 +1573,7 @@ function loginMarkup() {
       <div class="login-story-footer"><span>${escapeHtml(longDate())}</span><small>Acceso interno protegido</small></div></aside>
     <section class="login-panel"><div class="login-mobile-brand"><img src="${escapeHtml(logoUrl)}" alt=""><span><strong>MRTI</strong><small>Minera Río Tinto</small></span></div>
       <a class="back-button public-home-link" id="back-home" href="/">Ver información de la empresa →</a>
-      <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para entrar a Mi espacio.</p>
+      <p class="login-eyebrow">Bienvenido</p><h2>Inicia sesión</h2><p class="login-copy">Usa tu cuenta corporativa para entrar a Dashboard.</p>
       <form id="login-form" class="login-form"><label>Correo o usuario<input name="email" type="email" inputmode="email" autocomplete="username" spellcheck="false" placeholder="nombre@empresa.com" required></label>
         <label>Contraseña<div class="password-field"><input name="password" id="login-password" type="password" autocomplete="current-password" required><button id="toggle-password" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Mostrar</button></div></label>
         <div class="login-assistance" id="login-assistance" hidden>La recuperación todavía es administrada por Sistemas. Solicita el restablecimiento con el responsable de MRTI.</div>
@@ -1621,7 +1622,7 @@ function renderLogin(message = '') {
       await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(body.profile)]);
       if (body.profile.password_change_required) return renderAccount(body.profile, { required: true });
       const destination = requestedDestination();
-      window.location.replace(destination && !['/login', '/login/'].includes(new URL(destination, window.location.origin).pathname) ? destination : '/mi-espacio');
+      window.location.replace(destination && !['/login', '/login/'].includes(new URL(destination, window.location.origin).pathname) ? destination : '/dashboard');
     } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Iniciar sesión'; }
   });
 }
@@ -1629,16 +1630,27 @@ function renderLogin(message = '') {
 async function initialize() {
   // Keep old bookmarks from modules functional while the plain root is public.
   const entry = new URL(window.location.href);
+  if (['/mi-espacio', '/mi-espacio/'].includes(entry.pathname)) {
+    return window.location.replace(`/dashboard${entry.search}${entry.hash}`);
+  }
   if (['/home', '/home/'].includes(entry.pathname)) {
     return window.location.replace('/');
   }
   if (entry.pathname === '/' && ['returnTo', 'accessDenied', 'view', 'openTicket'].some((key) => entry.searchParams.has(key))) {
-    const path = entry.searchParams.has('returnTo') ? '/login' : '/mi-espacio';
+    const path = entry.searchParams.has('returnTo') ? '/login' : '/dashboard';
     window.history.replaceState({}, '', `${path}${entry.search}${entry.hash}`);
   }
   await refreshBrandAppearance();
   if (window.location.pathname === '/') {
-    return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize });
+    let navigationMarkup = '';
+    if (token()) {
+      try {
+        const { profile } = await api('/api/auth/me');
+        await refreshApplications();
+        navigationMarkup = moduleSwitcherMarkup(profile, 'Home');
+      } catch { /* El home sigue siendo público si la sesión no está disponible. */ }
+    }
+    return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup });
   }
   if (!token()) return renderLogin();
   try {

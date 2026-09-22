@@ -1,0 +1,28 @@
+/* Navegación global compartida visualmente; copia local por frontend. */
+.portal-header-navigation { display: flex; flex: 0 1 auto; align-items: flex-end; gap: 10px; min-width: 0; }
+.portal-header-navigation .header-module-switcher { margin-right: 0; }
+.portal-dashboard-link { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; box-sizing: border-box; height: 34px; padding: 0 12px; border: 1px solid currentColor; border-radius: 9px; color: inherit; background: transparent; font-size: 12px; font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; }
+.portal-dashboard-link:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.portal-dashboard-link:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 767px) {
+  .portal-header-navigation { gap: 6px; }
+  .portal-header-navigation select { min-width: 0 !important; max-width: 100px !important; }
+  .portal-dashboard-link { padding-inline: 8px; }
+  .topbar:has(.portal-header-navigation), .portal-module-topbar:has(.portal-header-navigation) { gap: 6px; padding-inline: 10px; }
+  .topbar:has(.portal-header-navigation) > span:first-of-type, .portal-module-topbar:has(.portal-header-navigation) .portal-module-context { display: none; }
+  .topbar:has(.portal-header-navigation) .mobile-menu-button { margin-right: 0; }
+  .portal-module-topbar:has(.portal-header-navigation) .portal-module-actions { margin-left: auto; gap: 6px; }
+}
+/* Keep adjacent controls from overlapping on very narrow screens. */
+.portal-header-navigation:has(select) { flex-shrink: 0; }
+@media (max-width: 767px) {
+  header:has(.portal-header-navigation) > .h-full { padding-inline: 10px; gap: 6px; }
+  header:has(.portal-header-navigation) > .h-full > .min-w-0 { gap: 6px; }
+}
+@media (max-width: 359px) {
+  .topbar:has(.portal-header-navigation), .portal-module-topbar:has(.portal-header-navigation) { flex-wrap: wrap; padding-block: 8px; row-gap: 8px; }
+  .topbar:has(.portal-header-navigation) .session-controls, .topbar:has(.portal-header-navigation) .topbar-actions { margin-left: auto; }
+  header:has(> .h-full .portal-header-navigation) { height: auto; min-height: 72px; }
+  header:has(.portal-header-navigation) > .h-full { flex-wrap: wrap; padding-block: 8px; }
+  header:has(.portal-header-navigation) > .h-full > :last-child { margin-left: auto; }
+}
