@@ -754,6 +754,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | Core. Home empresarial canónico en raíz | Web publicada; activación de enlaces Agent pendiente | 2026-09-21 | MRTI `37461bb`; MRTI-Activos `6e8eb70`; MRTI-RH `23aa2f4`; MRTI-Legal `f3e8242`; MRTI-Infra `730bfbe`; MRTI-Tickets `abf7cb7`; MRTI-Agent `f28e90e`. `/` siempre informativo; `/login` acceso; `/mi-espacio` dashboard; alias y queries antiguos compatibles. 13/13 contratos, seis builds, Go test/build, 28 checks Chromium de rutas y seis de navegación; fixtures 0, health 200. Cambios ajenos preservados. Agent tiene binario listo pero reinicio rechazado por privilegios del SO; proceso anterior continúa activo. Sin migración de datos. Evidencia y rollback: `PUBLIC_HOME_ROUTES.md`. |
 
+| Core. Dashboard, regreso al home y cierre público de sesión | Web publicada; reinicio Agent pendiente | 2026-09-22 | MRTI `d3f38ba`; MRTI-Activos `bfe254c`; MRTI-RH `fe5a827`; MRTI-Legal `cb0f09d`; MRTI-Infra `a7e9547`; MRTI-Tickets `0b76d30`; MRTI-Agent `36e894f`. `/dashboard` canónico, alias `/mi-espacio`, marca a home y acceso superior a Dashboard. Home/noticias muestran cuenta y Cerrar sesión, limpieza local aun con API caída y retorno a `/`. Sin migración de datos; cambios editoriales/RH ajenos preservados. 13/13 contratos; 28 rutas, 39 checks de navegación y seis escenarios de logout; seis builds web y Go correctos. Agent no activado por rechazo de privilegios del SO. Evidencia, límites y rollback en `PUBLIC_HOME_SESSION.md`. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -883,6 +885,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-21 | Separar login e información empresarial por rutas en la misma IP | El usuario eligió `/` para acceso y `/home` para información; intercambiar pantallas sin URL propia impedía enlazarlas y recargarlas | La portada pública tiene módulo de presentación propio y usa las noticias existentes. Core conserva sesión, permisos y Mi espacio en `/` para compatibilidad; visitar `/home` no valida ni borra una sesión. Sin otro proveedor de identidad ni duplicación de datos. |
 
 | 2026-09-21 | Convertir `/` en el verdadero home empresarial y separar `/login` de `/mi-espacio` | El usuario confirmó expresamente esta distribución después de la primera entrega con `/home` | La raíz muestra información incluso con sesión; `/home` queda como alias, y las consultas heredadas siguen resolviendo tareas personales. Se actualizan enlaces de navegación por repositorio sin cambiar identidad ni datos. Sustituye la elección anterior de login en raíz; Agent requiere activación administrativa de su binario preparado. |
+
+| 2026-09-22 | Usar `/dashboard` para el espacio personal, reservar la marca al home y ofrecer cierre de sesión visible en páginas públicas | El usuario pidió cambiar el nombre de ruta, separar el acceso personal de la marca y poder cerrar sesión sin volver al dashboard | Se conservan alias y consultas heredadas. El encabezado ofrece Dashboard y módulos; el home y las noticias añaden cuenta y Cerrar sesión sin cambiar sus datos editoriales. El fallo de la API no deja credenciales locales guardadas. |
 
 ## 11. Definición final de terminado
 
