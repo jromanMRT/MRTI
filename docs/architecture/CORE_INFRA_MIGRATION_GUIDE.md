@@ -756,6 +756,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | Core. Dashboard, regreso al home y cierre público de sesión | Web publicada; reinicio Agent pendiente | 2026-09-22 | MRTI `d3f38ba`; MRTI-Activos `bfe254c`; MRTI-RH `fe5a827`; MRTI-Legal `cb0f09d`; MRTI-Infra `a7e9547`; MRTI-Tickets `0b76d30`; MRTI-Agent `36e894f`. `/dashboard` canónico, alias `/mi-espacio`, marca a home y acceso superior a Dashboard. Home/noticias muestran cuenta y Cerrar sesión, limpieza local aun con API caída y retorno a `/`. Sin migración de datos; cambios editoriales/RH ajenos preservados. 13/13 contratos; 28 rutas, 39 checks de navegación y seis escenarios de logout; seis builds web y Go correctos. Agent no activado por rechazo de privilegios del SO. Evidencia, límites y rollback en `PUBLIC_HOME_SESSION.md`. |
 
+| Core. Encabezado homogéneo en login | Completa | 2026-09-22 | Core `11cdb3d`. Marca enlazada al home y botón visible Volver al home en encabezado propio del login; conserva imagen/formulario y adapta tarjeta móvil sin marca duplicada. Sin migración, API, permisos ni dependencia nueva. Build, sintaxis y diff correctos; seis escenarios Chromium (1440/390/320 px × claro/oscuro), enlaces de marca/botón, historial con returnTo, mostrar contraseña y ayuda verificados, sin overflow ni errores JS. Login/home publicados 200; error.log Nginx vacío; sin fixtures ni escrituras de datos. Evidencia `/tmp/mrti-login-header-ougibfrm/browser-results.json` y capturas. Rollback: restaurar su `index.html` en `MRTI/dist/index.html`; assets anteriores conservados. Cambios locales ajenos preservados y excluidos del commit. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -887,6 +889,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-21 | Convertir `/` en el verdadero home empresarial y separar `/login` de `/mi-espacio` | El usuario confirmó expresamente esta distribución después de la primera entrega con `/home` | La raíz muestra información incluso con sesión; `/home` queda como alias, y las consultas heredadas siguen resolviendo tareas personales. Se actualizan enlaces de navegación por repositorio sin cambiar identidad ni datos. Sustituye la elección anterior de login en raíz; Agent requiere activación administrativa de su binario preparado. |
 
 | 2026-09-22 | Usar `/dashboard` para el espacio personal, reservar la marca al home y ofrecer cierre de sesión visible en páginas públicas | El usuario pidió cambiar el nombre de ruta, separar el acceso personal de la marca y poder cerrar sesión sin volver al dashboard | Se conservan alias y consultas heredadas. El encabezado ofrece Dashboard y módulos; el home y las noticias añaden cuenta y Cerrar sesión sin cambiar sus datos editoriales. El fallo de la API no deja credenciales locales guardadas. |
+
+| 2026-09-22 | Dar al login un encabezado de marca y retorno explícito al home, conservando su composición de acceso | El usuario pidió una experiencia homogénea sin copiar por completo el encabezado autenticado | La marca y Volver al home llevan a `/`; no se muestran controles de módulos o cuenta sin sesión. El panel visual y formulario mantienen su identidad, con colores compartidos y ajuste móvil. |
 
 ## 11. Definición final de terminado
 
