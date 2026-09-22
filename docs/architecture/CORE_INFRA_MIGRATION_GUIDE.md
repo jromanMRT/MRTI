@@ -758,6 +758,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | Core. Encabezado homogéneo en login | Completa | 2026-09-22 | Core `11cdb3d`. Marca enlazada al home y botón visible Volver al home en encabezado propio del login; conserva imagen/formulario y adapta tarjeta móvil sin marca duplicada. Sin migración, API, permisos ni dependencia nueva. Build, sintaxis y diff correctos; seis escenarios Chromium (1440/390/320 px × claro/oscuro), enlaces de marca/botón, historial con returnTo, mostrar contraseña y ayuda verificados, sin overflow ni errores JS. Login/home publicados 200; error.log Nginx vacío; sin fixtures ni escrituras de datos. Evidencia `/tmp/mrti-login-header-ougibfrm/browser-results.json` y capturas. Rollback: restaurar su `index.html` en `MRTI/dist/index.html`; assets anteriores conservados. Cambios locales ajenos preservados y excluidos del commit. |
 
+| Core. Marca única en acceso | Completa | 2026-09-22 | Core `de84b22`. Login retira Volver al home y omite Core sólo en su marca; MRTI permanece enlazado a `/`. Sin migración, API ni datos. Build/sintaxis/diff y seis escenarios Chromium (1440/390/320 × claro/oscuro) correctos: botón ausente, marca sin sufijo, regreso al home, historial y controles del formulario; sin overflow ni errores JS. Publicado, sin fixtures. Evidencia y rollback: `/tmp/mrti-login-brand-iah3c0mw`; restaurar su index.html en dist, assets previos conservados. Cambios ajenos preservados. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -891,6 +893,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-22 | Usar `/dashboard` para el espacio personal, reservar la marca al home y ofrecer cierre de sesión visible en páginas públicas | El usuario pidió cambiar el nombre de ruta, separar el acceso personal de la marca y poder cerrar sesión sin volver al dashboard | Se conservan alias y consultas heredadas. El encabezado ofrece Dashboard y módulos; el home y las noticias añaden cuenta y Cerrar sesión sin cambiar sus datos editoriales. El fallo de la API no deja credenciales locales guardadas. |
 
 | 2026-09-22 | Dar al login un encabezado de marca y retorno explícito al home, conservando su composición de acceso | El usuario pidió una experiencia homogénea sin copiar por completo el encabezado autenticado | La marca y Volver al home llevan a `/`; no se muestran controles de módulos o cuenta sin sesión. El panel visual y formulario mantienen su identidad, con colores compartidos y ajuste móvil. |
+
+| 2026-09-22 | Usar sólo la marca MRTI para volver al home desde login | El usuario pidió retirar el botón redundante y el sufijo Core del encabezado de acceso | Reemplaza la decisión anterior de botón explícito en login; la marca conserva enlace y nombre accesible, y las marcas de otras pantallas no cambian. |
 
 ## 11. Definición final de terminado
 
