@@ -760,6 +760,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | Core. Marca única en acceso | Completa | 2026-09-22 | Core `de84b22`. Login retira Volver al home y omite Core sólo en su marca; MRTI permanece enlazado a `/`. Sin migración, API ni datos. Build/sintaxis/diff y seis escenarios Chromium (1440/390/320 × claro/oscuro) correctos: botón ausente, marca sin sufijo, regreso al home, historial y controles del formulario; sin overflow ni errores JS. Publicado, sin fixtures. Evidencia y rollback: `/tmp/mrti-login-brand-iah3c0mw`; restaurar su index.html en dist, assets previos conservados. Cambios ajenos preservados. |
 
+| Activos ↔ Tickets. Referencias técnicas y artículos relacionados | Completa | 2026-09-23 | Activos `893c7a5`. Nombre visible y ruta canónica `/activos/referencias-tecnicas`, alias anterior compatible. La ficha busca/vincula/abre artículos publicados de Tickets por API con la sesión del usuario; guarda sólo IDs estables y autor, sin FK ni copia de contenido. Retiro recuperable sólo autor/administrador; borradores ocultos y fallos de dependencia contenidos en la pestaña. Migración aditiva `023_asset_knowledge_links.sql`: runner dos veces y DDL directo con vínculo existente, sin duplicación/pérdida. 148/148 pruebas del workspace y 146/146 del checkout aislado del commit, builds correctos; smoke Nginx 401/403/404/200, idempotencia, publicación vigente y auditoría. Chromium 1440/390/320 validó vínculo, apertura exacta en Tickets, recarga, retiro, referencias filtradas y alias; sin errores JS/desbordamiento del documento. Fixtures retirados, PM2/health online. Cambios ajenos preservados fuera del commit; Tickets no requiere cambios ni reinicio. Evidencia y rollback: `MRTI-Activos/docs/ASSET_KNOWLEDGE.md`, `/tmp/mrti-asset-knowledge-mww9jrfu/`; conservar tabla aditiva al revertir. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -895,6 +897,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-22 | Dar al login un encabezado de marca y retorno explícito al home, conservando su composición de acceso | El usuario pidió una experiencia homogénea sin copiar por completo el encabezado autenticado | La marca y Volver al home llevan a `/`; no se muestran controles de módulos o cuenta sin sesión. El panel visual y formulario mantienen su identidad, con colores compartidos y ajuste móvil. |
 
 | 2026-09-22 | Usar sólo la marca MRTI para volver al home desde login | El usuario pidió retirar el botón redundante y el sufijo Core del encabezado de acceso | Reemplaza la decisión anterior de botón explícito en login; la marca conserva enlace y nombre accesible, y las marcas de otras pantallas no cambian. |
+
+| 2026-09-23 | Mantener referencias de equipos en Activos y procedimientos en Tickets, enlazados desde la ficha mediante IDs estables | El usuario aprobó distinguir repuestos/compatibilidades de soluciones reutilizables; mover o copiar artículos duplicaría propiedad y permisos | Activos conserva sus notas bajo “Referencias técnicas” y sólo guarda la relación al artículo publicado. Tickets determina acceso y contenido vigente mediante su API existente; una despublicación oculta el contenido sin borrar el vínculo. No se amplían permisos, no hay FK cruzada ni migración de notas reales. La búsqueda global conjunta queda para una etapa posterior. |
 
 ## 11. Definición final de terminado
 
