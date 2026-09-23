@@ -902,7 +902,7 @@ async function loadNotifications(profile) {
     container.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
     return;
   }
-  const MODULE_ICON = { 'mrti-legal': 'LG', rh: 'RH' };
+  const MODULE_ICON = { 'mrti-legal': 'LG', rh: 'RH', activos: 'AT' };
   const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">${MODULE_ICON[item.module_code] || 'TK'}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
   container.innerHTML = `<ul class="notification-list">${rows}</ul>`;
 }

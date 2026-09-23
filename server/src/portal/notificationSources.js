@@ -106,6 +106,30 @@ function rhUrl(path) {
   return `${base.replace(/\/$/, '')}${path}`;
 }
 
+function assetsUrl(path) {
+  const base = process.env.MRTI_ASSETS_URL || 'http://127.0.0.1:3003';
+  return `${base.replace(/\/$/, '')}${path}`;
+}
+
+export async function fetchAssetNotifications({ authorization, canOpenAssets }) {
+  if (!canOpenAssets) {
+    return { items: [], sources: [{ source: 'asset-licenses', ok: true, skipped: true, error: null }] };
+  }
+  try {
+    const response = await fetch(assetsUrl('/api/activos-suite/license-notifications'), {
+      headers: { Authorization: authorization },
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    const items = (Array.isArray(body.data) ? body.data : [])
+      .map((item) => ({ ...item, module_code: 'activos' }));
+    return { items, sources: [{ source: 'asset-licenses', ok: true, error: null }] };
+  } catch (error) {
+    return { items: [], sources: [{ source: 'asset-licenses', ok: false, error: error.message }] };
+  }
+}
+
 async function fetchRhSource(path, authorization) {
   try {
     const response = await fetch(rhUrl(path), {
