@@ -1593,6 +1593,20 @@ function requestedDestination() {
   catch { return null; }
 }
 
+function destinationWithSession(destination) {
+  if (!destination) return null;
+  const target = new URL(destination, window.location.origin);
+  const destinationModule = portalApplications.find((module) => target.pathname.startsWith(module.href));
+  const sessionToken = token();
+  if (destinationModule?.code === 'agent-core' && sessionToken) {
+    const hash = new URLSearchParams(target.hash.slice(1));
+    hash.set('token', sessionToken);
+    hash.set('theme', currentTheme());
+    target.hash = hash.toString();
+  }
+  return `${target.pathname}${target.search}${target.hash}`;
+}
+
 function renderLogin(message = '') {
   const current = new URL(window.location.href);
   if (current.pathname !== '/login') {
@@ -1623,7 +1637,7 @@ function renderLogin(message = '') {
       localStorage.setItem('auth_token', body.token); localStorage.setItem('auth_profile', JSON.stringify(body.profile || {}));
       await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(body.profile)]);
       if (body.profile.password_change_required) return renderAccount(body.profile, { required: true });
-      const destination = requestedDestination();
+      const destination = destinationWithSession(requestedDestination());
       window.location.replace(destination && !['/login', '/login/'].includes(new URL(destination, window.location.origin).pathname) ? destination : '/dashboard');
     } catch (error) { errorElement.textContent = error.message || 'No se pudo iniciar sesión'; errorElement.hidden = false; button.disabled = false; button.removeAttribute('aria-busy'); button.textContent = 'Iniciar sesión'; }
   });
@@ -1664,7 +1678,7 @@ async function initialize() {
     localStorage.setItem('auth_profile', JSON.stringify(profile || {}));
     await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(profile)]);
     if (profile.password_change_required) return renderAccount(profile, { required: true });
-    const destination = requestedDestination();
+    const destination = destinationWithSession(requestedDestination());
     if (destination && !['/login', '/login/'].includes(new URL(destination, window.location.origin).pathname) && destination !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
       const destinationModule = portalApplications.find((module) => destination.startsWith(module.href));
       if (!destinationModule || canOpen(profile, destinationModule.code)) return window.location.replace(destination);
