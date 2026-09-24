@@ -772,6 +772,8 @@ Actualizar una fila solo con evidencia verificable.
 
 | Core → Agent. Retorno autenticado sin ciclo de navegación | Completa | 2026-09-24 | Core `8ffdeaa`. Al recuperar un `returnTo=/agent-core/`, Core vuelve a adjuntar el JWT y el tema en el fragmento antes de cruzar al puerto 8477, tanto con una sesión vigente como después de iniciar sesión. Corrige el ciclo reproducido Agent → login → Agent cuando se entraba directamente o desde un marcador sin fragmento. Build publicado y prueba Chromium real en ambos escenarios: URL y número de navegaciones estables durante cinco segundos, dashboard operativo y 0 fixtures residuales. Sin cambios de datos, permisos, Nginx ni Agent; rollback: revertir `8ffdeaa` y reconstruir `dist`. |
 
+| RH. Consolidación de fichas ya vinculadas con CONTPAQi | Completa | 2026-09-24 | RH `2c4629f`. El directorio usa `employee_contpaq_links` como autoridad para combinar la ficha RH y su espejo antes del cruce auxiliar por CURP/RFC. Corrige las filas dobles de Carla Perea y Marcos Montoya: sus fichas RH tenían CURP/RFC incompletos, aunque el vínculo explícito ya apuntaba al espejo correcto. No se borraron ni reescribieron personas, cuentas o historiales. Prueba de dominio 8/8, build y sintaxis correctos; smoke publicado obtuvo una sola fila `both` para cada persona, API 200, PM2/health online y 0 fixtures. Rollback: revertir `2c4629f`, reconstruir frontend y reiniciar `mrti-rh-api`. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -919,6 +921,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-09-24 | Aplicar el shell visual MRTI dentro del HTML autocontenido de Agent Core sin trasladar su operación a Core | Agent Core sigue siendo el propietario de la telemetría y se distribuye como binario Go; convertir su dashboard en otro frontend o copiar agentes a Core ampliaría el despliegue y la propiedad de datos sin beneficio funcional | El binario conserva sus rutas y SQLite, pero consume identidad, catálogo de módulos, preferencias, marca y notificaciones mediante los contratos de Core. La interfaz replica estructura, tokens y comportamiento de los demás módulos. El acceso directo usa recursos embebidos y el prefijo `/agent-core/` queda compatible para activar proxy posteriormente. |
 
 | 2026-09-24 | Reconstruir en Core el fragmento de sesión al devolver al usuario a Agent Core | El token viaja en el fragmento cuando se cruza al puerto 8477; un acceso directo sin fragmento regresaba a Core con `returnTo`, pero Core devolvía sólo la ruta y recreaba el mismo estado indefinidamente | Core reconoce el destino `agent-core` después de cargar el catálogo autorizado y agrega token y tema antes de navegar. Agent consume el fragmento una vez y lo limpia del historial. El mecanismo queda compatible con el proxy de mismo origen previsto y no cambia la validación de permisos. |
+
+| 2026-09-24 | Dar prioridad al vínculo explícito RH–CONTPAQi al construir el directorio unificado | CURP o RFC incompletos en una ficha RH pueden impedir el cruce visual aunque `employee_contpaq_links` ya identifique de forma inequívoca a la misma persona | `/contpaq/employees` expone el ID RH ya vinculado y el frontend lo usa antes de la coincidencia auxiliar por identificadores. Se conserva una sola ficha propietaria en RH con todas sus relaciones laborales; los registros aún no vinculados continúan conciliándose por CURP y después RFC. |
 
 ## 11. Definición final de terminado
 
