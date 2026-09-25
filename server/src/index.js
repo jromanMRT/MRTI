@@ -8,6 +8,8 @@ import { validateCorsOrigin } from './config/security.js';
 import { applicationRouter } from './portal/applicationRoutes.js';
 import { brandAssetRouter } from './portal/brandAssetRoutes.js';
 import { notificationRouter } from './portal/notificationRoutes.js';
+import { companyNewsRouter } from './portal/companyNewsRoutes.js';
+import { companyHomeRouter } from './portal/companyHomeRoutes.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3005);
@@ -43,6 +45,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/portal/v1', applicationRouter);
 app.use('/api/portal/v1', brandAssetRouter);
 app.use('/api/portal/v1', notificationRouter);
+app.use('/api/portal/v1', companyNewsRouter);
+app.use('/api/portal/v1', companyHomeRouter);
 
 // Ruta de diagnóstico interno para probar tokens emitidos por Core/Infra de
 // forma intercambiable durante la Fase 1. No forma parte del contrato público.

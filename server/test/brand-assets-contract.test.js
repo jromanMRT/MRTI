@@ -70,7 +70,8 @@ test('apariencia pública sólo expone los usos configurados', async () => {
   const { data } = await response.json();
   assert.ok(Object.hasOwn(data, 'portal_logo'));
   assert.ok(Object.hasOwn(data, 'login_background'));
-  assert.equal(Object.keys(data).length, 2);
+  assert.ok(Object.hasOwn(data, 'home_hero_background'));
+  assert.equal(Object.keys(data).length, 3);
 });
 
 test('un usuario normal no puede subir imágenes', async () => {

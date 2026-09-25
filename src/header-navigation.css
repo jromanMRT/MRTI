@@ -1,28 +1,37 @@
 /* Navegación global compartida visualmente; copia local por frontend. */
-.portal-header-navigation { display: flex; flex: 0 1 auto; align-items: flex-end; gap: 10px; min-width: 0; }
-.portal-header-navigation .header-module-switcher { margin-right: 0; }
-.portal-dashboard-link { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; box-sizing: border-box; height: 34px; padding: 0 12px; border: 1px solid currentColor; border-radius: 9px; color: inherit; background: transparent; font-size: 12px; font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; }
-.portal-dashboard-link:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
-.portal-dashboard-link:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.portal-header-navigation { display: flex; flex: 0 1 auto; align-items: center; gap: 10px; min-width: 0; }
+
+/* Pestañas de módulos: visibles siempre en el encabezado, sin abrir nada. */
+.module-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.module-tabs::-webkit-scrollbar { display: none; }
+.module-tab {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: transparent;
+  font-size: .74rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease;
+}
+.module-tab:hover { color: var(--ink); background: var(--surface-soft); }
+/* Marca en cuál módulo estás, igual que el enlace activo del menú lateral. */
+.module-tab.is-current { color: var(--gold-deep); background: rgba(169, 120, 31, .14); font-weight: 800; box-shadow: inset 0 -2px var(--gold); }
+.module-tab.is-current:hover { background: rgba(169, 120, 31, .14); }
+.module-tab.is-disabled { color: var(--ink-faint); cursor: not-allowed; }
+.module-tab.is-disabled small { display: block; margin-top: 1px; font-size: .58rem; font-weight: 600; }
 @media (max-width: 767px) {
   .portal-header-navigation { gap: 6px; }
-  .portal-header-navigation select { min-width: 0 !important; max-width: 100px !important; }
-  .portal-dashboard-link { padding-inline: 8px; }
   .topbar:has(.portal-header-navigation), .portal-module-topbar:has(.portal-header-navigation) { gap: 6px; padding-inline: 10px; }
   .topbar:has(.portal-header-navigation) > span:first-of-type, .portal-module-topbar:has(.portal-header-navigation) .portal-module-context { display: none; }
   .topbar:has(.portal-header-navigation) .mobile-menu-button { margin-right: 0; }
   .portal-module-topbar:has(.portal-header-navigation) .portal-module-actions { margin-left: auto; gap: 6px; }
-}
-/* Keep adjacent controls from overlapping on very narrow screens. */
-.portal-header-navigation:has(select) { flex-shrink: 0; }
-@media (max-width: 767px) {
-  header:has(.portal-header-navigation) > .h-full { padding-inline: 10px; gap: 6px; }
-  header:has(.portal-header-navigation) > .h-full > .min-w-0 { gap: 6px; }
-}
-@media (max-width: 359px) {
-  .topbar:has(.portal-header-navigation), .portal-module-topbar:has(.portal-header-navigation) { flex-wrap: wrap; padding-block: 8px; row-gap: 8px; }
-  .topbar:has(.portal-header-navigation) .session-controls, .topbar:has(.portal-header-navigation) .topbar-actions { margin-left: auto; }
-  header:has(> .h-full .portal-header-navigation) { height: auto; min-height: 72px; }
-  header:has(.portal-header-navigation) > .h-full { flex-wrap: wrap; padding-block: 8px; }
-  header:has(.portal-header-navigation) > .h-full > :last-child { margin-left: auto; }
+  .module-tabs { max-width: 46vw; }
 }

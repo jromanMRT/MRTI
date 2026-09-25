@@ -1,6 +1,6 @@
 import './login-header.css';
 import './header-navigation.css';
-import { renderPublicHome } from './public-home.js';
+import { renderPublicHome, renderNewsDetail } from './public-home.js';
 import './style.css';
 import './ticket-self-service.css';
 
@@ -45,6 +45,7 @@ const DEFAULT_USER_PREFERENCES = {
 let userPreferences = { ...DEFAULT_USER_PREFERENCES };
 let avatarObjectUrl = null;
 let notificationRefreshTimer = null;
+let lastNotificationItems = [];
 // Activo preseleccionado al abrir el formulario de ticket desde el botón
 // "Crear ticket" del popup de un activo en MRTI-Activos (Fase 1 de la
 // integración de plataforma, ?openTicket=1&asset_uid=...&asset_label=...).
@@ -414,17 +415,28 @@ function themeToggleMarkup() {
   </button>`;
 }
 
-function moduleOptionMarkup(module) {
+function moduleTabMarkup(module) {
   const target = module.code === 'agent-core'
     ? `${module.href}#token=${encodeURIComponent(token() || '')}&theme=${encodeURIComponent(currentTheme())}`
     : module.href;
-  const maintenance = module.status === 'maintenance';
-  return `<option value="${escapeHtml(target)}"${maintenance ? ' disabled' : ''}>${escapeHtml(module.title)}${maintenance ? ' · Mantenimiento' : ''}</option>`;
+  const label = module.title.replace(/^MRTI\s*/i, '');
+  if (module.status === 'maintenance') {
+    return `<span class="module-tab is-disabled">${escapeHtml(label)} <small>Mantenimiento</small></span>`;
+  }
+  return `<a class="module-tab" href="${escapeHtml(target)}">${escapeHtml(label)}</a>`;
 }
 
-function moduleSwitcherMarkup(profile, currentLabel = 'Dashboard') {
+// Pestañas visibles directamente en el encabezado, sin nada que abrir.
+function moduleSwitcherMarkup(profile) {
   const available = portalApplications.filter((module) => canOpen(profile, module.code));
-  return `<nav class="portal-header-navigation" aria-label="Navegación de la plataforma"><a class="portal-dashboard-link" href="/dashboard">Dashboard</a><label class="header-module-switcher"><span>Cambiar módulo</span><select id="header-module-select" aria-label="Cambiar de módulo"><option value="" selected disabled>${currentLabel}</option>${available.map(moduleOptionMarkup).join('')}</select></label></nav>`;
+  // Core no aparece en el catálogo de aplicaciones (es la raíz, no un módulo
+  // instalable), así que su propia pestaña "Dashboard" siempre se marca
+  // como la actual dentro de su propio encabezado.
+  const tabs = [
+    `<a class="module-tab is-current" href="/dashboard" aria-current="page">Dashboard</a>`,
+    ...available.map(moduleTabMarkup),
+  ].join('');
+  return `<nav class="portal-header-navigation module-tabs" aria-label="Navegación de la plataforma">${tabs}</nav>`;
 }
 
 function brandMarkup(href = '/', showModule = true) {
@@ -489,7 +501,7 @@ function shellMarkup(profile, content) {
           <div class="notification-center">
             <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones" aria-expanded="false" aria-controls="notifications-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-count" id="notification-count" hidden></span></button>
             <section class="notification-popover" id="notifications-panel" aria-label="Notificaciones" hidden>
-              <header><div><small>Novedades</small><strong>Notificaciones</strong></div><button id="notifications-close" type="button" aria-label="Cerrar notificaciones">×</button></header>
+              <header><div><small>Novedades</small><strong>Notificaciones</strong></div><div class="notification-header-actions"><button id="notifications-dismiss-all" class="personal-link" type="button" hidden>Descartar todas</button><button id="notifications-close" type="button" aria-label="Cerrar notificaciones">×</button></div></header>
               <div id="notifications-dashboard" class="notification-panel-loading" aria-live="polite">Buscando novedades…</div>
             </section>
           </div>
@@ -498,6 +510,7 @@ function shellMarkup(profile, content) {
             <div class="account-menu-panel" id="account-menu-panel" role="menu" hidden>
               <button type="button" id="account-button" role="menuitem"><span aria-hidden="true">○</span>Perfil</button>
               <button type="button" id="brand-button" role="menuitem"><span aria-hidden="true">◆</span>Recursos de marca</button>
+              <button type="button" id="news-button" role="menuitem"><span aria-hidden="true">▤</span>Noticias</button>
               ${isAdministrator(profile) ? '<button type="button" id="control-button" role="menuitem"><span aria-hidden="true">⚙</span>Centro de control</button>' : ''}
               <button type="button" class="account-menu-logout" id="logout-button" role="menuitem"><span aria-hidden="true">↪</span>Cerrar sesión</button>
             </div>
@@ -543,9 +556,6 @@ function bindShell(profile) {
     mobileButton.setAttribute('aria-expanded', String(open));
   });
   document.querySelector('#sidebar-backdrop')?.addEventListener('click', closeMobileMenu);
-  document.querySelector('#header-module-select')?.addEventListener('change', (event) => {
-    if (event.target.value) window.location.assign(event.target.value);
-  });
   document.querySelector('#portal-sidebar')?.addEventListener('click', (event) => {
     if (event.target.closest('a, button')) closeMobileMenu();
   });
@@ -574,6 +584,39 @@ function bindShell(profile) {
     setNotificationPanelOpen(false);
     notificationButton?.focus();
   });
+  // Un aviso descartado se quita de inmediato en pantalla; si la llamada al
+  // servidor fallara, el refresco de 60s (loadNotifications) lo regresa solo.
+  notificationPanel?.addEventListener('click', (event) => {
+    const dismissButton = event.target.closest('.notification-dismiss');
+    if (!dismissButton) return;
+    const id = dismissButton.dataset.dismissId;
+    const kind = dismissButton.dataset.dismissKind || undefined;
+    dismissButton.closest('.notification-item')?.remove();
+    lastNotificationItems = lastNotificationItems.filter((item) => item.id !== id);
+    const notificationCount = document.querySelector('#notification-count');
+    if (notificationCount) {
+      notificationCount.textContent = lastNotificationItems.length > 9 ? '9+' : String(lastNotificationItems.length);
+      notificationCount.hidden = lastNotificationItems.length === 0;
+    }
+    if (!lastNotificationItems.length) {
+      const dashboard = document.querySelector('#notifications-dashboard');
+      if (dashboard) dashboard.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
+      const dismissAllButton = document.querySelector('#notifications-dismiss-all');
+      if (dismissAllButton) dismissAllButton.hidden = true;
+    }
+    void dismissNotifications([{ id, kind }]);
+  }, { signal: notificationPanelController.signal });
+  document.querySelector('#notifications-dismiss-all')?.addEventListener('click', () => {
+    const items = lastNotificationItems;
+    lastNotificationItems = [];
+    const dashboard = document.querySelector('#notifications-dashboard');
+    if (dashboard) dashboard.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
+    const notificationCount = document.querySelector('#notification-count');
+    if (notificationCount) notificationCount.hidden = true;
+    const dismissAllButton = document.querySelector('#notifications-dismiss-all');
+    if (dismissAllButton) dismissAllButton.hidden = true;
+    void dismissNotifications(items);
+  }, { signal: notificationPanelController.signal });
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.notification-center')) setNotificationPanelOpen(false);
   }, { signal: notificationPanelController.signal });
@@ -600,6 +643,7 @@ function bindShell(profile) {
     accountButton?.focus();
   }, { signal: notificationPanelController.signal });
   document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
+  document.querySelector('#news-button')?.addEventListener('click', () => renderCompanyNews(profile));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
   document.querySelector('#control-button')?.addEventListener('click', () => renderControlCenter(profile));
   document.querySelector('#logout-button')?.addEventListener('click', async () => {
@@ -609,8 +653,7 @@ function bindShell(profile) {
     if ('clearAppBadge' in navigator) void navigator.clearAppBadge().catch(() => {});
     if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
     avatarObjectUrl = null;
-    window.history.replaceState({}, '', '/login');
-    renderLogin();
+    window.location.replace('/');
   });
   void loadNotifications(profile);
   if (notificationRefreshTimer) window.clearInterval(notificationRefreshTimer);
@@ -661,6 +704,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
   if (requestedView === 'account') renderAccount(profile);
   else if (requestedView === 'control-center' && isAdministrator(profile)) void renderControlCenter(profile, '', requestedPanel || 'users');
   else if (requestedView === 'brand-assets' && isAdministrator(profile)) void renderBrandAssets(profile);
+  else if (requestedView === 'company-news') void renderCompanyNews(profile);
   else if (requestedView === 'notifications') document.querySelector('#notifications-button')?.click();
   // Cada widget corre por separado: si Activos o Tickets no responden, el
   // dashboard de RH y el resto de la página no se ven afectados.
@@ -754,6 +798,357 @@ async function loadTicketsDashboard(profile, flash = '') {
     container.textContent = error.message;
   }
 }
+
+// Pantalla de administración (Core/RH): a diferencia de la portada pública,
+// aquí sí se muestra quién escribió y quién editó cada noticia por última vez.
+function newsCardMarkup(item, canManage = false) {
+  const isImage = Boolean(item.attachment && /^image\//.test(item.attachment.mime_type));
+  const datePill = `<span class="news-date-pill">${escapeHtml(shortDate(item.published_at))}</span>`;
+  return `<article class="personal-card news-card${isImage ? ' has-cover' : ''}">
+      ${isImage ? `<div class="news-card-cover"><img src="${item.attachment.content_url}" alt="" loading="lazy">${datePill}</div>` : ''}
+      <div class="news-card-body-content">
+        ${isImage ? '' : datePill}
+        <div class="news-card-head"><div><p>${escapeHtml(item.author_name)}</p><h3>${escapeHtml(item.title)}</h3></div>
+          ${canManage ? `<div class="news-card-actions"><button class="personal-link" type="button" data-news-edit="${item.id}">Editar</button><button class="asset-remove" type="button" data-news-delete="${item.id}">Quitar</button></div>` : ''}
+        </div>
+        <p class="news-body">${escapeHtml(item.body)}</p>
+        ${item.updated_at ? `<p class="news-edited-note">Editado por ${escapeHtml(item.updated_by_name || '—')} · ${escapeHtml(ticketDateTime(item.updated_at))}</p>` : ''}
+        ${item.attachment && !isImage ? `<a class="asset-download" href="${item.attachment.content_url}" download="${escapeHtml(item.attachment.original_filename)}">Descargar · ${escapeHtml(item.attachment.original_filename)} (${readableFileSize(item.attachment.file_size)})</a>` : ''}
+      </div>
+    </article>`;
+}
+
+// Histórico: sólo lectura salvo el botón de restaurar. La foto (si la hay)
+// ya llegó resuelta en item._coverUrl porque el original requiere sesión.
+function archivedNewsCardMarkup(item) {
+  const isImage = Boolean(item._coverUrl);
+  const datePill = `<span class="news-date-pill">${escapeHtml(shortDate(item.published_at))}</span>`;
+  const attachmentLine = item.attachment && !isImage
+    ? `<button class="asset-download" type="button" data-news-download="${item.id}" data-news-filename="${escapeHtml(item.attachment.original_filename)}">Descargar · ${escapeHtml(item.attachment.original_filename)} (${readableFileSize(item.attachment.file_size)})</button>`
+    : '';
+  return `<article class="personal-card news-card${isImage ? ' has-cover' : ''}">
+      ${isImage ? `<div class="news-card-cover"><img src="${item._coverUrl}" alt="" loading="lazy">${datePill}</div>` : ''}
+      <div class="news-card-body-content">
+        ${isImage ? '' : datePill}
+        <div class="news-card-head"><div><p>${escapeHtml(item.author_name)}</p><h3>${escapeHtml(item.title)}</h3></div>
+          <button class="secondary-button" type="button" data-news-restore="${item.id}">Restaurar</button>
+        </div>
+        <p class="news-body">${escapeHtml(item.body)}</p>
+        <p class="news-edited-note">Quitada por ${escapeHtml(item.archived_by_name || '—')} · ${escapeHtml(ticketDateTime(item.archived_at))}</p>
+        ${item.updated_at ? `<p class="news-edited-note">Editada por última vez por ${escapeHtml(item.updated_by_name || '—')} · ${escapeHtml(ticketDateTime(item.updated_at))}</p>` : ''}
+        ${attachmentLine}
+      </div>
+    </article>`;
+}
+
+function newsEditFormMarkup(item) {
+  return `<form class="personal-form news-edit-form" data-news-edit-form="${item.id}">
+    <label>Título<input name="title" value="${escapeHtml(item.title)}" maxlength="160" required></label>
+    <label>Contenido<textarea name="body" rows="4" maxlength="5000" required>${escapeHtml(item.body)}</textarea></label>
+    <div class="personal-form-message" data-news-edit-message hidden></div>
+    <div class="news-edit-actions">
+      <button class="personal-submit" type="submit">Guardar cambios</button>
+      <button class="secondary-button" type="button" data-news-edit-cancel="${item.id}">Cancelar</button>
+    </div>
+  </form>`;
+}
+
+function factHomeRowMarkup(fact = { label: '', value: '' }, index) {
+  return `<div class="fact-row" data-fact-row="${index}">
+    <input data-fact-field="label" value="${escapeHtml(fact.label)}" maxlength="40" placeholder="Etiqueta (ej. Fundación)" required>
+    <input data-fact-field="value" value="${escapeHtml(fact.value)}" maxlength="120" placeholder="Valor (ej. 1994)" required>
+    <button type="button" class="asset-remove" data-fact-remove="${index}">Quitar</button>
+  </div>`;
+}
+
+async function renderCompanyNews(profile, flash = '', returnTo = 'portal', editingNewsId = null, view = 'active') {
+  const backLabel = returnTo === 'control-center' ? '← Volver al centro de control' : '← Volver al portal';
+  const goBack = () => { clearBrandObjectUrls(); return returnTo === 'control-center' ? renderControlCenter(profile) : renderPortal(profile); };
+  const canManage = canOpen(profile, 'rh');
+  const showArchived = canManage && view === 'archived';
+  clearBrandObjectUrls();
+  app.innerHTML = shellMarkup(profile, '<section class="workspace-panel"><p>Cargando la portada…</p></section>');
+  bindShell(profile);
+
+  try {
+    const [{ data: settings }, { data: news }, brandAssets, appearance, archivedResult] = await Promise.all([
+      api('/api/portal/v1/company-home'),
+      api('/api/portal/v1/company-news?limit=100'),
+      isAdministrator(profile) ? api('/api/portal/v1/brand-assets') : Promise.resolve({ data: [] }),
+      isAdministrator(profile) ? api('/api/portal/v1/brand-appearance') : Promise.resolve({ data: {} }),
+      showArchived ? api('/api/portal/v1/admin/company-news/archived') : Promise.resolve({ data: [] }),
+    ]);
+
+    // Las portadas de imagen del histórico requieren sesión: se resuelven a
+    // blobs autenticados antes de insertarlas en el DOM (un <img src> normal
+    // no puede enviar el header Authorization).
+    const archivedNews = await Promise.all(archivedResult.data.map(async (item) => {
+      const isImage = Boolean(item.attachment && /^image\//.test(item.attachment.mime_type));
+      if (!isImage) return item;
+      try {
+        return { ...item, _coverUrl: await authenticatedImageUrl(item.attachment.content_url) };
+      } catch {
+        return item;
+      }
+    }));
+
+    const tabsPanel = canManage ? `<div class="control-tabs" style="margin:24px 0 22px">
+      <button type="button" class="control-tab ${view === 'active' ? 'active' : ''}" data-news-view="active">Activas</button>
+      <button type="button" class="control-tab ${view === 'archived' ? 'active' : ''}" data-news-view="archived">Histórico</button>
+    </div>` : '';
+
+    const settingsPanel = canManage && !showArchived ? `<section class="brand-admin-panel" aria-labelledby="home-settings-title">
+      <div class="brand-admin-heading"><div><p class="section-label">Administración</p><h2 id="home-settings-title">Encabezado de la portada</h2></div><span>Se muestra sin sesión en "/"</span></div>
+      <form class="personal-form" id="home-settings-form">
+        <label>Texto superior<input name="hero_eyebrow" value="${escapeHtml(settings.hero_eyebrow)}" maxlength="120" required></label>
+        <label>Título<input name="hero_title" value="${escapeHtml(settings.hero_title)}" maxlength="200" required></label>
+        <label>Subtítulo (opcional)<input name="hero_subtitle" value="${escapeHtml(settings.hero_subtitle)}" maxlength="200"></label>
+        <label>Texto de bienvenida<textarea name="hero_body" rows="3" maxlength="600" required>${escapeHtml(settings.hero_body)}</textarea></label>
+        <div>
+          <p class="section-label" style="margin-bottom:8px">Datos de la empresa (máx. 8)</p>
+          <div id="fact-rows">${settings.facts.map((fact, index) => factHomeRowMarkup(fact, index)).join('')}</div>
+          <button type="button" class="secondary-button" id="fact-add" style="margin-top:10px">+ Agregar dato</button>
+        </div>
+        <label>Texto superior de la sección de noticias<input name="news_section_eyebrow" value="${escapeHtml(settings.news_section_eyebrow)}" maxlength="120" required></label>
+        <label>Título de la sección de noticias<input name="news_section_title" value="${escapeHtml(settings.news_section_title)}" maxlength="160" required></label>
+        <label>Texto del pie de página<input name="footer_tagline" value="${escapeHtml(settings.footer_tagline)}" maxlength="200" required></label>
+        <div class="personal-form-message" id="home-settings-message" hidden></div>
+        <button class="personal-submit" type="submit">Guardar portada</button>
+      </form>
+    </section>` : '';
+
+    const backgroundPanel = isAdministrator(profile) && !showArchived ? `<section class="brand-admin-panel" aria-labelledby="home-background-title">
+      <div class="brand-admin-heading"><div><p class="section-label">Administración</p><h2 id="home-background-title">Fondo del hero</h2></div><span>Elige un recurso de marca ya subido</span></div>
+      <form class="personal-form" id="home-background-form">
+        <label>Imagen de fondo<select name="asset_id"><option value="">Usar degradado con el logo</option>${brandAssets.data.map((asset) => `<option value="${asset.id}" ${asset.id === appearance.data.home_hero_background?.asset_id ? 'selected' : ''}>${escapeHtml(asset.name)}</option>`).join('')}</select></label>
+        <button class="secondary-button" type="submit">Aplicar fondo</button>
+      </form>
+      <p class="panel-note">Sube nuevas imágenes desde <button type="button" class="personal-link" id="go-brand-assets">Recursos de marca</button>.</p>
+    </section>` : '';
+
+    const createFormPanel = canManage && !showArchived ? `<section class="brand-admin-panel" aria-labelledby="news-form-title">
+      <div class="brand-admin-heading"><div><p class="section-label">Administración</p><h2 id="news-form-title">Publicar una noticia</h2></div><span>Se muestra sin sesión en la portada</span></div>
+      <form class="personal-form" id="news-form">
+        <label>Título<input name="title" maxlength="160" placeholder="Ej. Nuevo horario de comedor" required></label>
+        <label>Contenido<textarea name="body" rows="5" maxlength="5000" placeholder="Describe el aviso" required></textarea></label>
+        <label>Imagen o archivo adjunto (opcional)<input type="file" id="news-file"></label>
+        <div class="personal-form-message" id="news-form-message" hidden></div>
+        <button class="personal-submit" type="submit">Publicar noticia</button>
+      </form>
+    </section>` : '';
+
+    const listItems = showArchived
+      ? archivedNews.map((item) => archivedNewsCardMarkup(item)).join('')
+      : news.map((item, index) => canManage
+        ? `<div class="news-card-body" data-news-item="${item.id}">
+            <div class="news-reorder">
+              <button type="button" data-news-move="${item.id}" data-direction="-1" ${index === 0 ? 'disabled' : ''} aria-label="Subir">▲</button>
+              <button type="button" data-news-move="${item.id}" data-direction="1" ${index === news.length - 1 ? 'disabled' : ''} aria-label="Bajar">▼</button>
+            </div>
+            ${item.id === editingNewsId ? newsEditFormMarkup(item) : newsCardMarkup(item, true)}
+          </div>`
+        : newsCardMarkup(item, false)).join('');
+
+    const emptyMessage = showArchived ? 'El histórico está vacío.' : 'Aún no hay noticias publicadas.';
+
+    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel">
+      <button class="back-button" id="back-portal" type="button">${backLabel}</button>
+      <p class="section-label">Portal informativo</p><h1>Noticias de la empresa</h1>
+      <p class="panel-copy">Todo esto también se muestra sin iniciar sesión en la portada ("/").</p>
+      ${flash ? `<div class="form-message success brand-flash">${escapeHtml(flash)}</div>` : ''}
+      ${tabsPanel}
+      ${settingsPanel}
+      ${backgroundPanel}
+      ${createFormPanel}
+      <div class="${canManage ? 'news-admin-list' : 'personal-grid'} news-grid">${listItems || `<p class="personal-empty">${emptyMessage}</p>`}</div>
+    </section>`);
+    bindShell(profile);
+    document.querySelector('#back-portal').addEventListener('click', () => void goBack());
+    document.querySelector('#go-brand-assets')?.addEventListener('click', () => void renderBrandAssets(profile, '', 'portal'));
+    document.querySelectorAll('[data-news-view]').forEach((button) => button.addEventListener('click', () => {
+      void renderCompanyNews(profile, '', returnTo, null, button.dataset.newsView);
+    }));
+    document.querySelectorAll('[data-news-restore]').forEach((button) => button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await api(`/api/portal/v1/admin/company-news/${button.dataset.newsRestore}/restore`, { method: 'PUT' });
+        await renderCompanyNews(profile, 'La noticia se restauró y volvió a la portada.', returnTo, null, 'active');
+      } catch (error) {
+        window.alert(error.message);
+        button.disabled = false;
+      }
+    }));
+    document.querySelectorAll('[data-news-download]').forEach((button) => button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        const objectUrl = await authenticatedImageUrl(`/api/portal/v1/company-news/${button.dataset.newsDownload}/attachment/content`);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = button.dataset.newsFilename || '';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (error) {
+        window.alert(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    }));
+
+    document.querySelectorAll('[data-news-delete]').forEach((button) => button.addEventListener('click', async () => {
+      if (!window.confirm('¿Quitar esta noticia?')) return;
+      button.disabled = true;
+      try {
+        await api(`/api/portal/v1/admin/company-news/${button.dataset.newsDelete}`, { method: 'DELETE' });
+        await renderCompanyNews(profile, 'La noticia se quitó correctamente.', returnTo);
+      } catch (error) {
+        window.alert(error.message);
+        button.disabled = false;
+      }
+    }));
+
+    document.querySelectorAll('[data-news-edit]').forEach((button) => button.addEventListener('click', () => {
+      void renderCompanyNews(profile, '', returnTo, button.dataset.newsEdit);
+    }));
+    document.querySelectorAll('[data-news-edit-cancel]').forEach((button) => button.addEventListener('click', () => {
+      void renderCompanyNews(profile, '', returnTo);
+    }));
+    document.querySelectorAll('[data-news-edit-form]').forEach((editForm) => editForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const id = editForm.dataset.newsEditForm;
+      const button = editForm.querySelector('button[type="submit"]');
+      const editMessage = editForm.querySelector('[data-news-edit-message]');
+      editMessage.hidden = true;
+      button.disabled = true;
+      try {
+        await api(`/api/portal/v1/admin/company-news/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ title: editForm.elements.title.value.trim(), body: editForm.elements.body.value.trim() }),
+        });
+        await renderCompanyNews(profile, 'La noticia se actualizó correctamente.', returnTo);
+      } catch (error) {
+        editMessage.hidden = false;
+        editMessage.textContent = error.message;
+        button.disabled = false;
+      }
+    }));
+
+    document.querySelectorAll('[data-news-move]').forEach((button) => button.addEventListener('click', async () => {
+      const currentOrder = [...document.querySelectorAll('[data-news-item]')].map((el) => el.dataset.newsItem);
+      const index = currentOrder.indexOf(button.dataset.newsMove);
+      const nextIndex = index + Number(button.dataset.direction);
+      if (nextIndex < 0 || nextIndex >= currentOrder.length) return;
+      [currentOrder[index], currentOrder[nextIndex]] = [currentOrder[nextIndex], currentOrder[index]];
+      document.querySelectorAll('[data-news-move]').forEach((btn) => { btn.disabled = true; });
+      try {
+        await api('/api/portal/v1/admin/company-news/order', { method: 'PUT', body: JSON.stringify({ order: currentOrder }) });
+        await renderCompanyNews(profile, '', returnTo);
+      } catch (error) {
+        window.alert(error.message);
+        await renderCompanyNews(profile, '', returnTo);
+      }
+    }));
+
+    const settingsForm = document.querySelector('#home-settings-form');
+    if (settingsForm) {
+      let factCount = settings.facts.length;
+      document.querySelector('#fact-add').addEventListener('click', () => {
+        if (factCount >= 8) return;
+        document.querySelector('#fact-rows').insertAdjacentHTML('beforeend', factHomeRowMarkup(undefined, factCount));
+        factCount += 1;
+      });
+      document.querySelector('#fact-rows').addEventListener('click', (event) => {
+        const removeButton = event.target.closest('[data-fact-remove]');
+        if (removeButton) removeButton.closest('[data-fact-row]').remove();
+      });
+      settingsForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = settingsForm.querySelector('button[type="submit"]');
+        const message = document.querySelector('#home-settings-message');
+        const facts = [...document.querySelectorAll('[data-fact-row]')].map((row) => ({
+          label: row.querySelector('[data-fact-field="label"]').value.trim(),
+          value: row.querySelector('[data-fact-field="value"]').value.trim(),
+        })).filter((fact) => fact.label || fact.value);
+        message.hidden = true;
+        button.disabled = true;
+        try {
+          await api('/api/portal/v1/admin/company-home', {
+            method: 'PUT',
+            body: JSON.stringify({
+              hero_eyebrow: settingsForm.elements.hero_eyebrow.value.trim(),
+              hero_title: settingsForm.elements.hero_title.value.trim(),
+              hero_subtitle: settingsForm.elements.hero_subtitle.value.trim(),
+              hero_body: settingsForm.elements.hero_body.value.trim(),
+              facts,
+              news_section_eyebrow: settingsForm.elements.news_section_eyebrow.value.trim(),
+              news_section_title: settingsForm.elements.news_section_title.value.trim(),
+              footer_tagline: settingsForm.elements.footer_tagline.value.trim(),
+            }),
+          });
+          await renderCompanyNews(profile, 'La portada se actualizó correctamente.', returnTo);
+        } catch (error) {
+          message.hidden = false;
+          message.textContent = error.message;
+          button.disabled = false;
+        }
+      });
+    }
+
+    const backgroundForm = document.querySelector('#home-background-form');
+    backgroundForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = backgroundForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        await api('/api/portal/v1/admin/brand-appearance/home_hero_background', {
+          method: 'PUT',
+          body: JSON.stringify({ asset_id: backgroundForm.elements.asset_id.value || null }),
+        });
+        await renderCompanyNews(profile, 'El fondo del home se actualizó correctamente.', returnTo);
+      } catch (error) {
+        window.alert(error.message);
+        button.disabled = false;
+      }
+    });
+
+    const form = document.querySelector('#news-form');
+    if (!form) return;
+    const fileInput = document.querySelector('#news-file');
+    const message = document.querySelector('#news-form-message');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const file = fileInput.files[0] || null;
+      message.hidden = true;
+      button.disabled = true;
+      try {
+        const { id } = await api('/api/portal/v1/admin/company-news', {
+          method: 'POST',
+          body: JSON.stringify({ title: form.elements.title.value.trim(), body: form.elements.body.value.trim() }),
+        });
+        if (file) {
+          const params = new URLSearchParams({ filename: file.name });
+          await api(`/api/portal/v1/admin/company-news/${id}/attachment?${params}`, {
+            method: 'POST',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+          });
+        }
+        await renderCompanyNews(profile, 'La noticia ya está publicada.', returnTo);
+      } catch (error) {
+        message.hidden = false;
+        message.textContent = error.message;
+        button.disabled = false;
+      }
+    });
+  } catch (error) {
+    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel narrow-panel"><button class="back-button" id="back-portal" type="button">${backLabel}</button><p class="section-label">Portal informativo</p><h1>No fue posible cargar las noticias</h1><p class="panel-copy">${escapeHtml(error.message)}</p><button class="primary-button" id="retry-news" type="button">Intentar de nuevo</button></section>`);
+    bindShell(profile);
+    document.querySelector('#back-portal').addEventListener('click', () => void goBack());
+    document.querySelector('#retry-news').addEventListener('click', () => renderCompanyNews(profile, '', returnTo));
+  }
+}
+
 
 function ticketDateTime(value) {
   return value ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
@@ -890,12 +1285,15 @@ async function loadNotifications(profile) {
   }
 
   container.className = '';
+  lastNotificationItems = items;
   const notificationCount = document.querySelector('#notification-count');
   const notificationButton = document.querySelector('#notifications-button');
+  const dismissAllButton = document.querySelector('#notifications-dismiss-all');
   if (notificationCount) {
     notificationCount.textContent = items.length > 9 ? '9+' : String(items.length);
     notificationCount.hidden = items.length === 0;
   }
+  if (dismissAllButton) dismissAllButton.hidden = items.length === 0;
   notificationButton?.setAttribute('aria-label', items.length ? `Ver notificaciones: ${items.length} nuevas` : 'Ver notificaciones');
   void syncDeviceNotifications(profile, items);
   if (!items.length) {
@@ -903,8 +1301,22 @@ async function loadNotifications(profile) {
     return;
   }
   const MODULE_ICON = { 'mrti-legal': 'LG', rh: 'RH', activos: 'AT' };
-  const rows = items.map((item) => `<li class="notification-item"><span class="personal-icon">${MODULE_ICON[item.module_code] || 'TK'}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}</li>`).join('');
+  const rows = items.map((item) => `<li class="notification-item" data-notification-id="${escapeHtml(item.id)}"><span class="personal-icon">${MODULE_ICON[item.module_code] || 'TK'}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}<button type="button" class="notification-dismiss" data-dismiss-id="${escapeHtml(item.id)}" data-dismiss-kind="${escapeHtml(item.kind || '')}" aria-label="Descartar esta notificación">×</button></li>`).join('');
   container.innerHTML = `<ul class="notification-list">${rows}</ul>`;
+}
+
+// Se descarta uno o varios avisos a la vez: el backend sólo anota que ya se
+// revisaron (no borra el ticket/documento origen), así que si algo cambia de
+// verdad -- ver dismissKeyFor en notificationDismissals.js -- vuelve a
+// aparecer aunque sea el mismo recurso.
+async function dismissNotifications(items) {
+  if (!items.length) return;
+  try {
+    await api('/api/portal/v1/notifications/dismiss', {
+      method: 'POST',
+      body: JSON.stringify({ items: items.map(({ id, kind }) => ({ id, kind })) }),
+    });
+  } catch { /* si falla, el siguiente refresco de 60s la vuelve a mostrar */ }
 }
 
 async function resizeAvatar(file) {
@@ -1323,7 +1735,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
-      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button></nav>
+      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button><button class="control-tab control-tab-link" type="button" id="control-tab-news">Noticias ↗</button></nav>
       <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
@@ -1350,6 +1762,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     }));
     document.querySelector(`[data-control-target="${initialPanel}"]`)?.click();
     document.querySelector('#control-tab-brand').addEventListener('click', () => void renderBrandAssets(profile, '', 'control-center'));
+    document.querySelector('#control-tab-news').addEventListener('click', () => void renderCompanyNews(profile, '', 'control-center'));
     document.querySelectorAll('.ticket-team-add').forEach((form) => form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const userId = String(new FormData(form).get('user_id') || '');
@@ -1663,10 +2076,23 @@ async function initialize() {
       try {
         const { profile } = await api('/api/auth/me');
         await refreshApplications();
-        navigationMarkup = moduleSwitcherMarkup(profile, 'Home');
+        navigationMarkup = moduleSwitcherMarkup(profile);
       } catch { /* El home sigue siendo público si la sesión no está disponible. */ }
     }
     return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup });
+  }
+  // Página propia de cada noticia, pública igual que el home.
+  const newsDetailMatch = window.location.pathname.match(/^\/noticias\/([^/]+)\/?$/);
+  if (newsDetailMatch) {
+    let navigationMarkup = '';
+    if (token()) {
+      try {
+        const { profile } = await api('/api/auth/me');
+        await refreshApplications();
+        navigationMarkup = moduleSwitcherMarkup(profile);
+      } catch { /* La noticia sigue siendo pública si la sesión no está disponible. */ }
+    }
+    return renderNewsDetail({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup }, decodeURIComponent(newsDetailMatch[1]));
   }
   if (!token()) return renderLogin();
   try {

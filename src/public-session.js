@@ -8,17 +8,10 @@ export function mountPublicSession(header = document.querySelector('.home-public
 
   const actions = document.createElement('div');
   actions.className = 'home-header-actions';
+  // La navegación ya trae su propia pestaña "Dashboard" (module-tab
+  // is-current); no duplicarla aquí con un enlace aparte.
   const navigation = header.querySelector('#module-switcher, .portal-header-navigation');
-  if (navigation) {
-    if (!navigation.querySelector('.portal-dashboard-link')) {
-      const dashboard = document.createElement('a');
-      dashboard.className = 'home-dashboard-link';
-      dashboard.href = '/dashboard';
-      dashboard.textContent = 'Dashboard';
-      actions.append(dashboard);
-    }
-    actions.append(navigation);
-  }
+  if (navigation) actions.append(navigation);
   const account = document.createElement('div');
   account.className = 'home-session-controls';
   const identity = document.createElement('span');

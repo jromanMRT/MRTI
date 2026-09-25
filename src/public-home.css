@@ -1,12 +1,158 @@
-.news-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.news-date { margin: 2px 0 0; color: var(--ink-faint); font-size: .68rem; }
-.news-body { margin: 14px 0; color: var(--ink); font-size: .86rem; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-.core-home { min-height: 100vh; padding: 28px 24px 60px; background: var(--bg); }
-.home-public-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1080px; margin: 0 auto 40px; }
-.home-public-hero { max-width: 1080px; margin: 0 auto 44px; text-align: left; }
-.home-public-hero h1 { margin: 8px 0 12px; color: var(--ink); font-size: clamp(1.6rem, 3vw, 2.4rem); }
-.home-public-hero p { max-width: 640px; color: var(--ink-soft); font-size: .94rem; line-height: 1.6; }
-.home-news-section { max-width: 1080px; margin: 0 auto; }
+.core-home {
+  min-height: 100vh;
+  padding: 32px 24px 64px;
+  background:
+    radial-gradient(circle at 12% -8%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 42rem),
+    var(--bg);
+}
+.home-public-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1080px; margin: 0 auto 32px; }
 .public-home-link { display: inline-block; text-decoration: none; }
 .home-public-header > a { flex-shrink: 0; text-decoration: none; text-align: center; }
 @media (max-width: 480px) { .home-public-header { flex-wrap: wrap; } }
+
+/* Hero: banda oscura con acento dorado, igual espíritu que el panel de login */
+.public-hero-banner {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(40px, 6vw, 72px) clamp(28px, 5vw, 64px) clamp(76px, 9vw, 108px);
+  border-radius: 24px;
+  color: #fffaf0;
+  background:
+    radial-gradient(circle at 78% 12%, rgba(240, 207, 124, .32), transparent 22rem),
+    linear-gradient(150deg, #3e2e17, #17120c 72%);
+  box-shadow: 0 30px 70px -35px rgba(23, 18, 12, .55);
+}
+.public-hero-banner::after {
+  position: absolute;
+  z-index: -1;
+  right: -10%;
+  bottom: -14%;
+  width: 58%;
+  height: 88%;
+  background: url('/company-logo.svg') right bottom / contain no-repeat;
+  opacity: .14;
+  filter: grayscale(1) contrast(1.4);
+  content: '';
+}
+/* Foto real de operación (Recursos de marca → Fondo del inicio de sesión) en
+   vez del degradado con el logo como marca de agua, igual que en el login. */
+.public-hero-banner.has-custom-background {
+  background-image:
+    linear-gradient(180deg, rgba(18, 14, 8, .28), rgba(18, 14, 8, .84)),
+    var(--public-hero-background-image);
+  background-position: center;
+  background-size: cover;
+}
+.public-hero-banner.has-custom-background::after { display: none; }
+.public-hero-copy { max-width: 620px; }
+.public-hero-eyebrow { color: #e8c66d; }
+.public-hero-eyebrow span { background: #e8c66d; }
+.public-hero-banner h1 {
+  margin: 16px 0 18px;
+  font-family: 'Big Shoulders Display', system-ui, sans-serif;
+  font-weight: 800;
+  font-variation-settings: 'wght' 800;
+  font-size: clamp(2.1rem, 4.6vw, 3.4rem);
+  line-height: 1.04;
+}
+.public-hero-banner h1 em { color: #e8c66d; font-style: normal; }
+.public-hero-banner p { max-width: 520px; margin: 0; color: #d7cab1; font-size: 1rem; line-height: 1.7; }
+
+/* Tira de datos "flotando" sobre el borde inferior del hero */
+.public-facts-strip {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  max-width: 1000px;
+  margin: -56px auto 48px;
+  padding: 0 12px;
+}
+.public-fact-tile {
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.public-fact-tile:hover { transform: translateY(-2px); }
+.public-fact-tile span { display: block; margin-bottom: 6px; overflow: hidden; color: var(--ink-faint); font-size: .64rem; font-weight: 750; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.public-fact-tile strong { display: block; color: var(--gold-deep); font-family: 'Big Shoulders Display', system-ui, sans-serif; font-size: 1.2rem; font-weight: 800; overflow-wrap: anywhere; }
+
+.home-news-section { max-width: 1080px; margin: 0 auto; }
+.news-card { display: block; color: inherit; text-decoration: none; }
+.news-read-more { display: inline-block; margin-top: 4px; color: var(--gold-deep); font-weight: 700; font-size: .78rem; }
+
+.core-home footer { max-width: 1080px; margin: 0 auto; }
+
+/* Carrusel de noticias destacadas: mismo tratamiento oscuro/dorado que el hero */
+.public-carousel { position: relative; max-width: 1080px; margin: 0 auto 48px; overflow: hidden; border-radius: 22px; box-shadow: 0 24px 60px -32px rgba(23, 18, 12, .5); }
+.public-carousel-track { display: flex; transition: transform 420ms ease; }
+.public-carousel-slide {
+  position: relative;
+  display: flex;
+  flex: 0 0 100%;
+  min-height: 260px;
+  align-items: flex-end;
+  padding: clamp(24px, 4vw, 44px);
+  color: #fffaf0;
+  text-decoration: none;
+  background:
+    linear-gradient(180deg, rgba(18, 14, 8, .1), rgba(18, 14, 8, .85)),
+    linear-gradient(150deg, #3e2e17, #17120c 72%);
+}
+.public-carousel-slide.has-image {
+  background-image:
+    linear-gradient(180deg, rgba(18, 14, 8, .12), rgba(18, 14, 8, .88)),
+    var(--public-carousel-image);
+  background-position: center;
+  background-size: cover;
+}
+.public-carousel-copy { max-width: 640px; }
+.public-carousel-copy .news-date-pill { background: rgba(255, 255, 255, .16); color: #f3d68d; }
+.public-carousel-copy h3 { margin: 10px 0 8px; font-family: 'Big Shoulders Display', system-ui, sans-serif; font-size: clamp(1.35rem, 3vw, 2rem); font-weight: 800; line-height: 1.1; }
+.public-carousel-copy p { margin: 0 0 12px; color: #d7cab1; font-size: .92rem; line-height: 1.6; }
+.public-carousel-cta { color: #f3d68d; font-size: .82rem; font-weight: 750; }
+.public-carousel-nav {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .4);
+  border-radius: 50%;
+  color: #fffaf0;
+  background: rgba(23, 18, 12, .4);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+.public-carousel-nav:hover { background: rgba(23, 18, 12, .65); }
+.public-carousel-nav.prev { left: 14px; }
+.public-carousel-nav.next { right: 14px; }
+.public-carousel-dots { position: absolute; z-index: 2; left: 50%; bottom: 16px; display: flex; gap: 6px; transform: translateX(-50%); }
+.public-carousel-dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .4); cursor: pointer; }
+.public-carousel-dot.active { background: #f3d68d; }
+
+/* Página de una sola noticia */
+.public-detail-wrap { max-width: 1080px; margin: 0 auto 48px; }
+.news-detail .news-date-pill { margin-bottom: 14px; }
+.news-detail h1 { margin: 6px 0 20px; }
+.news-detail-image { margin: 0 0 20px; overflow: hidden; border-radius: 14px; }
+.news-detail-image img { display: block; width: 100%; max-height: 420px; object-fit: cover; }
+.news-detail-body { color: var(--ink); font-size: .95rem; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+
+@media (max-width: 640px) {
+  .public-hero-banner::after { opacity: .08; }
+  .public-facts-strip { margin-top: -36px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .public-carousel-nav { display: none; }
+}

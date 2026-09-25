@@ -15,6 +15,7 @@ const ALLOWED_IMAGES = new Map([
 const APPEARANCE_SLOTS = new Map([
   ['portal_logo', 'Logo del portal'],
   ['login_background', 'Fondo del inicio de sesión'],
+  ['home_hero_background', 'Fondo del home público'],
 ]);
 
 export const brandAssetRouter = Router();
