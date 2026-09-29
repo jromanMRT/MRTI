@@ -1141,8 +1141,10 @@ button:disabled { cursor: wait; opacity: .58; }
 .create-user-modes label:has(input:checked) { border-color: var(--gold); color: var(--gold-deep); background: var(--surface); }
 .create-user-modes input { accent-color: var(--gold); }
 .rh-candidate-picker[hidden] { display: none; }
-.rh-candidate-picker label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .75rem; font-weight: 650; }
-.rh-candidate-picker input { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface-soft); outline: none; }
+.rh-candidate-title { display: block; margin-bottom: 7px; color: var(--ink-soft); font-size: .75rem; font-weight: 650; }
+.rh-candidate-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; }
+.rh-candidate-picker input,
+.rh-candidate-picker select { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface-soft); outline: none; }
 .rh-candidate-picker .field-help { margin-top: 6px; }
 .create-user-form input[readonly] { color: var(--ink-soft); background: var(--surface); }
 .temporary-password { display: inline-block; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: .95rem; user-select: all; word-break: break-all; }
@@ -1329,7 +1331,8 @@ footer {
   .create-area-form { grid-template-columns: 1fr; }
   .ticket-team-add { grid-template-columns: 1fr; }
   .create-user-form,
-  .user-fields { grid-template-columns: 1fr; }
+  .user-fields,
+  .rh-candidate-row { grid-template-columns: 1fr; }
   .users-heading { align-items: stretch; flex-direction: column; }
   .user-filters input { width: 100%; }
   .user-filters { display: grid; grid-template-columns: 1fr auto; }

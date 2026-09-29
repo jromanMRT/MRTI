@@ -28,3 +28,16 @@ export function linkRhPortalAccounts(authorization, links) {
     body: JSON.stringify({ links }),
   });
 }
+
+export function listRhEmployeesForAccounts(authorization) {
+  return request('/portal-accounts/employees', authorization);
+}
+
+// RH es propietario del correo laboral: Core no lo escribe en su base, pide a
+// RH que lo guarde y lo confirme a nombre del administrador de la sesión.
+export function confirmRhWorkEmail(authorization, employeeId, email) {
+  return request(`/employees/${Number(employeeId)}`, authorization, {
+    method: 'PATCH',
+    body: JSON.stringify({ work_email: email, verify_work_email: true }),
+  });
+}

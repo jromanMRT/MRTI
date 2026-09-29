@@ -1736,7 +1736,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
       <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button><button class="control-tab control-tab-link" type="button" id="control-tab-news">Noticias ↗</button></nav>
-      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Alta masiva desde RH</strong><p>Crea de una vez todas las cuentas pendientes con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create" id="create-user-panel"><summary>Crear un usuario</summary><div class="create-user-source"><div class="create-user-modes" role="radiogroup" aria-label="Origen de los datos"><label><input type="radio" name="create-user-mode" value="rh" checked> Desde expediente de RH</label><label><input type="radio" name="create-user-mode" value="manual"> Sin expediente de RH</label></div><div class="rh-candidate-picker" id="rh-candidate-picker"><label>Empleado de RH<input id="rh-candidate-search" type="search" list="rh-candidate-options" placeholder="Escribe nombre o correo…" autocomplete="off"></label><datalist id="rh-candidate-options"></datalist><p class="field-help" id="rh-candidate-status">Cargando expedientes de RH…</p></div></div><form class="create-user-form" id="create-user"><input type="hidden" name="employee_id" value="">
+      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Alta masiva desde RH</strong><p>Crea de una vez todas las cuentas pendientes con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create" id="create-user-panel"><summary>Crear un usuario</summary><div class="create-user-source"><div class="create-user-modes" role="radiogroup" aria-label="Origen de los datos"><label><input type="radio" name="create-user-mode" value="rh" checked> Desde expediente de RH</label><label><input type="radio" name="create-user-mode" value="manual"> Sin expediente de RH</label></div><div class="rh-candidate-picker" id="rh-candidate-picker"><span class="rh-candidate-title">Empleado registrado en RH</span><div class="rh-candidate-row"><input id="rh-candidate-search" type="search" placeholder="Buscar por nombre, número de empleado, puesto o área…" autocomplete="off" aria-label="Buscar empleado de RH"><select id="rh-candidate-select" aria-label="Empleado de RH"><option value="">Cargando empleados de RH…</option></select></div><p class="field-help" id="rh-candidate-status">Cargando empleados de RH…</p></div></div><form class="create-user-form" id="create-user"><input type="hidden" name="employee_id" value="">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
         <label>Rol<select name="role">${roleOptions()}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions()}</select></label>
@@ -1946,52 +1946,85 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     const createUserPanel = document.querySelector('#create-user-panel');
     const rhSearch = document.querySelector('#rh-candidate-search');
     const rhStatus = document.querySelector('#rh-candidate-status');
-    const RH_CANDIDATE_REASONS = { linked: 'ya tiene cuenta vinculada', has_account: 'ya existe una cuenta con ese correo', conflict: 'su expediente está vinculado a otra cuenta' };
-    const rhCandidateLabel = (candidate) => `${candidate.full_name} — ${candidate.email}`;
+    const rhSelect = document.querySelector('#rh-candidate-select');
+    const RH_CANDIDATE_GROUPS = [
+      ['available', 'Listos para crear (correo corporativo confirmado)'],
+      ['needs_email', 'Sin correo corporativo — captúralo para crear la cuenta'],
+      ['has_account', 'Ya existe una cuenta con su correo'],
+      ['linked', 'Ya tienen cuenta vinculada'],
+      ['conflict', 'Vinculados a una cuenta que ya no existe'],
+    ];
+    const RH_CREATABLE = new Set(['available', 'needs_email']);
+    const rhCandidateLabel = (candidate) => {
+      const detail = [candidate.job_title, candidate.department_name].filter(Boolean).join(' · ');
+      return `${candidate.full_name}${candidate.employee_number ? ` (#${candidate.employee_number})` : ''}${detail ? ` — ${detail}` : ''}${candidate.email ? ` · ${candidate.email}` : ''}`;
+    };
     let rhCandidates = null;
     let rhCandidatesLoading = null;
     const createUserMode = () => createUserPanel.querySelector('input[name="create-user-mode"]:checked').value;
+    const selectedRhCandidate = () => rhCandidates?.find((candidate) => String(candidate.employee_id) === rhSelect.value) || null;
     const setRhSelection = (candidate) => {
+      const needsEmail = candidate?.status === 'needs_email';
       createUserForm.elements.employee_id.value = candidate ? String(candidate.employee_id) : '';
       createUserForm.elements.full_name.value = candidate ? candidate.full_name : '';
-      createUserForm.elements.email.value = candidate ? candidate.email : '';
+      createUserForm.elements.email.value = candidate ? (candidate.email || candidate.suggested_email || '') : '';
+      createUserForm.elements.email.readOnly = !needsEmail;
+      createUserForm.elements.email.placeholder = needsEmail ? 'nombre@mrtcorporativo.mx' : '';
+      if (needsEmail) createUserForm.elements.email.setAttribute('pattern', '[^@\\s]+@mrtcorporativo\\.mx');
+      else createUserForm.elements.email.removeAttribute('pattern');
+      if (!candidate) return;
+      rhStatus.textContent = needsEmail
+        ? `${candidate.full_name} no tiene correo corporativo confirmado en RH. Escribe su correo @mrtcorporativo.mx: se guardará y confirmará en su ficha de RH al crear la cuenta.`
+        : `Expediente RH #${candidate.employee_id} seleccionado; su correo ya está confirmado en RH.`;
+    };
+    const renderRhOptions = () => {
+      if (!rhCandidates) return;
+      const term = rhSearch.value.trim().toLocaleLowerCase('es-MX');
+      const previous = rhSelect.value;
+      const matches = rhCandidates.filter((candidate) => !term || rhCandidateLabel(candidate).toLocaleLowerCase('es-MX').includes(term));
+      rhSelect.innerHTML = `<option value="">${matches.length ? 'Selecciona un empleado…' : 'Ningún empleado coincide con la búsqueda'}</option>${RH_CANDIDATE_GROUPS.map(([status, label]) => {
+        const group = matches.filter((candidate) => candidate.status === status);
+        return group.length ? `<optgroup label="${escapeHtml(`${label} (${group.length})`)}">${group.map((candidate) => `<option value="${candidate.employee_id}" ${RH_CREATABLE.has(status) ? '' : 'disabled'}>${escapeHtml(rhCandidateLabel(candidate))}</option>`).join('')}</optgroup>` : '';
+      }).join('')}`;
+      if (matches.some((candidate) => String(candidate.employee_id) === previous)) rhSelect.value = previous;
+      else if (previous) setRhSelection(null);
     };
     const applyCreateUserMode = () => {
       const fromRh = createUserMode() === 'rh';
       document.querySelector('#rh-candidate-picker').hidden = !fromRh;
       createUserForm.elements.full_name.readOnly = fromRh;
-      createUserForm.elements.email.readOnly = fromRh;
       createUserForm.elements.password.required = !fromRh;
       createUserForm.elements.confirmation.required = !fromRh;
       createUserForm.elements.password.placeholder = fromRh ? 'Vacía = se genera una' : '';
       createUserForm.elements.confirmation.placeholder = fromRh ? 'Vacía = se genera una' : '';
       document.querySelector('#create-user-help').textContent = fromRh
-        ? 'Nombre y correo vienen del expediente de RH. Si dejas la contraseña vacía se genera una aleatoria que verás una sola vez. El usuario deberá cambiarla al iniciar sesión.'
+        ? 'El nombre viene del expediente de RH. Si dejas la contraseña vacía se genera una aleatoria que verás una sola vez. El usuario deberá cambiarla al iniciar sesión.'
         : 'Para personas sin expediente en RH (externos, proveedores o cuentas de servicio). El usuario deberá cambiar su contraseña temporal al iniciar sesión.';
-      if (fromRh) setRhSelection(rhCandidates?.find((candidate) => candidate.status === 'available' && rhCandidateLabel(candidate) === rhSearch.value) || null);
-      else createUserForm.elements.employee_id.value = '';
+      if (fromRh) setRhSelection(selectedRhCandidate());
+      else {
+        createUserForm.elements.employee_id.value = '';
+        createUserForm.elements.email.readOnly = false;
+        createUserForm.elements.email.removeAttribute('pattern');
+        createUserForm.elements.email.placeholder = '';
+      }
     };
     const loadRhCandidates = () => {
       rhCandidatesLoading ||= api('/api/auth/users/rh-candidates').then((result) => {
         rhCandidates = result.data;
-        const available = rhCandidates.filter((candidate) => candidate.status === 'available');
-        document.querySelector('#rh-candidate-options').innerHTML = rhCandidates
-          .map((candidate) => `<option value="${escapeHtml(rhCandidateLabel(candidate))}">${candidate.status === 'available' ? '' : escapeHtml(RH_CANDIDATE_REASONS[candidate.status] || '')}</option>`).join('');
-        rhStatus.textContent = `${available.length} expediente${available.length === 1 ? '' : 's'} sin cuenta de ${rhCandidates.length} con correo corporativo.${result.ambiguous ? ` ${result.ambiguous} correo${result.ambiguous === 1 ? '' : 's'} duplicado${result.ambiguous === 1 ? '' : 's'} en RH no aparece${result.ambiguous === 1 ? '' : 'n'} hasta corregirse.` : ''}`;
+        renderRhOptions();
+        const count = (status) => rhCandidates.filter((candidate) => candidate.status === status).length;
+        rhStatus.textContent = `${rhCandidates.length} empleados activos en RH: ${count('available')} listos para crear, ${count('needs_email')} sin correo corporativo, ${count('linked') + count('has_account')} ya con cuenta.`;
       }).catch((error) => {
         rhCandidatesLoading = null;
+        rhSelect.innerHTML = '<option value="">RH no está disponible</option>';
         rhStatus.textContent = `No fue posible consultar RH: ${error.message}. Puedes crear el usuario sin expediente de RH.`;
       });
       return rhCandidatesLoading;
     };
     createUserPanel.addEventListener('toggle', () => { if (createUserPanel.open) void loadRhCandidates(); });
     createUserPanel.querySelectorAll('input[name="create-user-mode"]').forEach((radio) => radio.addEventListener('change', applyCreateUserMode));
-    rhSearch.addEventListener('input', () => {
-      const match = rhCandidates?.find((candidate) => rhCandidateLabel(candidate) === rhSearch.value);
-      setRhSelection(match?.status === 'available' ? match : null);
-      if (match && match.status !== 'available') rhStatus.textContent = `${match.full_name} no se puede crear: ${RH_CANDIDATE_REASONS[match.status]}.`;
-      else if (match) rhStatus.textContent = `Seleccionado: expediente RH #${match.employee_id}.`;
-    });
+    rhSearch.addEventListener('input', renderRhOptions);
+    rhSelect.addEventListener('change', () => setRhSelection(selectedRhCandidate()));
     applyCreateUserMode();
     function showTemporaryPassword(name, email, password) {
       const dialog = document.createElement('dialog');
@@ -2013,10 +2046,14 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       const location = { physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null };
       if (createUserMode() === 'rh') {
         const employeeId = Number(values.get('employee_id'));
-        if (!employeeId) return window.alert('Elige un empleado de RH de la lista.');
+        const candidate = selectedRhCandidate();
+        if (!employeeId || !candidate) return window.alert('Elige un empleado de RH de la lista.');
+        const workEmail = candidate.status === 'needs_email' ? String(values.get('email') || '').trim().toLowerCase() : null;
+        if (workEmail !== null && !/^[^@\s]+@mrtcorporativo\.mx$/.test(workEmail)) return window.alert('Escribe un correo que termine en @mrtcorporativo.mx.');
+        if (workEmail && !window.confirm(`Se guardará ${workEmail} como correo corporativo confirmado en la ficha de RH de ${candidate.full_name} y se creará su cuenta. ¿Continuar?`)) return;
         submitButton.disabled = true;
         try {
-          const result = await api('/api/auth/users/provision-rh', { method: 'POST', body: JSON.stringify({ dry_run: false, employee_id: employeeId, ...accountSettings, ...(values.get('password') ? { password: values.get('password') } : {}) }) });
+          const result = await api('/api/auth/users/provision-rh', { method: 'POST', body: JSON.stringify({ dry_run: false, employee_id: employeeId, ...(workEmail ? { work_email: workEmail } : {}), ...accountSettings, ...(values.get('password') ? { password: values.get('password') } : {}) }) });
           const created = result.created[0];
           if (!created) {
             submitButton.disabled = false;

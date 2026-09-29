@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { authRequired, USER_ROLES } from './shared.js';
-import { listRhCandidatesForAccounts, provisionRhUsers } from './provisioning.js';
+import { confirmWorkEmailForProvisioning, listRhCandidatesForAccounts, provisionRhUsers } from './provisioning.js';
 import { PASSWORD_MIN_LENGTH } from '../config/security.js';
 import { recordAudit } from '../audit.js';
 
@@ -60,6 +60,9 @@ provisioningRouter.post('/users/provision-rh', authRequired, async (req, res, ne
     const { account, error: accountError } = await parseAccountSettings(req.body);
     if (accountError) return res.status(400).json({ error: accountError });
     if (account && employeeId === null) return res.status(400).json({ error: 'El rol y el área sólo se pueden elegir al crear la cuenta de un solo empleado' });
+    const workEmail = req.body?.work_email ? String(req.body.work_email) : null;
+    if (workEmail && employeeId === null) return res.status(400).json({ error: 'El correo corporativo sólo se puede capturar para un solo empleado' });
+    if (workEmail && !dryRun) await confirmWorkEmailForProvisioning(req.headers.authorization, employeeId, workEmail);
     const result = await provisionRhUsers(req.headers.authorization, { dryRun, employeeId, account });
     if (!dryRun) {
       await recordAudit({
@@ -73,6 +76,7 @@ provisioningRouter.post('/users/provision-rh', authRequired, async (req, res, ne
           ambiguous: result.ambiguous.length,
           conflicts: result.conflicts.length,
           employee_id: employeeId,
+          work_email_confirmed: Boolean(workEmail),
           ...(account ? { role: account.role, access_area_id: account.accessAreaId, is_active: account.isActive } : {}),
         },
       });
