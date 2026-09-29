@@ -55,9 +55,7 @@ profileRouter.patch('/profile/password', authRequired, async (req, res, next) =>
   try {
     const currentPassword = String(req.body?.current_password || '');
     const newPassword = String(req.body?.new_password || '');
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'La contraseña actual y la nueva son requeridas' });
-    }
+    if (!newPassword) return res.status(400).json({ error: 'La nueva contraseña es requerida' });
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
       return res.status(400).json({ error: `La nueva contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres` });
     }
@@ -66,11 +64,23 @@ profileRouter.patch('/profile/password', authRequired, async (req, res, next) =>
     }
 
     const [rows] = await pool.query(
-      'SELECT password_hash FROM user_profiles WHERE id = ?',
+      'SELECT password_hash, password_change_required FROM user_profiles WHERE id = ?',
       [req.user.id]
     );
-    const valid = rows[0] && await bcrypt.compare(currentPassword, rows[0].password_hash);
-    if (!valid) return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+    if (!rows[0]) return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+    // En el primer inicio con contraseña temporal la persona acaba de
+    // escribirla para entrar: no se vuelve a pedir. Fuera de ese caso sigue
+    // siendo obligatoria para que una sesión abierta no baste para cambiarla.
+    if (rows[0].password_change_required) {
+      if (await bcrypt.compare(newPassword, rows[0].password_hash)) {
+        return res.status(400).json({ error: 'La nueva contraseña debe ser distinta de la temporal' });
+      }
+    } else {
+      if (!currentPassword) return res.status(400).json({ error: 'La contraseña actual y la nueva son requeridas' });
+      if (!await bcrypt.compare(currentPassword, rows[0].password_hash)) {
+        return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+      }
+    }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await pool.query(

@@ -1393,7 +1393,7 @@ function bindPasswordForm(profile, required) {
     event.preventDefault(); const data = new FormData(form); const message = document.querySelector('#password-message');
     if (data.get('new_password') !== data.get('confirmation')) { message.className = 'form-message error'; message.textContent = 'Las contraseñas nuevas no coinciden.'; message.hidden = false; return; }
     const button = form.querySelector('button[type="submit"]'); button.disabled = true;
-    try { await api('/api/auth/profile/password', { method: 'PATCH', body: JSON.stringify({ current_password: data.get('current_password'), new_password: data.get('new_password') }) }); form.reset(); message.className = 'form-message success'; message.textContent = 'Contraseña actualizada correctamente.'; message.hidden = false; if (required) { const { profile: updated } = await api('/api/auth/me'); updated.password_change_required = false; localStorage.setItem('auth_profile', JSON.stringify(updated)); await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(updated)]); renderPortal(updated); } }
+    try { await api('/api/auth/profile/password', { method: 'PATCH', body: JSON.stringify({ ...(required ? {} : { current_password: data.get('current_password') }), new_password: data.get('new_password') }) }); form.reset(); message.className = 'form-message success'; message.textContent = 'Contraseña actualizada correctamente.'; message.hidden = false; if (required) { const { profile: updated } = await api('/api/auth/me'); updated.password_change_required = false; localStorage.setItem('auth_profile', JSON.stringify(updated)); await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(updated)]); renderPortal(updated); } }
     catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
     finally { button.disabled = false; }
   });
@@ -1404,7 +1404,6 @@ function renderRequiredPassword(profile) {
     <p class="section-label">Mi cuenta</p><h1>Crea tu contraseña personal</h1>
     <p class="panel-copy">Por seguridad, reemplaza la contraseña temporal antes de continuar.</p>
     <form class="control-form" id="password-form">
-      <label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label>
       <label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
       <label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
       <div class="form-message" id="password-message" hidden></div>
