@@ -1736,13 +1736,13 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
       <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button><button class="control-tab control-tab-link" type="button" id="control-tab-news">Noticias ↗</button></nav>
-      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
+      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Alta masiva desde RH</strong><p>Crea de una vez todas las cuentas pendientes con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create" id="create-user-panel"><summary>Crear un usuario</summary><div class="create-user-source"><div class="create-user-modes" role="radiogroup" aria-label="Origen de los datos"><label><input type="radio" name="create-user-mode" value="rh" checked> Desde expediente de RH</label><label><input type="radio" name="create-user-mode" value="manual"> Sin expediente de RH</label></div><div class="rh-candidate-picker" id="rh-candidate-picker"><label>Empleado de RH<input id="rh-candidate-search" type="search" list="rh-candidate-options" placeholder="Escribe nombre o correo…" autocomplete="off"></label><datalist id="rh-candidate-options"></datalist><p class="field-help" id="rh-candidate-status">Cargando expedientes de RH…</p></div></div><form class="create-user-form" id="create-user"><input type="hidden" name="employee_id" value="">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
         <label>Rol<select name="role">${roleOptions()}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions()}</select></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions()}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions()}</select></label>
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
-      </form><p class="field-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
+      </form><p class="field-help" id="create-user-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
       <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><p class="field-help">Un área de acceso agrupa a los usuarios que deben entrar a los mismos módulos (por ejemplo, "Sistemas" o "Compras") -- es distinta de la ubicación física de un usuario (sitio/edificio/piso), que se administra desde MRTI Monitor.</p><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span id="areas-visible-count">${data.areas.length} configuradas</span></div><div class="user-filters"><input id="area-search" type="search" placeholder="Buscar por nombre de área…"></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div><p class="empty-users" id="empty-areas" hidden>No se encontraron áreas.</p></div></div>
       <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Dashboard las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div><section class="ticket-limits-section"><div class="users-heading"><div><h2>Límites de creación por usuario</h2><span>Control contra uso indebido</span></div></div><p class="field-help">Deja un campo vacío para no limitarlo. “Por 24 horas” usa una ventana móvil desde el momento de cada intento. El bloqueo impide crear tanto desde Dashboard como desde la API de Tickets.</p><div class="ticket-limit-list">${ticketLimitRows || '<p>No hay usuarios activos.</p>'}</div></section>`}</div></div>
       <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span id="applications-visible-count">${applicationData.data.length} registradas</span></div><div class="user-filters"><input id="application-search" type="search" placeholder="Buscar por nombre, código o categoría…"></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
@@ -1939,12 +1939,98 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         body.querySelector('form').addEventListener('submit', isSelf ? handleOwnLocationSubmit : handleUserEditorSubmit);
       });
     });
-    document.querySelector('#create-user').addEventListener('submit', async (event) => {
+    // Alta individual: "Desde expediente de RH" toma nombre y correo de la
+    // ficha (RH es su propietario) y crea la cuenta con el aprovisionamiento
+    // dirigido de Core, que también vincula employees.portal_user_id; "Sin
+    // expediente" conserva el alta manual para externos o cuentas de servicio.
+    const createUserPanel = document.querySelector('#create-user-panel');
+    const rhSearch = document.querySelector('#rh-candidate-search');
+    const rhStatus = document.querySelector('#rh-candidate-status');
+    const RH_CANDIDATE_REASONS = { linked: 'ya tiene cuenta vinculada', has_account: 'ya existe una cuenta con ese correo', conflict: 'su expediente está vinculado a otra cuenta' };
+    const rhCandidateLabel = (candidate) => `${candidate.full_name} — ${candidate.email}`;
+    let rhCandidates = null;
+    let rhCandidatesLoading = null;
+    const createUserMode = () => createUserPanel.querySelector('input[name="create-user-mode"]:checked').value;
+    const setRhSelection = (candidate) => {
+      createUserForm.elements.employee_id.value = candidate ? String(candidate.employee_id) : '';
+      createUserForm.elements.full_name.value = candidate ? candidate.full_name : '';
+      createUserForm.elements.email.value = candidate ? candidate.email : '';
+    };
+    const applyCreateUserMode = () => {
+      const fromRh = createUserMode() === 'rh';
+      document.querySelector('#rh-candidate-picker').hidden = !fromRh;
+      createUserForm.elements.full_name.readOnly = fromRh;
+      createUserForm.elements.email.readOnly = fromRh;
+      createUserForm.elements.password.required = !fromRh;
+      createUserForm.elements.confirmation.required = !fromRh;
+      createUserForm.elements.password.placeholder = fromRh ? 'Vacía = se genera una' : '';
+      createUserForm.elements.confirmation.placeholder = fromRh ? 'Vacía = se genera una' : '';
+      document.querySelector('#create-user-help').textContent = fromRh
+        ? 'Nombre y correo vienen del expediente de RH. Si dejas la contraseña vacía se genera una aleatoria que verás una sola vez. El usuario deberá cambiarla al iniciar sesión.'
+        : 'Para personas sin expediente en RH (externos, proveedores o cuentas de servicio). El usuario deberá cambiar su contraseña temporal al iniciar sesión.';
+      if (fromRh) setRhSelection(rhCandidates?.find((candidate) => candidate.status === 'available' && rhCandidateLabel(candidate) === rhSearch.value) || null);
+      else createUserForm.elements.employee_id.value = '';
+    };
+    const loadRhCandidates = () => {
+      rhCandidatesLoading ||= api('/api/auth/users/rh-candidates').then((result) => {
+        rhCandidates = result.data;
+        const available = rhCandidates.filter((candidate) => candidate.status === 'available');
+        document.querySelector('#rh-candidate-options').innerHTML = rhCandidates
+          .map((candidate) => `<option value="${escapeHtml(rhCandidateLabel(candidate))}">${candidate.status === 'available' ? '' : escapeHtml(RH_CANDIDATE_REASONS[candidate.status] || '')}</option>`).join('');
+        rhStatus.textContent = `${available.length} expediente${available.length === 1 ? '' : 's'} sin cuenta de ${rhCandidates.length} con correo corporativo.${result.ambiguous ? ` ${result.ambiguous} correo${result.ambiguous === 1 ? '' : 's'} duplicado${result.ambiguous === 1 ? '' : 's'} en RH no aparece${result.ambiguous === 1 ? '' : 'n'} hasta corregirse.` : ''}`;
+      }).catch((error) => {
+        rhCandidatesLoading = null;
+        rhStatus.textContent = `No fue posible consultar RH: ${error.message}. Puedes crear el usuario sin expediente de RH.`;
+      });
+      return rhCandidatesLoading;
+    };
+    createUserPanel.addEventListener('toggle', () => { if (createUserPanel.open) void loadRhCandidates(); });
+    createUserPanel.querySelectorAll('input[name="create-user-mode"]').forEach((radio) => radio.addEventListener('change', applyCreateUserMode));
+    rhSearch.addEventListener('input', () => {
+      const match = rhCandidates?.find((candidate) => rhCandidateLabel(candidate) === rhSearch.value);
+      setRhSelection(match?.status === 'available' ? match : null);
+      if (match && match.status !== 'available') rhStatus.textContent = `${match.full_name} no se puede crear: ${RH_CANDIDATE_REASONS[match.status]}.`;
+      else if (match) rhStatus.textContent = `Seleccionado: expediente RH #${match.employee_id}.`;
+    });
+    applyCreateUserMode();
+    function showTemporaryPassword(name, email, password) {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'ticket-detail-dialog';
+      dialog.innerHTML = `<div class="ticket-detail-content"><header><div><small>Cuenta creada</small><h2>${escapeHtml(name)}</h2></div><button type="button" data-close-temporary-password aria-label="Cerrar">×</button></header><div class="ticket-detail-body"><p>Comparte esta contraseña temporal con <strong>${escapeHtml(email)}</strong>. No se volverá a mostrar; deberá cambiarla al iniciar sesión.</p><p><code class="temporary-password">${escapeHtml(password)}</code></p><div class="dialog-actions"><button class="secondary-button" type="button" data-copy-temporary-password>Copiar</button><button class="primary-button" type="button" data-close-temporary-password>Listo</button></div></div></div>`;
+      document.body.append(dialog);
+      dialog.querySelectorAll('[data-close-temporary-password]').forEach((button) => button.addEventListener('click', () => dialog.close()));
+      dialog.querySelector('[data-copy-temporary-password]').addEventListener('click', async (event) => {
+        try { await navigator.clipboard.writeText(password); event.currentTarget.textContent = 'Copiada'; } catch { window.prompt('Copia la contraseña temporal:', password); }
+      });
+      dialog.addEventListener('close', () => dialog.remove());
+      dialog.showModal();
+    }
+    createUserForm.addEventListener('submit', async (event) => {
       event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
       if (values.get('password') !== values.get('confirmation')) return window.alert('Las contraseñas no coinciden.');
+      const submitButton = form.querySelector('button[type="submit"]');
+      const accountSettings = { role: values.get('role'), access_area_id: values.get('access_area_id') || null, is_active: values.get('is_active') === 'on' };
+      const location = { physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null };
+      if (createUserMode() === 'rh') {
+        const employeeId = Number(values.get('employee_id'));
+        if (!employeeId) return window.alert('Elige un empleado de RH de la lista.');
+        submitButton.disabled = true;
+        try {
+          const result = await api('/api/auth/users/provision-rh', { method: 'POST', body: JSON.stringify({ dry_run: false, employee_id: employeeId, ...accountSettings, ...(values.get('password') ? { password: values.get('password') } : {}) }) });
+          const created = result.created[0];
+          if (!created) {
+            submitButton.disabled = false;
+            return window.alert(result.conflicts.length ? 'No se creó la cuenta: el expediente de RH está vinculado a otra cuenta.' : 'Ya existía una cuenta con ese correo; sólo se vinculó al expediente de RH.');
+          }
+          await api(`/api/auth/users/${created.id}/location`, { method: 'PATCH', body: JSON.stringify(location) });
+          await renderControlCenter(profile, `Usuario ${created.full_name} creado desde RH y vinculado a su expediente.`);
+          if (created.temporary_password) showTemporaryPassword(created.full_name, created.email, created.temporary_password);
+        } catch (error) { window.alert(error.message); submitButton.disabled = false; }
+        return;
+      }
       try {
-        const created = await api('/api/auth/users', { method: 'POST', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email'), password: values.get('password'), role: values.get('role'), access_area_id: values.get('access_area_id') || null, is_active: values.get('is_active') === 'on' }) });
-        await api(`/api/auth/users/${created.profile.id}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
+        const created = await api('/api/auth/users', { method: 'POST', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email'), password: values.get('password'), ...accountSettings }) });
+        await api(`/api/auth/users/${created.profile.id}/location`, { method: 'PATCH', body: JSON.stringify(location) });
         await renderControlCenter(profile, 'Usuario creado correctamente.');
       } catch (error) { window.alert(error.message); }
     });

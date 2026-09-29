@@ -1135,6 +1135,17 @@ button:disabled { cursor: wait; opacity: .58; }
 .control-create { margin-bottom: 18px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
 .control-create > summary { padding: 13px 15px; color: var(--ink); font-weight: 750; cursor: pointer; }
 .control-create > form { padding: 0 15px 15px; }
+.create-user-source { display: grid; gap: 12px; padding: 0 15px 14px; }
+.create-user-modes { display: flex; flex-wrap: wrap; gap: 8px; }
+.create-user-modes label { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-soft); font-size: .78rem; font-weight: 650; cursor: pointer; }
+.create-user-modes label:has(input:checked) { border-color: var(--gold); color: var(--gold-deep); background: var(--surface); }
+.create-user-modes input { accent-color: var(--gold); }
+.rh-candidate-picker[hidden] { display: none; }
+.rh-candidate-picker label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .75rem; font-weight: 650; }
+.rh-candidate-picker input { min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface-soft); outline: none; }
+.rh-candidate-picker .field-help { margin-top: 6px; }
+.create-user-form input[readonly] { color: var(--ink-soft); background: var(--surface); }
+.temporary-password { display: inline-block; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: .95rem; user-select: all; word-break: break-all; }
 .provisioning-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 14px; padding: 14px 16px; border: 1px solid rgba(169, 120, 31, .25); border-radius: 11px; background: rgba(169, 120, 31, .07); }
 .provisioning-bar p { margin: 4px 0 0; color: var(--ink-faint); font-size: .76rem; }
 .create-area-form { display: grid; grid-template-columns: minmax(180px, .7fr) 1fr; gap: 12px; }

@@ -16,7 +16,51 @@ export function selectProvisioningCandidates(candidates, employeeId) {
   return candidates.filter((candidate) => Number(candidate.employee_id) === Number(employeeId));
 }
 
-export async function provisionRhUsers(authorization, { dryRun = false, employeeId = null } = {}) {
+// Clasifica cada ficha de RH para el selector del alta individual: sólo las
+// "available" se pueden crear; el resto se muestran para explicar por qué no.
+export function classifyRhCandidates(candidates, existingByEmail) {
+  return candidates.map((candidate) => {
+    const email = String(candidate.email || '').trim().toLowerCase();
+    const user = existingByEmail.get(email);
+    let status = 'available';
+    if (candidate.portal_user_id && (!user || user.id !== candidate.portal_user_id)) status = 'conflict';
+    else if (user && candidate.portal_user_id === user.id) status = 'linked';
+    else if (user) status = 'has_account';
+    return {
+      employee_id: candidate.employee_id,
+      full_name: String(candidate.full_name || '').trim(),
+      email,
+      status,
+      user_id: user?.id || null,
+    };
+  });
+}
+
+async function findUsersByEmail(emails) {
+  const existingByEmail = new Map();
+  if (!emails.length) return existingByEmail;
+  const [existing] = await pool.query(
+    `SELECT id, email FROM user_profiles WHERE email IN (${emails.map(() => '?').join(',')})`,
+    emails
+  );
+  existing.forEach((user) => existingByEmail.set(user.email.toLowerCase(), user));
+  return existingByEmail;
+}
+
+export async function listRhCandidatesForAccounts(authorization) {
+  const source = await listRhPortalCandidates(authorization);
+  const candidates = Array.isArray(source.data) ? source.data : [];
+  const emails = [...new Set(candidates.map((item) => String(item.email || '').trim().toLowerCase()))];
+  return {
+    data: classifyRhCandidates(candidates, await findUsersByEmail(emails)),
+    ambiguous: Array.isArray(source.ambiguous) ? source.ambiguous.length : 0,
+  };
+}
+
+// account sólo aplica al alta de un solo empleado (employeeId): permite que el
+// administrador elija rol, área, estado y, opcionalmente, la contraseña
+// temporal. Sin account se conserva el comportamiento masivo (viewer, sin área).
+export async function provisionRhUsers(authorization, { dryRun = false, employeeId = null, account = null } = {}) {
   const source = await listRhPortalCandidates(authorization);
   const allCandidates = Array.isArray(source.data) ? source.data : [];
   const candidates = selectProvisioningCandidates(allCandidates, employeeId);
@@ -26,14 +70,11 @@ export async function provisionRhUsers(authorization, { dryRun = false, employee
     throw error;
   }
   const emails = [...new Set(candidates.map((item) => String(item.email || '').trim().toLowerCase()))];
-  const existingByEmail = new Map();
-  if (emails.length) {
-    const [existing] = await pool.query(
-      `SELECT id, email FROM user_profiles WHERE email IN (${emails.map(() => '?').join(',')})`,
-      emails
-    );
-    existing.forEach((user) => existingByEmail.set(user.email.toLowerCase(), user));
-  }
+  const existingByEmail = await findUsersByEmail(emails);
+  const settings = employeeId !== null && employeeId !== undefined && account ? account : {};
+  const role = settings.role || 'viewer';
+  const accessAreaId = settings.accessAreaId || null;
+  const isActive = settings.isActive === false ? 0 : 1;
 
   if (dryRun) {
     const toCreate = [];
@@ -73,16 +114,18 @@ export async function provisionRhUsers(authorization, { dryRun = false, employee
       }
       if (!user) {
         const id = randomUUID();
-        const temporaryPassword = generateTemporaryPassword();
+        const temporaryPassword = settings.password || generateTemporaryPassword();
         await connection.query(
           `INSERT INTO user_profiles
             (id,email,password_hash,password_change_required,full_name,role,access_area_id,physical_area_id,is_active)
-           VALUES (?,?,?,1,?,'viewer',NULL,NULL,1)`,
-          [id, email, await bcrypt.hash(temporaryPassword, 10), String(candidate.full_name || '').trim()]
+           VALUES (?,?,?,1,?,?,?,NULL,?)`,
+          [id, email, await bcrypt.hash(temporaryPassword, 10), String(candidate.full_name || '').trim(), role, accessAreaId, isActive]
         );
         user = { id, email };
         existingByEmail.set(email, user);
-        credentials.push({ full_name: candidate.full_name, email, temporary_password: temporaryPassword });
+        // Si el administrador escribió la contraseña ya la conoce: no se
+        // devuelve de nuevo en la respuesta.
+        credentials.push({ id, full_name: candidate.full_name, email, temporary_password: settings.password ? null : temporaryPassword });
       }
       links.push({ employee_id: candidate.employee_id, user_id: user.id, email });
     }
