@@ -4,3 +4,8 @@ dist/
 .env
 .env.docker
 !.env.docker.example
+# Publicación por releases (MRTI-Platform release.mjs); dist es un symlink
+dist
+releases/
+build-local/
+.dist-*

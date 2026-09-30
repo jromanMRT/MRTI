@@ -1,3 +1,4 @@
+import { propagationHeaders } from '../vendor/mrti-platform/request-context.js';
 const SOURCES = [
   { code: 'rh', url: () => `${process.env.MRTI_RH_URL || 'http://127.0.0.1:3004'}/api/rh/audit-events` },
   { code: 'activos', url: () => `${process.env.MRTI_ASSETS_URL || 'http://127.0.0.1:3003'}/api/activos/audit-events` },
@@ -10,7 +11,7 @@ export async function fetchRemoteAuditEvents(authorization, limit = 200) {
   const settled = await Promise.all(SOURCES.map(async (source) => {
     try {
       const response = await fetch(`${source.url()}?limit=${limit}`, {
-        headers: { Authorization: authorization },
+        headers: propagationHeaders({ Authorization: authorization }),
         signal: AbortSignal.timeout(3500),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

@@ -1,12 +1,14 @@
+import { propagationHeaders } from './vendor/mrti-platform/request-context.js';
+
 const RH_URL = process.env.MRTI_RH_URL || 'http://127.0.0.1:3004';
 
 async function request(path, authorization, options = {}) {
   const response = await fetch(`${RH_URL}/api/rh${path}`, {
     ...options,
-    headers: {
+    headers: propagationHeaders({
       Authorization: authorization,
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-    },
+    }),
     signal: AbortSignal.timeout(10000),
   });
   const body = await response.json().catch(() => ({}));

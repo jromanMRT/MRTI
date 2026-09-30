@@ -1,3 +1,5 @@
+import { propagationHeaders } from './vendor/mrti-platform/request-context.js';
+
 const MRTI_OBS_URL = process.env.MRTI_OBS_URL || process.env.MRTI_INFRA_URL || 'http://127.0.0.1:3002';
 const TIMEOUT_MS = 3000;
 
@@ -9,10 +11,10 @@ const TIMEOUT_MS = 3000;
 async function fetchJson(path, { authorizationHeader, method = 'GET', body } = {}) {
   const response = await fetch(`${MRTI_OBS_URL}${path}`, {
     method,
-    headers: {
+    headers: propagationHeaders({
       ...(authorizationHeader ? { Authorization: authorizationHeader } : {}),
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-    },
+    }),
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });

@@ -15,8 +15,13 @@ npm run dev
 
 ```bash
 npm ci
-npm run build
+npm run build              # genera y verifica releases/<id>/, no publica
+npm run release:promote    # publica el release (symlink dist → releases/<id>)
+npm run release:rollback   # vuelve al release anterior
 ```
+
+`npm run release` hace build y publicación en un paso. Detalle en
+`MRTI-Platform/README.md`.
 
 Nginx sirve `dist/` en la raíz `/` y centraliza los módulos:
 

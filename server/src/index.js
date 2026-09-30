@@ -10,12 +10,14 @@ import { brandAssetRouter } from './portal/brandAssetRoutes.js';
 import { notificationRouter } from './portal/notificationRoutes.js';
 import { companyNewsRouter } from './portal/companyNewsRoutes.js';
 import { companyHomeRouter } from './portal/companyHomeRoutes.js';
+import { requestContext } from './vendor/mrti-platform/request-context.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3005);
 
 app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
+app.use(requestContext({ service: 'mrti-core-api' }));
 app.use(helmet({
   strictTransportSecurity: false,
   crossOriginResourcePolicy: { policy: 'same-site' },

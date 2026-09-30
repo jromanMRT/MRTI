@@ -1,3 +1,4 @@
+import { propagationHeaders } from '../vendor/mrti-platform/request-context.js';
 const OPEN_TICKET_STATUSES = new Set([
   'NEW',
   'OPEN',
@@ -17,7 +18,7 @@ function ticketsUrl(path) {
 async function fetchTicketSource(path, authorization) {
   try {
     const response = await fetch(ticketsUrl(path), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -153,7 +154,7 @@ export async function fetchAssetNotifications({ authorization, canOpenAssets }) 
   }
   try {
     const response = await fetch(assetsUrl('/api/activos-suite/license-notifications'), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -169,7 +170,7 @@ export async function fetchAssetNotifications({ authorization, canOpenAssets }) 
 async function fetchRhSource(path, authorization) {
   try {
     const response = await fetch(rhUrl(path), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -212,7 +213,7 @@ export async function fetchRhNotifications({ authorization, canOpenRh }) {
 export async function fetchLegalNotifications({ authorization, canOpenLegal }) {
   try {
     const response = await fetch(legalUrl('/api/legal-self/notifications'), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

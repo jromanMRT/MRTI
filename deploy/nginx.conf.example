@@ -1,4 +1,9 @@
 # Portal MRTI en / y MRTI-Obs en /mrti-obs/.
+#
+# X-Request-Id: Nginx genera $request_id por solicitud y lo envía a cada API;
+# los backends lo registran y lo reenvían a Core (MRTI-Platform
+# request-context.js), así una solicitud se sigue entre módulos con un solo id.
+# Los directorios dist/ son symlinks a releases/<id>/ (MRTI-Platform release.mjs).
 server {
     listen 80;
     server_name _;
@@ -27,6 +32,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     # Servicios propios del portal (catálogo, auditoría y próximas funciones
@@ -37,6 +43,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     location /api/ {
@@ -45,6 +52,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     # API de MRTI Tickets. El prefijo público se elimina antes de enviar
@@ -55,6 +63,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     location = /mrti-infra {
@@ -84,6 +93,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     location = /activos {
@@ -102,6 +112,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     location = /rh {
@@ -122,6 +133,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     location = /mrti-legal {
@@ -144,6 +156,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
     }
 
     # El Core de agentes conserva su puerto porque sus enlaces y endpoints
