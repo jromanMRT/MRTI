@@ -127,6 +127,45 @@ server {
     # API de MRTI Legal. Mismo patrón que /rh-api/. Pendiente de activar en
     # el nginx real hasta que exista la base mrti_legal (ver README de
     # MRTI-Legal §Pendientes) -- no descomentar/activar antes de eso.
+    # MRTI-SAP (código compras): lectura de SAP Business One.
+    location /compras-api/ {
+        proxy_pass http://127.0.0.1:3008/;
+        proxy_read_timeout 120s;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
+    }
+
+    location = /compras {
+        return 301 /compras/;
+    }
+
+    location ^~ /compras/ {
+        alias /var/www/mrt/MRTI/MRTI-SAP/dist/;
+        try_files $uri $uri/ /compras/index.html;
+    }
+
+    # MRTI-Mantenimiento: equipos, horómetros, planes y órdenes de trabajo.
+    location /mantenimiento-api/ {
+        proxy_pass http://127.0.0.1:3009/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-Id $request_id;
+    }
+
+    location = /mantenimiento {
+        return 301 /mantenimiento/;
+    }
+
+    location ^~ /mantenimiento/ {
+        alias /var/www/mrt/MRTI/MRTI-Mantenimiento/dist/;
+        try_files $uri $uri/ /mantenimiento/index.html;
+    }
+
     location /legal-api/ {
         proxy_pass http://127.0.0.1:3006/;
         proxy_set_header Host $host;
