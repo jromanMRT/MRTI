@@ -32,7 +32,8 @@ de navegación. Repetir la publicación no modifica usuarios, catálogo o datos.
 
 - Implementación: terminada.
 - Pruebas de contrato y navegador: terminadas.
-- Publicación y smoke: pendiente.
+- Publicación y smoke: terminados; commit `0060d56`, release
+  `20261002-151457-f315e3e-dirty` (build del mismo código antes del commit).
 
 Prueba acotada sin base de datos ni identidades reales:
 `cd server && node --test test/daniel-projects.test.js` (6/6).
@@ -46,6 +47,11 @@ errores JavaScript. Las 29 páginas (dashboard + 28 enlaces) respondieron 200.
 Evidencia local: `../run/daniel-projects-20261002/browser-results.json` y
 `browser.mjs`. No se crearon cuentas, datos ni tablas de prueba en producción.
 Build Vite, `node --check` y `git diff --check` aprobados.
+
+Smoke publicado por Nginx: dashboard y bundle 200; catálogo y contenido sin
+sesión 401; token inválido 401. Health de Core 200 y PM2 online tras reinicio.
+La apertura autenticada se probó con identidad simulada en servidor aislado;
+no se usó ni creó una cuenta productiva. No cambiaron dependencias.
 
 ## Publicación y rollback
 
