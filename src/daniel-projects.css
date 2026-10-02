@@ -1,0 +1,5 @@
+.daniel-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.daniel-toolbar span { overflow-wrap: anywhere; }
+.daniel-project-frame { display: block; width: 100%; height: 76dvh; min-height: 480px; border: 1px solid var(--border, #ddd); border-radius: 12px; background: #fff; }
+.daniel-workspace { min-width: 0; }
+@media (max-width: 600px) { .daniel-project-frame { height: 78dvh; min-height: 400px; } }
