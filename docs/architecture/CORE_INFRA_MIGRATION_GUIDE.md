@@ -827,12 +827,34 @@ Actualizar una fila solo con evidencia verificable.
 
 | Core. Acceso al dashboard de proyectos de Daniel | Publicada | 2026-10-02 | Core `0060d56`, release `20261002-151457-f315e3e-dirty`. Botón en Acciones rápidas y menú lateral hacia `/dashboard?view=daniel-projects`; reutiliza el lanzador y 28 HTML existentes mediante lecturas autenticadas sólo de administrador y lista cerrada. Visor sandbox aislado de la sesión; sin sustituir módulos, copiar datos ni modificar originales. No aplica migración de datos. Contrato aislado 6/6, Chromium con identidad simulada: 12 tarjetas, diez apps principales, búsqueda/regreso en 1440/390 px, aislamiento de almacenamiento y navegación existente, cero errores JS; 29/29 archivos 200. Build/sintaxis/diff correctos; smoke Nginx dashboard/bundle 200, sin sesión/token inválido 401, Core health 200 y PM2 online. Sin cuentas productivas de prueba. Rollback al release `20261001-091649-20cf19d`; detalles en `docs/DANIEL_PROJECTS.md`. |
 
+Registro de cierre adicional de §9 — **2026-10-05, fusión puntual RH/CONTPAQi completada**:
+RH `c09c1d3`, evidencia `585bdda`; Activos `60109fa`. Correspondencias confirmadas
+por el usuario: RH-0001 (2017) → MineWorks 2055 (2039), RH-0003 (2056) →
+MineWorks 2063 (2058). Se trasladaron nota, correo corporativo verificado,
+UUID existente y caso de incorporación (siete tareas intactas), conservando
+los datos originales de CONTPAQi. Activos migró sólo la referencia de TI-00110
+y su asignación abierta, sin nueva entrega/devolución. Snapshots transaccionales,
+auditoría y alias compatibles; sólo se retiraron las dos filas duplicadas
+autorizadas, ninguna tabla ni endpoint. RH 181 pruebas aprobadas/5 opt-in
+omitidas; Activos 167. Ensayos con rollback, instalación repetida, segunda
+aplicación sin cambios y reversión ensayada después de aplicar, correctos.
+Integración HTTP local del router real: ambos IDs antiguos resuelven 200 a
+la ficha canónica; datos protegidos comparados contra respaldos privados.
+Smoke Nginx: RH/frontend y health de RH/Activos/Core 200, rutas antiguas sin
+sesión 401. RH reiniciado, sin cambio de frontend ni build necesario; no se
+crearon cuentas de prueba ni se afirma login humano verificado. Cambios
+locales ajenos de firmas de correo preservados. Rollback y evidencia en
+`MRTI-RH/docs/EMPLOYEE_MERGE_20261005.md` y
+`MRTI-Activos/docs/RH_REFERENCE_MERGE_20261005.md`; respaldos 0600 en
+`run/employee-merge-20261005/`. Sin push.
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
 
 | Fecha | Decisión | Motivo | Consecuencia |
 |---|---|---|---|
+| 2026-10-05 | Conservar las dos fichas importadas de CONTPAQi y trasladar información manual sólo tras confirmar las correspondencias | El usuario confirmó RH-0001/2055 y RH-0003/2063 y pidió quedarse con los originales | RH conserva IDs 2039/2058 y el UUID de Core sin recrearlo; retira los duplicados con snapshots privados y alias de rutas. Activos actualiza sus referencias dentro de su propia base, preservando el movimiento patrimonial. La migración rechaza conflictos o relaciones nuevas no revisadas, es repetible y tiene rollback probado. No escribe en CONTPAQi ni modifica cuentas, contraseñas o permisos en Core. |
 | 2026-09-08 | Separar estrictamente la baja laboral de la devolución física: una renuncia no da de baja el activo y un equipo pendiente continúa asignado hasta su recepción comprobada | Limpiar al responsable al registrar la renuncia borraría la responsabilidad precisamente durante la ventana de mayor riesgo; usar “Baja” para la persona y el equipo mezclaría dos ciclos de vida distintos | RH marca la baja y Activos la detecta por API. Sólo `returned` cierra la asignación; `pending` y `not_returned` conservan al responsable. Al recibir, el operador elige disponible, mantenimiento o baja del hardware, se conserva evidencia/historial y el estado patrimonial se sincroniza con ActivosTI |
 | 2026-09-07 | Mantener cumpleaños y eventos de oficina en RH, calculando los primeros desde la fecha laboral y filtrándolos por fuente vigente; la pantalla de recepción sigue requiriendo sesión | RH ya es propietario de la fecha de nacimiento y de la relación laboral por empresa. Copiar cumpleaños a otra tabla se desincronizaría, y publicar una cartelera anónima expondría nombres de empleados fuera del control de acceso | El API sólo entrega nombre, ocurrencia anual y fuente: nunca edad ni año de nacimiento. Minera Río Tinto es el alcance inicial para evitar mostrar los 341 cumpleaños; el usuario puede activar cualquier empresa relacionada y sus filtros quedan locales al navegador. Los eventos manuales sí se persisten en RH, con UUID estable de Core como referencia sin FK entre bases |
 | 2026-08-05 | Mantener `MRTI Infra` como nombre | Es correcto para topología y monitoreo | Se extraerán identidad y permisos a Core |
