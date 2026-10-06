@@ -3,7 +3,6 @@ import './header-navigation.css';
 import { renderPublicHome, renderNewsDetail } from './public-home.js';
 import './style.css';
 import './ticket-self-service.css';
-import { mountDanielProjects } from './daniel-projects.js';
 
 const app = document.querySelector('#app');
 const FALLBACK_MODULES = [
@@ -486,7 +485,6 @@ function shellMarkup(profile, content) {
       <nav class="primary-nav" aria-label="Navegación principal">
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
         <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></button>
-        ${isAdministrator(profile) ? '<a class="primary-nav-link" href="/dashboard?view=daniel-projects"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-label">Proyectos de Daniel</span></a>' : ''}
       </nav>
       <div class="sidebar-footer">
         ${themeToggleMarkup()}
@@ -673,16 +671,6 @@ function bindShell(profile) {
 // para llevar al usuario directo a esa pantalla de Core (ver bindShell) en
 // lugar de dejarlo parado en el dashboard con un clic extra por dar.
 function renderPortal(profile, requestedView = new URLSearchParams(window.location.search).get('view'), requestedPanel = new URLSearchParams(window.location.search).get('panel')) {
-  if (requestedView === 'daniel-projects') {
-    window.history.replaceState({}, '', '/dashboard?view=daniel-projects');
-    document.title = 'MRTI | Proyectos de Daniel';
-    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel daniel-workspace"><p class="section-label">Biblioteca de proyectos</p><h1>Proyectos de Daniel</h1><div id="daniel-projects"></div></section>`);
-    bindShell(profile);
-    document.querySelector('#home-button')?.classList.remove('active');
-    document.querySelector('a[href="/dashboard?view=daniel-projects"]')?.classList.add('active');
-    void mountDanielProjects({ container: document.querySelector('#daniel-projects'), api, userId: profile.id });
-    return;
-  }
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
   const deniedModule = portalApplications.find((module) => module.code === deniedCode);
   window.history.replaceState({}, '', '/dashboard');
@@ -696,7 +684,6 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
     { action: 'new-ticket', icon: '+', title: 'Nuevo ticket', copy: 'Reporta cualquier necesidad mediante Tickets.' },
     { href: '#tickets-dashboard', icon: 'T', title: 'Mis tickets', copy: 'Consulta aquí su avance y prioridad.' },
     { href: '#assets-dashboard', icon: 'A', title: 'Mis activos', copy: 'Consulta el equipo que tienes asignado.' },
-    isAdministrator(profile) && { href: '/dashboard?view=daniel-projects', icon: '▦', title: 'Proyectos de Daniel', copy: 'Explora el dashboard y abre los proyectos guardados.' },
   ].filter(Boolean);
   app.innerHTML = shellMarkup(profile, `
     ${banner}

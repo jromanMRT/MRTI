@@ -10,7 +10,6 @@ import { brandAssetRouter } from './portal/brandAssetRoutes.js';
 import { notificationRouter } from './portal/notificationRoutes.js';
 import { companyNewsRouter } from './portal/companyNewsRoutes.js';
 import { companyHomeRouter } from './portal/companyHomeRoutes.js';
-import { danielProjectRouter } from './portal/danielProjectRoutes.js';
 import { requestContext } from './vendor/mrti-platform/request-context.js';
 
 const app = express();
@@ -50,7 +49,6 @@ app.use('/api/portal/v1', brandAssetRouter);
 app.use('/api/portal/v1', notificationRouter);
 app.use('/api/portal/v1', companyNewsRouter);
 app.use('/api/portal/v1', companyHomeRouter);
-app.use('/api/portal/v1', danielProjectRouter);
 
 // Ruta de diagnóstico interno para probar tokens emitidos por Core/Infra de
 // forma intercambiable durante la Fase 1. No forma parte del contrato público.

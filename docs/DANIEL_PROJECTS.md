@@ -64,3 +64,22 @@ commit de esta función, seguido de `pm2 restart mrti-core-api`. No hay tablas,
 identificadores ni datos que restaurar; los HTML originales quedan intactos.
 Las claves locales `mrti_daniel_project:*` pueden conservarse para reactivar
 la vista posteriormente. No se hace push.
+
+## Retiro — 2026-10-06
+
+A petición del usuario, el visor se retira: lo valioso de los prototipos quedó
+integrado en MRTI-RH (ver `MRTI-RH/docs/EVALUACION_APLICACIONES_DANIEL.md`) y
+la carpeta `Applicaciones_Daniel` sale del árbol de MRTI hacia
+`/home/mrtcorporativo/archivo/Applicaciones_Daniel` (fuera de `/var/www`,
+porque contiene datos laborales y salariales incrustados).
+
+Se eliminan el enlace del menú, la acción rápida, la vista
+`?view=daniel-projects` (un marcador viejo abre el dashboard normal), las rutas
+`/api/portal/v1/daniel-projects*`, su lista cerrada y su prueba. No hay datos ni
+tablas involucradas.
+
+Publicación: release de Core y reinicio de `mrti-core-api` para desmontar las
+rutas. Mientras no se reinicie, las rutas viejas responden 404 "no disponible"
+porque la carpeta ya no está en la ruta configurada.
+Rollback: `git revert` de este commit, publicar y reiniciar; para volver a
+servir los archivos, `DANIEL_PROJECTS_DIR=/home/mrtcorporativo/archivo/Applicaciones_Daniel/PROYECTOS`.
