@@ -849,6 +849,7 @@ locales ajenos de firmas de correo preservados. Rollback y evidencia en
 `run/employee-merge-20261005/`. Sin push.
 
 | Core. Retiro del visor Proyectos de Daniel | Completa y publicada | 2026-10-06 | Código existente `8a74a68`; release `20261006-145311-8a74a68`, API reiniciada y online. Build, sintaxis y diff correctos; portal/dashboard/bundle/health 200; ambas rutas del visor 404; bundle activo sin enlace ni integración. Sin migración de datos. Evidencia y rollback en `docs/DANIEL_PROJECTS.md`. |
+| Core + Tickets. Selección administrativa de equipo afectado | Completa y publicada | 2026-10-06 | Core `3f0fa35`; Tickets `4d06eb8`. En Crear ticket y Nuevo ticket del Dashboard, sólo administrador busca por código/nombre/área y elige equipos de Activos o Monitor, incluso de otra persona/área. Servidor vuelve a resolver el catálogo: solicitante, equipo habitual y ubicación de origen siguen perteneciendo a quien crea el ticket. Rol no administrador recibe 403 si manipula el campo; equipo inexistente 400. Sin migración, FK, reasignación ni datos de prueba. Core 3 pruebas, Tickets 60 backend + 3 frontend, builds y 8 escenarios Chromium aprobados. Publicado Core release `20261006-150447-3f0fa35`, pm2 online; contenedores Tickets recreados desde imágenes respaldadas. Smoke: web/health 200, rutas protegidas sin sesión 401. Rollback en `MRTI-Tickets/docs/ADMIN_TICKET_EQUIPMENT.md`. |
 
 ## 10. Registro de decisiones
 
