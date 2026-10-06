@@ -848,6 +848,8 @@ locales ajenos de firmas de correo preservados. Rollback y evidencia en
 `MRTI-Activos/docs/RH_REFERENCE_MERGE_20261005.md`; respaldos 0600 en
 `run/employee-merge-20261005/`. Sin push.
 
+| Core. Retiro del visor Proyectos de Daniel | Completa y publicada | 2026-10-06 | Código existente `8a74a68`; release `20261006-145311-8a74a68`, API reiniciada y online. Build, sintaxis y diff correctos; portal/dashboard/bundle/health 200; ambas rutas del visor 404; bundle activo sin enlace ni integración. Sin migración de datos. Evidencia y rollback en `docs/DANIEL_PROJECTS.md`. |
+
 ## 10. Registro de decisiones
 
 No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencias.
@@ -1036,6 +1038,8 @@ No reabrir una decisión sin añadir una entrada nueva con motivo y consecuencia
 | 2026-10-02 | Crear MRTI-Mantenimiento como módulo propio en vez de sección de MRTI-SAP | MRTI-SAP sólo lee SAP; horómetros, planes y órdenes son datos que se capturan en MRTI y necesitan un dueño (condición 1 de `SERVICE_BOUNDARIES.md`) | Repositorio `MRTI-Mantenimiento`, base `mrti_mantenimiento`; consume el costo de MRTI-SAP por HTTP; Activos conserva el mantenimiento de activos de TI. |
 
 | 2026-10-02 | Dar acceso de consulta a los prototipos de Daniel sin sustituir funciones de RH ni convertirlos en módulos operativos | El usuario corrigió explícitamente el alcance a un botón para explorar los proyectos guardados; algunos HTML incluyen datos laborales/salariales y código independiente | Core ofrece acceso sólo a administradores mediante API de lectura con lista cerrada; los HTML se ejecutan en sandbox sin acceso a la sesión del portal. Los originales permanecen en su carpeta y los cambios de cada prototipo sólo se conservan en almacenamiento local separado por usuario/archivo. No hay migración de datos, eliminación, copia de maestros ni nueva autoridad de identidad. Core `0060d56`. |
+
+| 2026-10-06 | Completar la publicación del retiro de Proyectos de Daniel solicitado por el usuario | El código ya lo retiraba en `8a74a68`, pero seguía publicado el frontend anterior | Se publica el release del retiro y se reinicia únicamente Core. No se modifican RH ni archivos archivados; enlaces antiguos muestran el dashboard normal. |
 
 ## 11. Definición final de terminado
 

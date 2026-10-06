@@ -83,3 +83,15 @@ rutas. Mientras no se reinicie, las rutas viejas responden 404 "no disponible"
 porque la carpeta ya no está en la ruta configurada.
 Rollback: `git revert` de este commit, publicar y reiniciar; para volver a
 servir los archivos, `DANIEL_PROJECTS_DIR=/home/mrtcorporativo/archivo/Applicaciones_Daniel/PROYECTOS`.
+
+### Publicación del retiro verificada — 2026-10-06
+
+Se publicó el commit existente `8a74a68` mediante el release
+`20261006-145311-8a74a68` y se reinició `mrti-core-api` (online).
+Build Vite, `node --check` de frontend/servidor y `git diff --check` correctos.
+Smoke por Nginx: portal, bundle, dashboard con marcador antiguo y health 200;
+ambas rutas `daniel-projects` 404. El bundle activo no contiene el enlace ni
+la integración. No se crearon fixtures ni se modificaron datos.
+Rollback de frontend: `npm run release:promote -- 20261002-151457-f315e3e-dirty`;
+para restaurar la integración completa también se debe revertir `8a74a68`,
+configurar la carpeta archivada indicada arriba y reiniciar Core.
