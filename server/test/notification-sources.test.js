@@ -34,7 +34,7 @@ test('omite tickets cerrados de las asignaciones personales', () => {
   assert.deepEqual(items, []);
 });
 
-test('avisa a quien reportó el ticket cuando se resuelve, se reabre o esperan su respuesta', () => {
+test('avisa a quien reportó el ticket sólo cuando debe dar seguimiento', () => {
   const recent = new Date(Date.now() - 1000).toISOString();
   const items = normalizeTicketNotifications({
     userId: 'user-2',
@@ -42,19 +42,20 @@ test('avisa a quien reportó el ticket cuando se resuelve, se reabre o esperan s
     ownTickets: [
       { id: 11, folio: 'TK-11', title: 'Falla de red', requester_id: 'user-2', status_code: 'RESOLVED', updated_at: recent },
       { id: 12, folio: 'TK-12', title: 'Acceso a sistema', requester_id: 'user-2', status_code: 'ON_HOLD_USER', updated_at: recent },
-      { id: 13, folio: 'TK-13', title: 'Todavía en curso', requester_id: 'user-2', status_code: 'IN_PROGRESS', updated_at: recent },
+      { id: 13, folio: 'TK-13', title: 'Todavía en curso', requester_id: 'user-2', status_code: 'REOPENED', updated_at: recent },
+      { id: 14, folio: 'TK-14', title: 'Cerrado', requester_id: 'user-2', status_code: 'CLOSED', updated_at: recent },
     ],
   });
-  assert.deepEqual(items.map(({ id }) => id).sort(), ['requester-ticket:11', 'requester-ticket:12']);
+  assert.deepEqual(items.map(({ id }) => id).sort(), ['requester-ticket:12', 'requester-ticket:13']);
   // Sin acceso al módulo completo (el caso normal de quien sólo reporta),
   // el enlace lleva a "Mis tickets" en el home de Core, no al detalle operativo.
   assert.ok(items.every((item) => item.href === '/#tickets-dashboard'));
 });
 
-test('deja de avisar sobre un ticket resuelto hace más de una semana', () => {
+test('no avisa sobre un ticket resuelto, aunque el cambio sea reciente', () => {
   const items = normalizeTicketNotifications({
     userId: 'user-2',
-    ownTickets: [{ id: 14, requester_id: 'user-2', status_code: 'RESOLVED', updated_at: '2020-01-01T00:00:00Z' }],
+    ownTickets: [{ id: 14, requester_id: 'user-2', status_code: 'RESOLVED', updated_at: new Date().toISOString() }],
   });
   assert.deepEqual(items, []);
 });

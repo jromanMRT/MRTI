@@ -41,19 +41,16 @@ function slaUrgencyLabel(ticket) {
   return null;
 }
 
-// Quien reporta un ticket antes no se enteraba de nada salvo que volviera a
-// entrar a "Mis tickets" -- a diferencia de "assigned" (arriba), aquí sí hace
-// falta una ventana de tiempo: CLOSED es un estado permanente, y sin ella un
-// ticket cerrado hace meses seguiría apareciendo en la campanilla para
-// siempre.
-const REQUESTER_ATTENTION_STATUSES = new Set(['RESOLVED', 'CLOSED', 'ON_HOLD_USER', 'REOPENED']);
-const REQUESTER_NOTICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+// La campanilla debe contener trabajo pendiente, no el historial completo del
+// solicitante. Resolver o cerrar ya concluye la gestión y se ve en “Mis
+// tickets”; mantenerlo como aviso durante días hace que parezca que aún falta
+// una acción. Sólo permanecen los estados que requieren seguimiento de quien
+// reportó el ticket.
+const REQUESTER_ATTENTION_STATUSES = new Set(['ON_HOLD_USER', 'REOPENED']);
 
 function requesterStatusLabel(ticket) {
   if (ticket.status_code === 'ON_HOLD_USER') return 'Necesitan información tuya';
-  if (ticket.status_code === 'REOPENED') return 'Se reabrió';
-  if (ticket.status_code === 'CLOSED') return 'Se cerró';
-  return 'Se resolvió';
+  return 'Se reabrió';
 }
 
 export function normalizeTicketNotifications({ ownTickets = [], teamTickets = [], userId, canOpenTickets }) {
@@ -82,8 +79,7 @@ export function normalizeTicketNotifications({ ownTickets = [], teamTickets = []
     .filter((ticket) => String(ticket.requester_id || '') === String(userId)
       && !assignedIds.has(String(ticket.id))
       && REQUESTER_ATTENTION_STATUSES.has(ticket.status_code)
-      && ticket.updated_at
-      && (Date.now() - new Date(ticket.updated_at).getTime()) < REQUESTER_NOTICE_WINDOW_MS)
+      && ticket.updated_at)
     .map((ticket) => ({
       id: `requester-ticket:${ticket.id}`,
       ticket_id: String(ticket.id),
