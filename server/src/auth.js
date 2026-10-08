@@ -9,7 +9,10 @@ import { personalizationRouter } from './auth/personalizationRoutes.js';
 
 // Composición del módulo de identidad:
 // sesiones públicas, cuenta personal y administración de usuarios.
+import { accessPolicyRouter } from './auth/accessPolicyRoutes.js';
+
 export const authRouter = Router();
+authRouter.use(accessPolicyRouter);
 authRouter.use(sessionRouter);
 authRouter.use(profileRouter);
 authRouter.use(userAdminRouter);

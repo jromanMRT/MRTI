@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { attachAccessPolicy } from './accessPolicy.js';
 import { pool } from '../db.js';
 import { JWT_SECRET } from '../config/security.js';
 import { getPhysicalArea } from '../infraClient.js';
@@ -43,7 +44,7 @@ export async function findProfileIdentity(userId) {
   if (profile.role === 'administrator') {
     const [applications] = await pool.query("SELECT code FROM applications WHERE status <> 'inactive' ORDER BY sort_order, name");
     profile.allowed_modules = normalizeModuleCodes(applications.map(({ code }) => code));
-    return profile;
+    return attachAccessPolicy(profile);
   }
   const [modules] = await pool.query(
     `SELECT aam.module_code
@@ -55,7 +56,7 @@ export async function findProfileIdentity(userId) {
   profile.allowed_modules = normalizeModuleCodes(
     modules.map(({ module_code: moduleCode }) => moduleCode)
   );
-  return profile;
+  return attachAccessPolicy(profile);
 }
 
 // Perfil completo: identidad + nombre de área física/piso/edificio/sitio,
@@ -94,7 +95,8 @@ export async function authRequired(req, res, next) {
     }
     req.user = profile;
     next();
-  } catch {
+  } catch (error) {
+    if (!['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) return res.status(503).json({ error: 'No se pudo validar la identidad y los permisos' });
     return res.status(401).json({ error: 'Sesión inválida o expirada' });
   }
 }

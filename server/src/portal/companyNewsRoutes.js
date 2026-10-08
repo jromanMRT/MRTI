@@ -1,3 +1,4 @@
+import { permissionFor, levelAllows } from '../vendor/mrti-platform/permissions.js';
 import { createHash, randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import express, { Router } from 'express';
@@ -40,7 +41,7 @@ function httpError(status, message) {
 // Administradores globales y cualquier persona con acceso al módulo RH (el
 // equipo que en la práctica redacta los avisos de la empresa).
 function newsManagerOnly(req, res, next) {
-  if (req.user?.role === 'administrator' || req.user?.allowed_modules?.includes('rh')) return next();
+  if (levelAllows(permissionFor(req.user, 'rh', 'news'), req.method)) return next();
   return res.status(403).json({ error: 'Sólo Recursos Humanos o un administrador global pueden gestionar noticias de la empresa' });
 }
 
@@ -109,7 +110,7 @@ async function canManageNews(req) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const profile = await findProfileIdentity(payload.sub);
-    return Boolean(profile?.is_active) && (profile.role === 'administrator' || profile.allowed_modules?.includes('rh'));
+    return Boolean(profile?.is_active) && levelAllows(permissionFor(profile, 'rh', 'news'), 'GET');
   } catch {
     return false;
   }
