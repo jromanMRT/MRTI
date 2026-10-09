@@ -1,5 +1,5 @@
 import './access-control-permissions.css';
-const labels = { administrator: 'Administrador', supervisor: 'Supervisor', technician: 'Técnico', viewer: 'Consulta' };
+let labels = { administrator: 'Administrador', supervisor: 'Supervisor', technician: 'Técnico', viewer: 'Consulta' };
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 
 export async function mountPermissionControl(root, { api, users }) {
@@ -7,6 +7,7 @@ export async function mountPermissionControl(root, { api, users }) {
   root.innerHTML = '<p role="status">Cargando roles y permisos…</p>';
   try { state = await api('/api/auth/permissions/admin'); }
   catch (error) { root.innerHTML = `<p class="notice error">${esc(error.message)}</p>`; return; }
+  labels = { ...labels, ...(state.role_labels || {}) };
   const option = (value, label, current) => `<option value="${esc(value)}" ${value === current ? 'selected' : ''}>${esc(label)}</option>`;
   const levelOptions = (current = '') => option('', 'Heredar', current) + Object.entries(state.levels).map(([v, label]) => option(v, label, current)).join('');
   const subject = () => state.policies.find((p) => p.subject_type === subjectType && p.subject_id === subjectId);

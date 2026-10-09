@@ -2,7 +2,7 @@ import { requestAllowed } from '../vendor/mrti-platform/permissions.js';
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { authRequired, findProfile } from './shared.js';
+import { authRequired, findProfile, USER_ROLES, USER_ROLE_LABELS } from './shared.js';
 import { recordAudit } from '../audit.js';
 import { getPhysicalArea, listPhysicalAreas } from '../infraClient.js';
 import { listAssignableAssets, setPrimaryAsset } from '../assetsClient.js';
@@ -80,6 +80,8 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
     ]);
     const physicalAreaNameById = new Map(physicalAreas.map((area) => [area.id, area.name]));
     res.json({
+      roles: USER_ROLES,
+      role_labels: USER_ROLE_LABELS,
       modules: await moduleCatalog(),
       areas: areas.map((area) => ({
         ...area,

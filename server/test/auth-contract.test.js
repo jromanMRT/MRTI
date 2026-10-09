@@ -130,9 +130,11 @@ test('GET /api/auth/access-control — administrator => 200 con la forma esperad
   });
   assert.equal(response.status, 200);
   const body = await response.json();
-  for (const key of ['areas', 'modules', 'users', 'physical_areas', 'devices']) {
+  for (const key of ['areas', 'modules', 'users', 'physical_areas', 'devices', 'roles', 'role_labels']) {
     assert.ok(key in body, `access-control debe incluir "${key}"`);
   }
+  assert.ok(body.roles.includes('approver'));
+  assert.equal(body.role_labels.auditor, 'Auditor');
 });
 
 test('GET /api/auth/assignees — incluye a cualquier usuario activo aunque aún no tenga acceso a Tickets', async () => {

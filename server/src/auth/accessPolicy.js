@@ -2,6 +2,12 @@ import { pool } from '../db.js';
 import { PERMISSION_CATALOG, LEVELS } from '../vendor/mrti-platform/permissions.js';
 
 export const parsePolicy = (value) => typeof value === 'string' ? JSON.parse(value) : (value || {});
+export const ROLE_DEFAULT_LEVELS = {
+  area_manager: 'write',
+  data_entry: 'write',
+  approver: 'read',
+  auditor: 'read',
+};
 export function validatePolicy(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('La política debe ser un objeto');
   const clean = {};
@@ -38,7 +44,9 @@ export function combinePolicies(role = {}, user = {}) {
 }
 export function applyPolicy(profile, rolePolicy, userPolicy, activeCodes) {
   if (profile.role === 'administrator') return { ...profile, access_policy: {}, access_policy_version: 1 };
-  const policy = combinePolicies(rolePolicy, userPolicy);
+  const defaultLevel = ROLE_DEFAULT_LEVELS[profile.role];
+  const defaults = defaultLevel ? Object.fromEntries(activeCodes.map((code) => [code, { level: defaultLevel }])) : {};
+  const policy = combinePolicies(combinePolicies(defaults, rolePolicy), userPolicy);
   const modules = new Set(profile.allowed_modules);
   for (const [code, config] of Object.entries(policy)) {
     if (config.access === false) modules.delete(code);

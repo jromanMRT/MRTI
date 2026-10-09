@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { authRequired, findProfileIdentity, USER_ROLES } from './shared.js';
+import { authRequired, findProfileIdentity, USER_ROLES, USER_ROLE_LABELS } from './shared.js';
 import { parsePolicy, validatePolicy } from './accessPolicy.js';
 import { PERMISSION_CATALOG, LEVEL_LABELS, permissionFor } from '../vendor/mrti-platform/permissions.js';
 
@@ -15,7 +15,7 @@ accessPolicyRouter.get('/permissions/admin', async (req, res, next) => {
   try {
     const [policies] = await pool.query('SELECT subject_type, subject_id, policy_json, revision, updated_at FROM access_policies');
     const [events] = await pool.query('SELECT id, subject_type, subject_id, actor_id, reason, created_at FROM access_policy_events ORDER BY id DESC LIMIT 50');
-    res.set('Cache-Control', 'no-store').json({ catalog: PERMISSION_CATALOG, levels: LEVEL_LABELS, roles: USER_ROLES, policies: policies.map((row) => ({ ...row, policy: parsePolicy(row.policy_json), policy_json: undefined })), events });
+    res.set('Cache-Control', 'no-store').json({ catalog: PERMISSION_CATALOG, levels: LEVEL_LABELS, roles: USER_ROLES, role_labels: USER_ROLE_LABELS, policies: policies.map((row) => ({ ...row, policy: parsePolicy(row.policy_json), policy_json: undefined })), events });
   } catch (error) { next(error); }
 });
 accessPolicyRouter.get('/permissions/admin/users/:id', async (req, res, next) => {

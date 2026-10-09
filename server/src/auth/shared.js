@@ -6,7 +6,17 @@ import { getPhysicalArea } from '../infraClient.js';
 const TOKEN_TTL = process.env.JWT_EXPIRES_IN || '7d';
 
 export const PROFILE_COLUMNS = 'id, user_number, email, full_name, role, access_area_id, physical_area_id, avatar_url, is_active, created_at, updated_at';
-export const USER_ROLES = ['administrator', 'supervisor', 'technician', 'viewer'];
+export const USER_ROLES = ['administrator', 'area_manager', 'supervisor', 'technician', 'data_entry', 'approver', 'auditor', 'viewer'];
+export const USER_ROLE_LABELS = {
+  administrator: 'Administrador',
+  area_manager: 'Responsable de área',
+  supervisor: 'Supervisor',
+  technician: 'Técnico',
+  data_entry: 'Capturista',
+  approver: 'Aprobador',
+  auditor: 'Auditor',
+  viewer: 'Consulta',
+};
 export const USER_MANAGERS = ['administrator', 'supervisor'];
 export const MODULE_CODES = ['mrti-obs', 'tickets', 'agent-core', 'activos', 'rh'];
 const LEGACY_MODULE_ALIASES = { 'mrti-infra': 'mrti-obs' };

@@ -360,7 +360,7 @@ async function refreshBrandAppearance() {
 }
 
 function roleName(role) {
-  return ({ administrator: 'Administrador', supervisor: 'Supervisor', technician: 'Técnico', viewer: 'Consulta' })[role] || role;
+  return ({ administrator: 'Administrador', area_manager: 'Responsable de área', supervisor: 'Supervisor', technician: 'Técnico', data_entry: 'Capturista', approver: 'Aprobador', auditor: 'Auditor', viewer: 'Consulta' })[role] || role;
 }
 
 function userIdentifier(userNumber) {
@@ -1654,7 +1654,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       <input name="description" value="${escapeHtml(area.description || '')}" placeholder="Descripción del área">
       <div class="module-options">${moduleChecks(data.modules, area.module_codes)}</div>
       <button class="secondary-button" type="submit">Guardar área</button></form>`).join('');
-    const roleOptions = (selected = 'viewer') => ['administrator', 'supervisor', 'technician', 'viewer']
+    const roleOptions = (selected = 'viewer') => (data.roles || ['administrator', 'supervisor', 'technician', 'viewer'])
       .map((role) => `<option value="${role}" ${role === selected ? 'selected' : ''}>${escapeHtml(roleName(role))}</option>`).join('');
     const areaOptions = (selected = '') => `<option value="">Sin área</option>${activeAreas
       .map((area) => `<option value="${area.id}" ${area.id === selected ? 'selected' : ''}>${escapeHtml(area.name)}</option>`).join('')}`;
@@ -1672,7 +1672,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     }
     function otherUserFormMarkup(user) {
       const identifier = userIdentifier(user.user_number);
-      return `<form class="user-editor" data-user-id="${user.id}">
+      return `<form class="user-editor" data-user-id="${user.id}" data-user-name="${escapeHtml(user.full_name)}" data-current-role="${escapeHtml(user.role)}">
         <div class="user-detail-heading"><strong>Datos de ${identifier}</strong><small>ID interno: ${escapeHtml(user.id)}</small></div>
         <div class="user-fields"><label>Nombre<input name="full_name" value="${escapeHtml(user.full_name)}" required></label><label>Correo<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
           <label>Rol<select name="role">${roleOptions(user.role)}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions(user.access_area_id || '')}</select></label>
@@ -1919,6 +1919,8 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       if (password !== String(values.get('confirmation') || '')) return window.alert('Las contraseñas no coinciden.');
       const payload = { full_name: values.get('full_name'), email: values.get('email'), role: values.get('role'), is_active: values.get('is_active') === 'on' };
       if (password) payload.password = password;
+      const warnings = [payload.role !== form.dataset.currentRole ? `cambiar el rol a ${roleName(payload.role)}` : '', !payload.is_active ? 'desactivar la cuenta' : '', password ? 'reemplazar la contraseña' : ''].filter(Boolean);
+      if (!window.confirm(`¿Guardar los cambios de ${form.dataset.userName}?${warnings.length ? `\n\nTambién se va a ${warnings.join(', ')}.` : ''}`)) return;
       try {
         await api(`/api/auth/users/${form.dataset.userId}`, { method: 'PATCH', body: JSON.stringify(payload) });
         await api(`/api/auth/users/${form.dataset.userId}/access-area`, { method: 'PATCH', body: JSON.stringify({ access_area_id: values.get('access_area_id') || null }) });
@@ -2060,7 +2062,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         if (!employeeId || !candidate) return window.alert('Elige un empleado de RH de la lista.');
         const workEmail = candidate.status === 'needs_email' ? String(values.get('email') || '').trim().toLowerCase() : null;
         if (workEmail !== null && !/^[^@\s]+@mrtcorporativo\.mx$/.test(workEmail)) return window.alert('Escribe un correo que termine en @mrtcorporativo.mx.');
-        if (workEmail && !window.confirm(`Se guardará ${workEmail} como correo corporativo confirmado en la ficha de RH de ${candidate.full_name} y se creará su cuenta. ¿Continuar?`)) return;
+        if (!window.confirm(`¿Crear la cuenta de ${candidate.full_name} con el rol ${roleName(accountSettings.role)}?${workEmail ? ` También se guardará ${workEmail} como correo corporativo confirmado en RH.` : ''} Podrás ajustar sus permisos individuales después.`)) return;
         submitButton.disabled = true;
         try {
           const result = await api('/api/auth/users/provision-rh', { method: 'POST', body: JSON.stringify({ dry_run: false, employee_id: employeeId, ...(workEmail ? { work_email: workEmail } : {}), ...accountSettings, ...(values.get('password') ? { password: values.get('password') } : {}) }) });
@@ -2075,6 +2077,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         } catch (error) { window.alert(error.message); submitButton.disabled = false; }
         return;
       }
+      if (!window.confirm(`¿Crear esta cuenta con el rol ${roleName(accountSettings.role)}? Podrás ajustar sus permisos individuales después.`)) return;
       try {
         const created = await api('/api/auth/users', { method: 'POST', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email'), password: values.get('password'), ...accountSettings }) });
         await api(`/api/auth/users/${created.profile.id}/location`, { method: 'PATCH', body: JSON.stringify(location) });
