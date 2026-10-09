@@ -1,5 +1,6 @@
 import { mountPublicSession } from './public-session.js';
 import './public-home.css';
+import { communityMarkup, mountCommunity } from './community-home.js';
 
 const DEFAULT_HOME_SETTINGS = {
   hero_eyebrow: 'Portal informativo',
@@ -197,12 +198,14 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
       <section class="public-hero-banner" id="public-home-hero">${heroBannerMarkup(DEFAULT_HOME_SETTINGS)}</section>
       <div class="public-facts-strip" id="public-home-facts" aria-label="Datos de la empresa">${factsStripMarkup(DEFAULT_HOME_SETTINGS.facts)}</div>
       <div id="public-carousel-container"></div>
+      ${communityMarkup()}
       <section class="home-news-section" id="home-news-section"><div class="section-heading"><div><p class="section-label" id="public-home-news-eyebrow">${escapeHtml(DEFAULT_HOME_SETTINGS.news_section_eyebrow)}</p><h2 id="public-home-news-title">${escapeHtml(DEFAULT_HOME_SETTINGS.news_section_title)}</h2></div></div>
         <div id="home-news-list" class="personal-loading">Cargando noticias…</div>
       </section>
       ${footerMarkup(escapeHtml(DEFAULT_HOME_SETTINGS.footer_tagline))}
     </main>`;
     bindPublicHeader();
+    mountCommunity();
     void loadHeroSettings();
     void loadHeroBackground();
     void loadPublicNews();

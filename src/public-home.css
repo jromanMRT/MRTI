@@ -145,6 +145,7 @@
 
 /* Página de una sola noticia */
 .public-detail-wrap { max-width: 1080px; margin: 0 auto 48px; }
+.core-home .news-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
 .news-detail .news-date-pill { margin-bottom: 14px; }
 .news-detail h1 { margin: 6px 0 20px; }
 .news-detail-image { margin: 0 0 20px; overflow: hidden; border-radius: 14px; }
