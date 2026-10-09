@@ -119,7 +119,17 @@ Variables de prueba visual: `COMMUNITY_BUILD_DIR`, `COMMUNITY_BROWSER_OUTPUT`,
 
 ## Publicación y rollback
 
-Publicación y commits se completan en el registro de cierre de este documento.
+Core `d6d4d43`; RH `0b396ff`. Migración 024 aplicada y segunda ejecución sin
+pendientes. Release Core `20261009-100345-d6d4d43-dirty` promovido sobre
+`20261009-092354-db9df87-dirty`; el sufijo `dirty` corresponde a cambios previos
+preservados en `src/main.js`/`src/public-session.js`, que ya estaban publicados.
+Se reiniciaron y guardaron sólo `mrti-core-api` y `mrti-rh-api` en PM2.
+
+Smoke publicado por Nginx: home, health y calendario 200; calendario real con
+32 cumpleaños y cero eventos; encuestas y bandeja sin sesión 401; alta anónima
+201 y consulta por folio/clave 200/`received`. Se retiraron reporte, contador y
+nonce temporales: 0 residuos. Los procesos quedaron online. Evidencia en
+`run/community-home-20261009/published-smoke.json` y logs del mismo directorio.
 
 Release anterior al trabajo: Core `20261009-092354-db9df87-dirty`.
 Los cambios previos en `src/main.js` y `src/public-session.js` ya estaban en ese
