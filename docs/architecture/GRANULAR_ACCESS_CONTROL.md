@@ -11,7 +11,9 @@ Niveles: `none` bloquea, `read` permite GET/HEAD/OPTIONS, `write` agrega POST/PU
 
 ## Propiedad y compatibilidad
 
-Core es el único propietario de `access_policies` y `access_policy_events` (migración aditiva 023, sin FK entre módulos). UUID, rol global y rutas antiguas se conservan. No se crean roles personalizados: se configuran los cuatro roles vigentes. El administrador global conserva acceso completo protegido.
+Core es el único propietario de `access_policies` y `access_policy_events` (migración aditiva 023, sin FK entre módulos). UUID, rol global y rutas antiguas se conservan. El administrador global conserva acceso completo protegido.
+
+Desde la migración aditiva 025 existen ocho roles base: Administrador, Responsable de área, Supervisor, Técnico, Capturista, Aprobador, Auditor y Consulta. Los cuatro valores históricos permanecen sin cambios y ninguna cuenta real fue reasignada durante la ampliación. Responsable de área y Capturista parten de lectura/escritura; Aprobador y Auditor parten de sólo consulta. Estos niveles se aplican únicamente dentro de los módulos ya permitidos por el área y pueden precisarse por rol, módulo, sección o UUID desde el editor. Son roles base fijos; las diferencias particulares se expresan mediante políticas, no creando variantes de rol.
 
 La excepción del usuario prevalece por campo y sección sobre el rol. «Heredar» en usuario vuelve al rol; sin regla de rol conserva los permisos anteriores del área y las reglas del módulo. `access: true` permite también habilitar un módulo activo para una cuenta cuyo área no lo tenía. Cuenta inactiva o aplicación inactiva siguen sin acceso. Guardar nivel general `none` y habilitar secciones es la forma de crear una lista explícita de acceso.
 
@@ -35,6 +37,7 @@ El editor exige motivo, guarda antes/después y actor en una transacción y rech
 - `MRTI-Mantenimiento@58e6b5c`
 - `MRTI-Agent@8323078`
 - `MRTI-Tickets@aa60c91`
+- Ampliación compatible de roles base: `MRTI@af4595f`, release `20261009-130516-af4595f-dirty`.
 
 Implementación inicial Core `373649b`, Platform `7f88163`; los hashes posteriores incluyen correcciones de rutas alternativas. Monitor `dfda3e0` agrega la prueba de aislamiento de eventos. El movimiento independiente de Web-Page quedó en RH `098d880` y Monitor `5b5b88d`. Sin push.
 
@@ -80,3 +83,5 @@ Tickets usa las imágenes `mrti-tickets-backend:permissions-20261008` y `mrti-ti
 6. Mantener Web-Page en Monitor al revertir permisos: es una solicitud independiente ya publicada.
 
 No borrar tablas/endpoints antiguos ni hacer push como parte de este rollback. Preservar los cambios ajenos en Core y Tickets.
+
+Para revertir sólo la ampliación de roles, primero reasignar cualquier cuenta que use `area_manager`, `data_entry`, `approver` o `auditor` a uno de los cuatro valores históricos; después promover `20261009-130302-f031500-dirty`, revertir `af4595f` y reiniciar Core. No reducir el `ENUM` mientras existan filas con un rol nuevo. La migración 025 puede conservarse aplicada durante un rollback de código porque es aditiva.
