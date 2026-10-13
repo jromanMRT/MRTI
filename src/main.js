@@ -874,6 +874,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
           <fieldset class="req-fieldset">
             <legend><span class="req-step">2</span> Puesto</legend>
             <label>Puesto solicitado<input id="req-position-name" name="position_name" maxlength="200" autocomplete="off" placeholder="Escribe para buscar en el catálogo" required><input type="hidden" name="position_id" id="req-position"><small>Elige una coincidencia del catálogo. Si no existe, solicita primero su alta y descriptivo a RH.</small></label>
+            <button id="req-create-position" type="button" class="secondary-button">El puesto no existe · Solicitar creación a RH</button>
             <div id="req-position-matches" class="personal-suggestions" hidden></div>
             <label id="req-new-position-unit" hidden>Unidad del nuevo puesto<select name="new_position_org_unit_id" id="req-org-unit"><option value="">Seleccionar unidad…</option></select></label>
           </fieldset>
@@ -1232,6 +1233,7 @@ async function bindRequisitionSelfService(profile) {
     replacementEmployee.innerHTML = `<option value="">Seleccionar colaborador…</option>${(catalogs.employees || []).map((employee) => `<option value="${employee.id}">${escapeHtml(employee.name)}${employee.job_title ? ` — ${escapeHtml(employee.job_title)}` : ''}</option>`).join('')}`;
     positionName.addEventListener('input', () => { positionSelect.value = ''; const term = positionName.value.trim().toLowerCase(); const list = catalogs.positions.filter((p) => term && p.name.toLowerCase().includes(term)).slice(0, 6); matches.hidden = !list.length; matches.innerHTML = list.map((p) => `<button type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`).join(''); newUnit.hidden = true; });
     matches.addEventListener('click', (event) => { const button = event.target.closest('button[data-id]'); if (!button) return; const p = catalogs.positions.find((item) => String(item.id) === button.dataset.id); positionSelect.value = p.id; positionName.value = p.name; document.querySelector('#req-reports-to').value = p.reports_to_position_id || ''; if (!form.elements.profile_description.value) form.elements.profile_description.value = p.description || ''; matches.hidden = true; newUnit.hidden = true; });
+    document.querySelector('#req-create-position')?.addEventListener('click', () => openPositionCreationRequest(catalogs, profile));
   } catch (error) {
     positionSelect.innerHTML = '<option value="">No disponible</option>';
     message.hidden = false;
@@ -1278,6 +1280,19 @@ async function bindRequisitionSelfService(profile) {
       message.textContent = error.message;
     } finally { button.disabled = false; }
   });
+}
+
+function openPositionCreationRequest(catalogs, profile) {
+  let dialog = document.querySelector('#position-creation-dialog');
+  if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'position-creation-dialog'; dialog.className = 'requisition-detail-dialog'; document.body.append(dialog); }
+  dialog.innerHTML = `<article class="requisition-detail-content"><header><div><p>Autoservicio · Catálogo organizacional</p><h2>Solicitar creación de puesto</h2><small>Se conserva tu nombre propuesto. RH podrá validar el nombre oficial y sólo lo registrará tras completar las cinco firmas.</small></div><button class="dialog-close" type="button" aria-label="Cerrar">×</button></header><form id="position-creation-form" class="personal-form requisition-detail-body"><label>Nombre propuesto<input name="proposed_name" minlength="3" maxlength="200" required placeholder="Ej. Analista de planeación"></label><label>Unidad organizacional<select name="org_unit_id" required><option value="">Seleccionar…</option>${catalogs.orgUnits.map((unit) => `<option value="${unit.id}">${escapeHtml(unit.name)}</option>`).join('')}</select></label><label>Reporta a<select name="reports_to_position_id"><option value="">Pendiente por definir</option>${catalogs.positions.map((position) => `<option value="${position.id}">${escapeHtml(position.name)}</option>`).join('')}</select></label><label>Objetivo del puesto<textarea name="objective" rows="4" maxlength="2000" placeholder="Qué problema resuelve y cuál es su propósito"></textarea></label><label>Perfil requerido<textarea name="profile_requirements" rows="4" placeholder="Un requisito por renglón"></textarea></label><div class="personal-form-message" id="position-creation-message" hidden></div><footer><button type="button" class="secondary-button dialog-close">Cancelar</button><button class="personal-submit" type="submit">Enviar solicitud</button></footer></form></article>`;
+  dialog.querySelectorAll('.dialog-close').forEach((button) => button.addEventListener('click', () => dialog.close()));
+  dialog.querySelector('#position-creation-form').addEventListener('submit', async (event) => {
+    event.preventDefault(); const form = event.currentTarget; const submit = form.querySelector('[type="submit"]'); const message = form.querySelector('#position-creation-message'); const values = new FormData(form); submit.disabled = true; message.hidden = true;
+    try { const result = await api('/rh-api/api/rh-self/me/position-requests', { method: 'POST', body: JSON.stringify({ proposed_name: values.get('proposed_name'), org_unit_id: values.get('org_unit_id'), reports_to_position_id: values.get('reports_to_position_id') || null, profile_json: { objective: values.get('objective') || '', profile_requirements: String(values.get('profile_requirements') || '').split('\n').map((item) => item.trim()).filter(Boolean) } }) }); message.className = 'personal-form-message success'; message.textContent = `Solicitud ${result.data.folio} enviada. RH y la cadena de firmas recibirán el seguimiento correspondiente.`; message.hidden = false; form.reset(); }
+    catch (error) { message.className = 'personal-form-message'; message.textContent = error.message; message.hidden = false; } finally { submit.disabled = false; }
+  });
+  dialog.showModal();
 }
 
 // Pantalla de administración (Core/RH): a diferencia de la portada pública,
