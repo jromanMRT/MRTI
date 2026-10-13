@@ -868,6 +868,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
               <label>Tipo de requisición<select name="type" id="req-type" required><option value="">Seleccionar tipo</option><option value="nueva_creacion">Nueva creación</option><option value="sustitucion_reemplazo">Sustitución / Reemplazo</option><option value="incapacidad_maternidad_temporal">Incapacidad / Maternidad temporal</option></select></label>
               <label>Prioridad<select name="priority" id="req-priority"><option value="media" selected>Media</option><option value="baja">Baja</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
             </div>
+            <label id="req-estimated-end-wrap" hidden>Fecha estimada de término<input name="estimated_end_date" id="req-estimated-end" type="date"></label>
           </fieldset>
           <fieldset class="req-fieldset">
             <legend><span class="req-step">2</span> Puesto</legend>
@@ -1195,6 +1196,17 @@ async function bindRequisitionSelfService(profile) {
   const message = document.querySelector('#requisition-form-message');
   const positionSelect = document.querySelector('#req-position');
   const positionName = document.querySelector('#req-position-name');
+  const requisitionType = document.querySelector('#req-type');
+  const estimatedEndWrap = document.querySelector('#req-estimated-end-wrap');
+  const estimatedEnd = document.querySelector('#req-estimated-end');
+  const syncRequisitionTypeFields = () => {
+    const isTemporary = requisitionType.value === 'incapacidad_maternidad_temporal';
+    estimatedEndWrap.hidden = !isTemporary;
+    estimatedEnd.required = isTemporary;
+    if (!isTemporary) estimatedEnd.value = '';
+  };
+  requisitionType.addEventListener('change', syncRequisitionTypeFields);
+  syncRequisitionTypeFields();
   quickBtn?.addEventListener('click', () => {
     panel.open = true;
     panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1237,6 +1249,7 @@ async function bindRequisitionSelfService(profile) {
           headcount: Number(values.get('headcount')) || 1,
           justification: values.get('justification') || null,
           profile_description: values.get('profile_description') || null,
+          estimated_end_date: values.get('estimated_end_date') || null,
         }),
       });
       form.reset();
