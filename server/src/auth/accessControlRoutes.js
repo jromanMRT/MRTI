@@ -109,12 +109,19 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
     if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
     const physicalAreaId = req.body?.physical_area_id || null;
     const primaryDeviceId = req.body?.primary_device_id || null;
+    // El cliente nuevo declara explícitamente si cambió el activo. Como
+    // compatibilidad, un cliente anterior aún puede asignar un id no vacío;
+    // un null legado nunca equivale a devolución, pues ése fue el origen de
+    // bajas patrimoniales involuntarias. Para retirar desde Core se requiere
+    // ahora `primary_asset_changed: true` (la pantalla corregida lo envía).
+    const primaryAssetChanged = req.body?.primary_asset_changed === true
+      || (req.body?.primary_asset_changed === undefined && Boolean(primaryDeviceId));
 
     if (physicalAreaId) {
       const area = await getPhysicalArea(physicalAreaId, authorizationHeader);
       if (!area) return res.status(400).json({ error: 'El área física no existe o está inactiva' });
     }
-    if (primaryDeviceId) {
+    if (primaryAssetChanged && primaryDeviceId) {
       if (!physicalAreaId) {
         return res.status(400).json({ error: 'El equipo habitual debe pertenecer al área física del usuario' });
       }
@@ -131,12 +138,14 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
 
     await pool.query('UPDATE user_profiles SET physical_area_id = ? WHERE id = ?', [physicalAreaId, target.id]);
     try {
-      await setPrimaryAsset({
-        userId: target.id,
-        assetId: primaryDeviceId,
-        userName: target.full_name,
-        authorizationHeader,
-      });
+      if (primaryAssetChanged) {
+        await setPrimaryAsset({
+          userId: target.id,
+          assetId: primaryDeviceId,
+          userName: target.full_name,
+          authorizationHeader,
+        });
+      }
     } catch (deviceError) {
       // El área (Core) y el activo (Activos) viven en sistemas distintos: si
       // Activos rechaza la asignación, se revierte el área en Core.
@@ -144,7 +153,7 @@ accessControlRouter.patch('/users/:id/location', authRequired, administratorOnly
       if (deviceError.status) return res.status(deviceError.status).json({ error: deviceError.message });
       throw deviceError;
     }
-    await recordAudit({ req, action: 'user.location_changed', entityType: 'user', entityId: target.id, metadata: { physical_area_id: physicalAreaId, primary_asset_id: primaryDeviceId } });
+    await recordAudit({ req, action: 'user.location_changed', entityType: 'user', entityId: target.id, metadata: { physical_area_id: physicalAreaId, primary_asset_id: primaryDeviceId, primary_asset_changed: primaryAssetChanged } });
     res.json({ profile: await findProfile(target.id, authorizationHeader) });
   } catch (error) {
     next(error);
