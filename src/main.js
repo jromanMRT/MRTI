@@ -869,10 +869,11 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
               <label>Prioridad<select name="priority" id="req-priority"><option value="media" selected>Media</option><option value="baja">Baja</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
             </div>
             <label id="req-estimated-end-wrap" hidden>Fecha estimada de término<input name="estimated_end_date" id="req-estimated-end" type="date"></label>
+            <div id="req-replacement-wrap" class="req-fields-row" hidden><label>Colaborador saliente<select name="replacement_employee_id" id="req-replacement-employee"><option value="">Seleccionar colaborador…</option></select></label><label>Motivo de sustitución<textarea name="replacement_reason" id="req-replacement-reason" rows="2" maxlength="500" placeholder="Indica el motivo de la baja o sustitución"></textarea></label></div>
           </fieldset>
           <fieldset class="req-fieldset">
             <legend><span class="req-step">2</span> Puesto</legend>
-            <label>Puesto solicitado<input id="req-position-name" name="position_name" maxlength="200" autocomplete="off" placeholder="Escribe para buscar o crear" required><input type="hidden" name="position_id" id="req-position"><small>Elige una coincidencia para reutilizarla; si no existe, se creará al enviar.</small></label>
+            <label>Puesto solicitado<input id="req-position-name" name="position_name" maxlength="200" autocomplete="off" placeholder="Escribe para buscar en el catálogo" required><input type="hidden" name="position_id" id="req-position"><small>Elige una coincidencia del catálogo. Si no existe, solicita primero su alta y descriptivo a RH.</small></label>
             <div id="req-position-matches" class="personal-suggestions" hidden></div>
             <label id="req-new-position-unit" hidden>Unidad del nuevo puesto<select name="new_position_org_unit_id" id="req-org-unit"><option value="">Seleccionar unidad…</option></select></label>
           </fieldset>
@@ -1199,11 +1200,19 @@ async function bindRequisitionSelfService(profile) {
   const requisitionType = document.querySelector('#req-type');
   const estimatedEndWrap = document.querySelector('#req-estimated-end-wrap');
   const estimatedEnd = document.querySelector('#req-estimated-end');
+  const replacementWrap = document.querySelector('#req-replacement-wrap');
+  const replacementEmployee = document.querySelector('#req-replacement-employee');
+  const replacementReason = document.querySelector('#req-replacement-reason');
   const syncRequisitionTypeFields = () => {
     const isTemporary = requisitionType.value === 'incapacidad_maternidad_temporal';
+    const isReplacement = requisitionType.value === 'sustitucion_reemplazo';
     estimatedEndWrap.hidden = !isTemporary;
     estimatedEnd.required = isTemporary;
     if (!isTemporary) estimatedEnd.value = '';
+    replacementWrap.hidden = !isReplacement;
+    replacementEmployee.required = isReplacement;
+    replacementReason.required = isReplacement;
+    if (!isReplacement) { replacementEmployee.value = ''; replacementReason.value = ''; }
   };
   requisitionType.addEventListener('change', syncRequisitionTypeFields);
   syncRequisitionTypeFields();
@@ -1220,7 +1229,8 @@ async function bindRequisitionSelfService(profile) {
     document.querySelector('#req-department').innerHTML = `<option value="">— Opcional —</option>${catalogs.departments.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('')}`;
     document.querySelector('#req-location').innerHTML = `<option value="">— Opcional —</option>${catalogs.locations.map((l) => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}`;
     document.querySelector('#req-reports-to').innerHTML = `<option value="">— Seleccionar —</option>${catalogs.positions.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}`;
-    positionName.addEventListener('input', () => { positionSelect.value = ''; const term = positionName.value.trim().toLowerCase(); const list = catalogs.positions.filter((p) => term && p.name.toLowerCase().includes(term)).slice(0, 6); matches.hidden = !list.length; matches.innerHTML = list.map((p) => `<button type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`).join(''); newUnit.hidden = false; });
+    replacementEmployee.innerHTML = `<option value="">Seleccionar colaborador…</option>${(catalogs.employees || []).map((employee) => `<option value="${employee.id}">${escapeHtml(employee.name)}${employee.job_title ? ` — ${escapeHtml(employee.job_title)}` : ''}</option>`).join('')}`;
+    positionName.addEventListener('input', () => { positionSelect.value = ''; const term = positionName.value.trim().toLowerCase(); const list = catalogs.positions.filter((p) => term && p.name.toLowerCase().includes(term)).slice(0, 6); matches.hidden = !list.length; matches.innerHTML = list.map((p) => `<button type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`).join(''); newUnit.hidden = true; });
     matches.addEventListener('click', (event) => { const button = event.target.closest('button[data-id]'); if (!button) return; const p = catalogs.positions.find((item) => String(item.id) === button.dataset.id); positionSelect.value = p.id; positionName.value = p.name; document.querySelector('#req-reports-to').value = p.reports_to_position_id || ''; if (!form.elements.profile_description.value) form.elements.profile_description.value = p.description || ''; matches.hidden = true; newUnit.hidden = true; });
   } catch (error) {
     positionSelect.innerHTML = '<option value="">No disponible</option>';
@@ -1231,6 +1241,7 @@ async function bindRequisitionSelfService(profile) {
     event.preventDefault();
     const button = form.querySelector('button[type="submit"]');
     const values = new FormData(form);
+    if (!values.get('position_id')) { message.hidden = false; message.textContent = 'Selecciona un puesto existente del catálogo. RH debe crear y aprobar los puestos nuevos antes de solicitar una requisición.'; return; }
     button.disabled = true;
     message.hidden = true;
     try {
@@ -1240,7 +1251,7 @@ async function bindRequisitionSelfService(profile) {
           type: values.get('type'),
           priority: values.get('priority') || 'media',
           position_id: values.get('position_id') || null,
-          new_position: values.get('position_id') ? null : { name: values.get('position_name'), org_unit_id: values.get('new_position_org_unit_id'), description: values.get('profile_description') },
+          new_position: null,
           position_name: values.get('position_name'),
           department_id: values.get('department_id') || null,
           reports_to_position_id: values.get('reports_to_position_id') || null,
@@ -1250,6 +1261,8 @@ async function bindRequisitionSelfService(profile) {
           justification: values.get('justification') || null,
           profile_description: values.get('profile_description') || null,
           estimated_end_date: values.get('estimated_end_date') || null,
+          replacement_employee_id: values.get('replacement_employee_id') || null,
+          replacement_reason: values.get('replacement_reason') || null,
         }),
       });
       form.reset();
