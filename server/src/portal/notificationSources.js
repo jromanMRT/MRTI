@@ -181,17 +181,16 @@ async function fetchRhSource(path, authorization) {
 // empleado autenticado); aquí solo se combinan documentos laborales y salas
 // de juntas (mismo patrón de dos fuentes que fetchTicketNotifications).
 export async function fetchRhNotifications({ authorization, canOpenRh }) {
-  const [documents, rooms, lifecycleTasks] = await Promise.all([
+  const [documents, rooms, lifecycleTasks, requisitions] = await Promise.all([
     fetchRhSource('/api/rh-self/me/documents/notifications', authorization),
     fetchRhSource('/api/rh-self/me/meeting-room-bookings/notifications', authorization),
-    // Tareas de altas/bajas vencidas o por vencer, propias o sin asignar en un
-    // módulo donde la persona está registrada como responsable -- no depende
-    // de tener acceso al módulo RH para RECIBIR el aviso, sólo para abrirlo
-    // (el href se anula abajo igual que las otras dos fuentes de RH).
     fetchRhSource('/api/rh-self/me/lifecycle-tasks/notifications', authorization),
+    fetchRhSource('/api/rh-self/me/requisitions/notifications', authorization),
   ]);
-  const items = [...documents.data, ...rooms.data, ...lifecycleTasks.data]
-    .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh ? item.href : null }))
+  const items = [...documents.data, ...rooms.data, ...lifecycleTasks.data, ...requisitions.data]
+    // Una firma de requisición se atiende desde Core, incluso cuando el
+    // directivo no tiene habilitado el módulo administrativo de RH.
+    .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh || String(item.kind || '').startsWith('requisition_') ? item.href : null }))
     .sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
   return {
     items,
@@ -199,6 +198,7 @@ export async function fetchRhNotifications({ authorization, canOpenRh }) {
       { source: 'rh-documents', ok: documents.ok, error: documents.error },
       { source: 'rh-meeting-rooms', ok: rooms.ok, error: rooms.error },
       { source: 'rh-lifecycle-tasks', ok: lifecycleTasks.ok, error: lifecycleTasks.error },
+      { source: 'rh-requisitions', ok: requisitions.ok, error: requisitions.error },
     ],
   };
 }

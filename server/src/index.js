@@ -10,6 +10,7 @@ import { brandAssetRouter } from './portal/brandAssetRoutes.js';
 import { notificationRouter } from './portal/notificationRoutes.js';
 import { companyNewsRouter } from './portal/companyNewsRoutes.js';
 import { companyHomeRouter } from './portal/companyHomeRoutes.js';
+import { portalSearchRouter } from './portal/searchRoutes.js';
 import { communityRouter } from './community/index.js';
 import { requestContext } from './vendor/mrti-platform/request-context.js';
 
@@ -50,6 +51,7 @@ app.use('/api/portal/v1', brandAssetRouter);
 app.use('/api/portal/v1', notificationRouter);
 app.use('/api/portal/v1', companyNewsRouter);
 app.use('/api/portal/v1', companyHomeRouter);
+app.use('/api/portal/v1', portalSearchRouter);
 app.use('/api/portal/v1/community', communityRouter);
 
 // Ruta de diagnóstico interno para probar tokens emitidos por Core/Infra de

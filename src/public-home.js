@@ -18,7 +18,7 @@ const DEFAULT_HOME_SETTINGS = {
   footer_tagline: 'La puerta de entrada digital de Minera Río Tinto',
 };
 
-const CAROUSEL_SIZE = 5;
+const CAROUSEL_SIZE = 1;
 const CAROUSEL_INTERVAL_MS = 6500;
 
 function excerpt(text, max = 140) {
@@ -30,8 +30,11 @@ function bindPublicHeader() {
   mountPublicSession();
 }
 
-function headerMarkup(brandMarkup, navigationMarkup) {
-  return `<header class="home-public-header">${brandMarkup('/', false)}${navigationMarkup || '<a class="primary-button" id="home-login-button" href="/login">Iniciar sesión</a>'}</header>`;
+function headerMarkup(brandMarkup, navigationMarkup, themeToggleMarkup) {
+  return `<header class="home-public-header">${brandMarkup('/', false)}
+      ${themeToggleMarkup()}
+      ${navigationMarkup || '<a class="public-access-button" id="home-login-button" href="/login">Acceso a empleados <span>↗</span></a>'}
+    </header>`;
 }
 
 function footerMarkup(tagline) {
@@ -39,7 +42,7 @@ function footerMarkup(tagline) {
 }
 
 // Página pública: no consulta ni modifica la sesión del visitante.
-export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup = '' }) {
+export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup = '', themeToggleMarkup, bindThemeToggle }) {
   // Portada pública: nunca muestra quién escribió o editó el aviso — eso
   // sólo se ve en Core/RH → "Portada y noticias". Si el adjunto es una
   // imagen, se usa como portada de la tarjeta en vez de enlace de descarga.
@@ -116,6 +119,7 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
       <div class="eyebrow public-hero-eyebrow"><span></span> ${escapeHtml(settings.hero_eyebrow)}</div>
       <h1>${escapeHtml(settings.hero_title)}${settings.hero_subtitle ? `<br><em>${escapeHtml(settings.hero_subtitle)}</em>` : ''}</h1>
       <p>${escapeHtml(settings.hero_body)}</p>
+      <div class="public-hero-actions"><a class="public-hero-cta" href="#home-news-section">Explorar novedades <span>→</span></a><a class="public-hero-secondary" href="#community-events">Ver próximos eventos</a></div>
     </div>`;
   }
 
@@ -125,7 +129,7 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
   }
 
   async function loadHeroSettings() {
-    const banner = document.querySelector('#public-home-hero');
+    const banner = document.querySelector('#public-home-hero-copy');
     const facts = document.querySelector('#public-home-facts');
     if (!banner || !facts) return;
     try {
@@ -149,7 +153,7 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
   // público") para que el hero muestre una foto real de operación en vez del
   // degradado con el logo como marca de agua.
   async function loadHeroBackground() {
-    const banner = document.querySelector('#public-home-hero');
+    const banner = document.querySelector('#public-home-hero-visual');
     if (!banner) return;
     try {
       const response = await fetch('/api/portal/v1/brand-appearance', { cache: 'no-store' });
@@ -184,7 +188,7 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
       container.className = rest.length || !featured.length ? 'personal-grid news-grid' : '';
       container.innerHTML = rest.length ? rest.map((item) => newsCardMarkup(item)).join('') : restLabel;
       const newsSection = document.querySelector('#home-news-section');
-      if (newsSection) newsSection.hidden = !rest.length && Boolean(featured.length);
+      if (newsSection) newsSection.hidden = false;
     } catch {
       container.className = 'notice error';
       container.textContent = 'No fue posible cargar las noticias en este momento.';
@@ -194,17 +198,26 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
   function renderHome() {
     document.title = 'MRTI | Información de la empresa';
     app.innerHTML = `<main class="core-home">
-      ${headerMarkup(brandMarkup, navigationMarkup)}
-      <section class="public-hero-banner" id="public-home-hero">${heroBannerMarkup(DEFAULT_HOME_SETTINGS)}</section>
-      <div class="public-facts-strip" id="public-home-facts" aria-label="Datos de la empresa">${factsStripMarkup(DEFAULT_HOME_SETTINGS.facts)}</div>
-      <div id="public-carousel-container"></div>
-      ${communityMarkup()}
-      <section class="home-news-section" id="home-news-section"><div class="section-heading"><div><p class="section-label" id="public-home-news-eyebrow">${escapeHtml(DEFAULT_HOME_SETTINGS.news_section_eyebrow)}</p><h2 id="public-home-news-title">${escapeHtml(DEFAULT_HOME_SETTINGS.news_section_title)}</h2></div></div>
+      ${headerMarkup(brandMarkup, navigationMarkup, themeToggleMarkup)}
+      <section class="public-hero-banner" id="public-home-hero"><div id="public-home-hero-copy">${heroBannerMarkup(DEFAULT_HOME_SETTINGS)}</div><div class="public-hero-visual" id="public-home-hero-visual" aria-label="Minera Río Tinto"><div class="public-hero-landscape" aria-hidden="true"><span class="landscape-sun"></span><span class="landscape-mountain mountain-one"></span><span class="landscape-mountain mountain-two"></span><span class="landscape-ground ground-one"></span><span class="landscape-ground ground-two"></span></div><div class="public-hero-visual-caption"><strong>MRT</strong><span>Operación · Comunidad · Cultura</span></div></div></section>
+      <div class="public-glance-bar" id="public-home-facts" aria-label="Datos de la empresa">${factsStripMarkup(DEFAULT_HOME_SETTINGS.facts)}</div>
+      <section class="home-news-section" id="home-news-section"><div class="public-section-heading"><div><p class="section-label" id="public-home-news-eyebrow">${escapeHtml(DEFAULT_HOME_SETTINGS.news_section_eyebrow)}</p><h2 id="public-home-news-title">${escapeHtml(DEFAULT_HOME_SETTINGS.news_section_title)}</h2><span>Información, comunicados y mensajes relevantes para nuestra comunidad.</span></div></div>
+        <div id="public-carousel-container"></div>
         <div id="home-news-list" class="personal-loading">Cargando noticias…</div>
       </section>
-      ${footerMarkup(escapeHtml(DEFAULT_HOME_SETTINGS.footer_tagline))}
+      ${communityMarkup()}
+      <section class="public-private-callout" aria-labelledby="private-callout-title"><div><p>Área privada</p><h2 id="private-callout-title">¿Eres empleado? Accede a tus herramientas.</h2><span>Servicios personales, tickets, trámites de RH, solicitudes y aplicaciones requieren iniciar sesión.</span></div><a href="/login">Ingresar al portal del personal <b>↗</b></a></section>
+      <footer class="public-footer">
+        <div class="public-footer-grid">
+          <div class="public-footer-brand"><img src="/company-logo.svg" alt="MRT" class="public-footer-logo"><p id="public-home-footer-tagline">${escapeHtml(DEFAULT_HOME_SETTINGS.footer_tagline)}</p></div>
+          <div class="public-footer-col"><h4>Portal</h4><a href="/login">Iniciar sesión</a><a href="#comunidad">Comunidad</a><a href="#home-news-section">Noticias</a></div>
+          <div class="public-footer-col"><h4>Empresa</h4><a href="#community-events">Agenda</a><a href="#public-home-facts">Datos de la empresa</a><a href="#community-channel">Canal anónimo</a></div>
+        </div>
+        <div class="public-footer-bottom"><span>© ${new Date().getFullYear()} MRTI — Minera Río Tinto, S.A. de C.V.</span></div>
+      </footer>
     </main>`;
     bindPublicHeader();
+    bindThemeToggle();
     mountCommunity();
     void loadHeroSettings();
     void loadHeroBackground();
@@ -215,7 +228,7 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
 }
 
 // Página pública de una sola noticia: mismo espíritu que el home, sin sesión.
-export function renderNewsDetail({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup = '' }, newsId) {
+export function renderNewsDetail({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup = '', themeToggleMarkup, bindThemeToggle }, newsId) {
   function attachmentMarkup(item) {
     if (!item.attachment) return '';
     const isImage = /^image\//.test(item.attachment.mime_type);
@@ -249,10 +262,11 @@ export function renderNewsDetail({ app, brandMarkup, escapeHtml, shortDate, read
 
   document.title = 'MRTI | Noticia';
   app.innerHTML = `<main class="core-home">
-    ${headerMarkup(brandMarkup, navigationMarkup)}
+    ${headerMarkup(brandMarkup, navigationMarkup, themeToggleMarkup)}
     <div id="news-detail-root" class="public-detail-wrap"><p class="personal-loading">Cargando…</p></div>
     ${footerMarkup(escapeHtml('La puerta de entrada digital de Minera Río Tinto'))}
   </main>`;
   bindPublicHeader();
+  bindThemeToggle();
   void load();
 }
