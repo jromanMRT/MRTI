@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { authRequired } from './shared.js';
 import { listDevices, getPhysicalArea } from '../infraClient.js';
-import { listMyAssets } from '../assetsClient.js';
+import { loadTicketEquipment } from '../tickets/equipmentOptions.js';
+import { listMyAssets, listAssignableAssets } from '../assetsClient.js';
 
 export const ticketContextRouter = Router();
 
@@ -20,11 +21,12 @@ ticketContextRouter.get('/ticket-context', authRequired, async (req, res, next) 
       site_id: physicalArea.site_id,
       site_name: physicalArea.site_name,
     } : null;
-    const [normalizedDevices, assignedAssets] = await Promise.all([
+    const [normalizedDevices, assignedAssets, equipmentOptions] = await Promise.all([
       req.user.physical_area_id
         ? listDevices({ areaId: req.user.physical_area_id, authorizationHeader: req.headers.authorization })
         : [],
       listMyAssets(req.headers.authorization),
+      loadTicketEquipment(req.user, req.headers.authorization, { listDevices, listAssignableAssets }),
     ]);
     const assignedAssetIds = new Set(assignedAssets.map((asset) => asset.asset_uid));
     res.json({
@@ -34,6 +36,8 @@ ticketContextRouter.get('/ticket-context', authRequired, async (req, res, next) 
         device.asset_id && assignedAssetIds.has(device.asset_id)
       )) || null,
       area_devices: normalizedDevices,
+      can_select_any_equipment: req.user.role === 'administrator',
+      equipment_options: equipmentOptions,
     });
   } catch (error) {
     next(error);

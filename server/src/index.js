@@ -10,12 +10,16 @@ import { brandAssetRouter } from './portal/brandAssetRoutes.js';
 import { notificationRouter } from './portal/notificationRoutes.js';
 import { companyNewsRouter } from './portal/companyNewsRoutes.js';
 import { companyHomeRouter } from './portal/companyHomeRoutes.js';
+import { portalSearchRouter } from './portal/searchRoutes.js';
+import { communityRouter } from './community/index.js';
+import { requestContext } from './vendor/mrti-platform/request-context.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3005);
 
 app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
+app.use(requestContext({ service: 'mrti-core-api' }));
 app.use(helmet({
   strictTransportSecurity: false,
   crossOriginResourcePolicy: { policy: 'same-site' },
@@ -47,6 +51,8 @@ app.use('/api/portal/v1', brandAssetRouter);
 app.use('/api/portal/v1', notificationRouter);
 app.use('/api/portal/v1', companyNewsRouter);
 app.use('/api/portal/v1', companyHomeRouter);
+app.use('/api/portal/v1', portalSearchRouter);
+app.use('/api/portal/v1/community', communityRouter);
 
 // Ruta de diagnóstico interno para probar tokens emitidos por Core/Infra de
 // forma intercambiable durante la Fase 1. No forma parte del contrato público.

@@ -1,11 +1,22 @@
 import jwt from 'jsonwebtoken';
+import { attachAccessPolicy } from './accessPolicy.js';
 import { pool } from '../db.js';
 import { JWT_SECRET } from '../config/security.js';
 import { getPhysicalArea } from '../infraClient.js';
 const TOKEN_TTL = process.env.JWT_EXPIRES_IN || '7d';
 
 export const PROFILE_COLUMNS = 'id, user_number, email, full_name, role, access_area_id, physical_area_id, avatar_url, is_active, created_at, updated_at';
-export const USER_ROLES = ['administrator', 'supervisor', 'technician', 'viewer'];
+export const USER_ROLES = ['administrator', 'area_manager', 'supervisor', 'technician', 'data_entry', 'approver', 'auditor', 'viewer'];
+export const USER_ROLE_LABELS = {
+  administrator: 'Administrador',
+  area_manager: 'Responsable de área',
+  supervisor: 'Supervisor',
+  technician: 'Técnico',
+  data_entry: 'Capturista',
+  approver: 'Aprobador',
+  auditor: 'Auditor',
+  viewer: 'Consulta',
+};
 export const USER_MANAGERS = ['administrator', 'supervisor'];
 export const MODULE_CODES = ['mrti-obs', 'tickets', 'agent-core', 'activos', 'rh'];
 const LEGACY_MODULE_ALIASES = { 'mrti-infra': 'mrti-obs' };
@@ -43,7 +54,7 @@ export async function findProfileIdentity(userId) {
   if (profile.role === 'administrator') {
     const [applications] = await pool.query("SELECT code FROM applications WHERE status <> 'inactive' ORDER BY sort_order, name");
     profile.allowed_modules = normalizeModuleCodes(applications.map(({ code }) => code));
-    return profile;
+    return attachAccessPolicy(profile);
   }
   const [modules] = await pool.query(
     `SELECT aam.module_code
@@ -55,7 +66,7 @@ export async function findProfileIdentity(userId) {
   profile.allowed_modules = normalizeModuleCodes(
     modules.map(({ module_code: moduleCode }) => moduleCode)
   );
-  return profile;
+  return attachAccessPolicy(profile);
 }
 
 // Perfil completo: identidad + nombre de área física/piso/edificio/sitio,
@@ -94,7 +105,8 @@ export async function authRequired(req, res, next) {
     }
     req.user = profile;
     next();
-  } catch {
+  } catch (error) {
+    if (!['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) return res.status(503).json({ error: 'No se pudo validar la identidad y los permisos' });
     return res.status(401).json({ error: 'Sesión inválida o expirada' });
   }
 }

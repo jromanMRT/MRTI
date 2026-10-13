@@ -1,7 +1,7 @@
 # Evolución de MRTI Core a portal empresarial
 
 Fecha base: 2026-08-12
-Estado: implementación incremental — Etapas 1 y 2 publicadas
+Estado: implementación incremental — Etapas 1 y 2 publicadas; refinamientos de Etapa 5 en desarrollo local
 
 ## 1. Diagnóstico de la arquitectura actual
 
@@ -23,8 +23,10 @@ Limitaciones actuales:
 
 - frontend monolítico en `src/main.js`;
 - catálogo de aplicaciones duplicado en constantes de frontend/backend;
-- no existen comunicados, notificaciones persistentes, búsqueda global,
-  directorio de autoservicio ni aprobaciones consolidadas;
+- no existen comunicados, notificaciones persistentes, directorio de
+  autoservicio ni aprobaciones consolidadas; la búsqueda federada y el orden
+  personal de widgets están implementados localmente, pendientes de pruebas de
+  integración y despliegue;
 - los roles existentes son globales y todavía no forman un RBAC granular;
 - la sesión usa almacenamiento local y JWT compartido durante la migración;
 - no existe recuperación autónoma de contraseña ni SSO corporativo.
@@ -137,6 +139,17 @@ principal si el registro falla.
 - configuración de Home por rol/departamento/usuario;
 - preparación para una interfaz futura de “Pregúntale a MRTI”.
 
+Avance local 2026-10-13: Core incorpora `GET /api/portal/v1/search?q=` con
+consultas paralelas a Tickets, Activos y RH; las requisiciones se consultan por
+`/rh-self`, y la búsqueda del directorio sólo se intenta cuando la sesión tiene
+acceso al módulo RH. Las llamadas reenvían la sesión y devuelven resultados
+normalizados, con fallos parciales por fuente. El dashboard permite reordenar
+los cuatro widgets personales y guarda `widget_order` junto con las preferencias
+del usuario mediante una migración aditiva. La UI incluye actividad derivada de
+las respuestas `*-self`, estados de carga/reintento y caché temporal por usuario.
+Este cambio aún no está desplegado: faltan aplicar la migración, probar las
+integraciones con los módulos publicados y ejecutar el smoke test.
+
 ## 7. Inventario funcional después de la Etapa 2
 
 | Función | Estado | Propietario / siguiente contrato |
@@ -149,7 +162,8 @@ principal si el registro falla.
 | Aprobaciones | Pendiente, Etapa 4 | Resumen de APIs de RH/Solicitudes; Core no decide el workflow |
 | Documentos | Pendiente de módulo propietario | No almacenar expedientes o archivos sensibles en Core |
 | Directorio | Pendiente, Etapa 5 | Contrato de RH limitado a datos corporativos autorizados |
-| Búsqueda global | Pendiente, Etapa 5 | Federación con permiso y timeout por fuente |
+| Búsqueda global | Implementada localmente, Etapa 5 pendiente de despliegue | Federación con sesión, permisos y timeout por fuente |
+| Orden personal de widgets | Implementado localmente, Etapa 5 pendiente de despliegue | Core guarda `widget_order`; sin reordenamiento por rol/departamento |
 | Widgets administrables | Pendiente, Etapa 5 | Configuración en Core; datos maestros permanecen fuera |
 
 ## 8. Identidad visual

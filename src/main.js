@@ -1,8 +1,12 @@
+import { mountPermissionControl } from './access-control-permissions.js';
+import { bindTicketEquipment } from './ticket-equipment.js';
 import './login-header.css';
 import './header-navigation.css';
 import { renderPublicHome, renderNewsDetail } from './public-home.js';
 import './style.css';
 import './ticket-self-service.css';
+import './dashboard-refinements.css';
+import { bindDashboardRefinements } from './dashboard-refinements.js';
 
 const app = document.querySelector('#app');
 const FALLBACK_MODULES = [
@@ -40,12 +44,14 @@ const DEFAULT_BRAND_APPEARANCE = {
 let brandAppearance = structuredClone(DEFAULT_BRAND_APPEARANCE);
 const DEFAULT_USER_PREFERENCES = {
   theme: 'system', density: 'comfortable', show_notifications: true,
-  show_rh: true, show_assets: true, show_tickets: true,
+  show_rh: true, show_assets: true, show_tickets: true, show_requisitions: true,
+  widget_order: ['rh', 'assets', 'tickets', 'requisitions'],
 };
 let userPreferences = { ...DEFAULT_USER_PREFERENCES };
 let avatarObjectUrl = null;
 let notificationRefreshTimer = null;
 let lastNotificationItems = [];
+let widgetUpdatedTimer = null;
 // Activo preseleccionado al abrir el formulario de ticket desde el botón
 // "Crear ticket" del popup de un activo en MRTI-Activos (Fase 1 de la
 // integración de plataforma, ?openTicket=1&asset_uid=...&asset_label=...).
@@ -60,6 +66,22 @@ let notificationToastTimer = null;
 
 const DEVICE_NOTIFICATIONS_KEY = 'mrti_device_notifications';
 const DEFAULT_DOCUMENT_TITLE = document.title;
+
+const SVG_ATTR = 'viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+const ICONS = {
+  home:       `<svg ${SVG_ATTR}><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+  plus:       `<svg ${SVG_ATTR}><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
+  tickets:    `<svg ${SVG_ATTR}><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>`,
+  menu:       `<svg ${SVG_ATTR}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>`,
+  chevDown:   `<svg ${SVG_ATTR} width="14" height="14"><path d="m6 9 6 6 6-6"/></svg>`,
+  chevLeft:   `<svg ${SVG_ATTR} width="16" height="16"><path d="m15 18-6-6 6-6"/></svg>`,
+  chevRight:  `<svg ${SVG_ATTR} width="16" height="16"><path d="m9 18 6-6-6-6"/></svg>`,
+  user:       `<svg ${SVG_ATTR}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  diamond:    `<svg ${SVG_ATTR}><path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"/></svg>`,
+  newspaper:  `<svg ${SVG_ATTR}><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>`,
+  settings:   `<svg ${SVG_ATTR}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  logOut:     `<svg ${SVG_ATTR}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>`,
+};
 
 function unlockNotificationAudio() {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -285,6 +307,120 @@ async function api(path, options = {}) {
   return body;
 }
 
+async function widgetApi(path, profile, { forceFresh = false, onRefresh } = {}) {
+  const userId = profile?.id || profile?.user_id;
+  const cacheKey = userId ? `mrti-widget-cache:${userId}:${path}` : null;
+  let cached = null;
+  if (cacheKey) {
+    try {
+      cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+    } catch (error) {
+      console.warn('No fue posible leer la caché temporal del dashboard.', error);
+    }
+  }
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8000);
+  const request = api(path, { signal: controller.signal });
+  const saveResponse = (response) => {
+    const updatedAt = Date.now();
+    try {
+      const serialized = JSON.stringify({ response, updatedAt });
+      if (cacheKey && serialized.length <= 200_000) sessionStorage.setItem(cacheKey, serialized);
+    } catch (error) {
+      console.warn('No fue posible guardar la caché temporal del dashboard.', error);
+    }
+    return { ...response, widgetMeta: { updatedAt, stale: false } };
+  };
+  if (cached?.response && Number.isFinite(cached.updatedAt) && !forceFresh) {
+    let refreshScheduled = false;
+    const refresh = () => {
+      if (refreshScheduled || !onRefresh) return;
+      refreshScheduled = true;
+      onRefresh();
+    };
+    void request.then((response) => {
+      saveResponse(response);
+      refresh();
+    }).catch((error) => {
+      if (error.status && error.status < 500) refresh();
+      else console.warn(`Se conservarán datos temporales para ${path}; la actualización falló.`, error);
+    }).finally(() => window.clearTimeout(timeout));
+    return { ...cached.response, widgetMeta: { updatedAt: cached.updatedAt, stale: true } };
+  }
+  try {
+    return saveResponse(await request);
+  } catch (error) {
+    const canUseStale = !error.status || error.status >= 500 || error.name === 'AbortError';
+    if (canUseStale && cached?.response && Number.isFinite(cached.updatedAt) && cacheKey) {
+      console.warn(`Se mostrarán datos temporales para ${path} porque el módulo no respondió.`, error);
+      return { ...cached.response, widgetMeta: { updatedAt: cached.updatedAt, stale: true } };
+    }
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error('El módulo tardó más de 8 segundos en responder.');
+      timeoutError.name = 'TimeoutError';
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function setWidgetUpdated(container, meta, retry) {
+  if (!container || !meta) return;
+  container.querySelector('.widget-updated')?.remove();
+  const updated = document.createElement('small');
+  updated.className = `widget-updated${meta.stale ? ' is-stale' : ''}`;
+  updated.dataset.updatedAt = String(meta.updatedAt);
+  updated.dataset.stale = String(meta.stale);
+  const updateLabel = () => {
+    const minutes = Math.max(0, Math.floor((Date.now() - meta.updatedAt) / 60000));
+    updated.textContent = `${meta.stale ? 'Datos guardados · ' : ''}Última actualización: ${minutes ? `hace ${minutes} min` : 'ahora'}`;
+  };
+  updateLabel();
+  if (meta.stale) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'widget-retry';
+    button.textContent = 'Reintentar';
+    button.addEventListener('click', retry, { once: true });
+    updated.append(button);
+  }
+  container.append(updated);
+  if (!widgetUpdatedTimer) {
+    widgetUpdatedTimer = window.setInterval(() => {
+      const labels = document.querySelectorAll('.widget-updated');
+      if (!labels.length) {
+        window.clearInterval(widgetUpdatedTimer);
+        widgetUpdatedTimer = null;
+        return;
+      }
+      labels.forEach((label) => {
+        const updatedAt = Number(label.dataset.updatedAt);
+        const minutes = Math.max(0, Math.floor((Date.now() - updatedAt) / 60000));
+        label.textContent = `${label.dataset.stale === 'true' ? 'Datos guardados · ' : ''}Última actualización: ${minutes ? `hace ${minutes} min` : 'ahora'}`;
+      });
+    }, 60_000);
+  }
+}
+
+function renderWidgetError(container, retry) {
+  container.className = 'widget-error';
+  container.innerHTML = '<strong>No fue posible actualizar este widget.</strong><span>El resto del dashboard sigue disponible.</span><button type="button">Reintentar</button>';
+  container.querySelector('button').addEventListener('click', retry, { once: true });
+}
+
+function clearWidgetCache() {
+  try {
+    for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith('mrti-widget-cache:')) sessionStorage.removeItem(key);
+    }
+  } catch (error) {
+    console.warn('No fue posible limpiar la caché temporal del dashboard.', error);
+  }
+}
+
 function isAdministrator(profile) {
   return profile?.role === 'administrator';
 }
@@ -358,7 +494,7 @@ async function refreshBrandAppearance() {
 }
 
 function roleName(role) {
-  return ({ administrator: 'Administrador', supervisor: 'Supervisor', technician: 'Técnico', viewer: 'Consulta' })[role] || role;
+  return ({ administrator: 'Administrador', area_manager: 'Responsable de área', supervisor: 'Supervisor', technician: 'Técnico', data_entry: 'Capturista', approver: 'Aprobador', auditor: 'Auditor', viewer: 'Consulta' })[role] || role;
 }
 
 function userIdentifier(userNumber) {
@@ -404,7 +540,7 @@ function bindThemeToggle() {
     const next = currentTheme() === 'dark' ? 'light' : 'dark';
     localStorage.setItem(THEME_KEY, next);
     applyTheme(next);
-    void persistSharedTheme(next);
+    if (token()) void persistSharedTheme(next);
   });
 }
 
@@ -471,7 +607,9 @@ function setHomeStat(id, value, detail, state = '') {
   const card = document.querySelector(`#${id}`);
   if (!card) return;
   card.className = `home-stat ${state}`.trim();
-  card.querySelector('strong').textContent = value;
+  const number = card.querySelector('strong');
+  number.classList.remove('skeleton');
+  number.textContent = value;
   card.querySelector('small').textContent = detail;
 }
 
@@ -483,17 +621,17 @@ function shellMarkup(profile, content) {
     <aside class="portal-sidebar" id="portal-sidebar" aria-label="Navegación del portal">
       <div class="sidebar-brand">${brandMarkup()}</div>
       <nav class="primary-nav" aria-label="Navegación principal">
-        <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Inicio</span></button>
-        <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">◇</span><span class="nav-label">Mis tickets</span></button>
+        <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.home}</span><span class="nav-label">Inicio</span></button>
+        <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.plus}</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.tickets}</span><span class="nav-label">Mis tickets</span></button>
       </nav>
       <div class="sidebar-footer">
         ${themeToggleMarkup()}
-        <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral" title="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral">${collapsed ? '»' : '«'}</button>
+        <button class="sidebar-collapse" id="sidebar-collapse" type="button" aria-label="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral" title="${collapsed ? 'Expandir' : 'Colapsar'} menú lateral">${collapsed ? ICONS.chevRight : ICONS.chevLeft}</button>
       </div>
     </aside>
     <div class="portal-workspace">
       <header class="topbar">
-        <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">☰</button>
+        <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">${ICONS.menu}</button>
         <div class="mobile-brand">${brandMarkup()}</div>
         ${moduleSwitcherMarkup(profile)}
         <div class="topbar-context"><strong>Dashboard</strong><small>Dashboard y configuración personal</small></div>
@@ -506,13 +644,13 @@ function shellMarkup(profile, content) {
             </section>
           </div>
           <div class="account-menu" id="account-menu">
-            <button class="session-profile" id="topbar-profile-button" type="button" aria-label="Abrir menú de usuario" aria-expanded="false" aria-controls="account-menu-panel">${avatarMarkup(profile, 'small')}<span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span><span class="account-menu-chevron" aria-hidden="true">⌄</span></button>
+            <button class="session-profile" id="topbar-profile-button" type="button" aria-label="Abrir menú de usuario" aria-expanded="false" aria-controls="account-menu-panel">${avatarMarkup(profile, 'small')}<span class="session-user"><strong>${escapeHtml(profile.full_name)}</strong><small>${escapeHtml(roleName(profile.role))}</small></span><span class="account-menu-chevron" aria-hidden="true">${ICONS.chevDown}</span></button>
             <div class="account-menu-panel" id="account-menu-panel" role="menu" hidden>
-              <button type="button" id="account-button" role="menuitem"><span aria-hidden="true">○</span>Perfil</button>
-              <button type="button" id="brand-button" role="menuitem"><span aria-hidden="true">◆</span>Recursos de marca</button>
-              <button type="button" id="news-button" role="menuitem"><span aria-hidden="true">▤</span>Noticias</button>
-              ${isAdministrator(profile) ? '<button type="button" id="control-button" role="menuitem"><span aria-hidden="true">⚙</span>Centro de control</button>' : ''}
-              <button type="button" class="account-menu-logout" id="logout-button" role="menuitem"><span aria-hidden="true">↪</span>Cerrar sesión</button>
+              <button type="button" id="account-button" role="menuitem"><span aria-hidden="true">${ICONS.user}</span>Perfil</button>
+              <button type="button" id="brand-button" role="menuitem"><span aria-hidden="true">${ICONS.diamond}</span>Recursos de marca</button>
+              <button type="button" id="news-button" role="menuitem"><span aria-hidden="true">${ICONS.newspaper}</span>Noticias</button>
+              ${isAdministrator(profile) ? `<button type="button" id="control-button" role="menuitem"><span aria-hidden="true">${ICONS.settings}</span>Centro de control</button>` : ''}
+              <button type="button" class="account-menu-logout" id="logout-button" role="menuitem"><span aria-hidden="true">${ICONS.logOut}</span>Cerrar sesión</button>
             </div>
           </div>
         </div>
@@ -525,7 +663,7 @@ function shellMarkup(profile, content) {
 
 function openCoreTicketCreation(profile, presetAsset = null) {
   pendingTicketAsset = presetAsset;
-  renderPortal(profile);
+  renderPortal(profile, null);
   const panel = document.querySelector('#ticket-create-panel');
   panel.open = true;
   requestAnimationFrame(() => {
@@ -537,7 +675,7 @@ function openCoreTicketCreation(profile, presetAsset = null) {
 function openCoreTicketHistory(profile) {
   const wasVisible = userPreferences.show_tickets;
   userPreferences = { ...userPreferences, show_tickets: true };
-  renderPortal(profile);
+  renderPortal(profile, null);
   userPreferences = { ...userPreferences, show_tickets: wasVisible };
   requestAnimationFrame(() => document.querySelector('#tickets-dashboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
@@ -563,11 +701,11 @@ function bindShell(profile) {
     const collapsed = shell?.classList.toggle('sidebar-collapsed') || false;
     localStorage.setItem('mrti_core_sidebar_collapsed', collapsed ? '1' : '0');
     const button = document.querySelector('#sidebar-collapse');
-    button.textContent = collapsed ? '»' : '«';
+    button.innerHTML = collapsed ? ICONS.chevRight : ICONS.chevLeft;
     button.setAttribute('aria-label', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
     button.setAttribute('title', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
   });
-  document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile));
+  document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile, null));
   document.querySelector('#core-new-ticket-button')?.addEventListener('click', () => openCoreTicketCreation(profile));
   document.querySelector('#core-my-tickets-button')?.addEventListener('click', () => openCoreTicketHistory(profile));
   notificationPanelController?.abort();
@@ -598,6 +736,7 @@ function bindShell(profile) {
       notificationCount.textContent = lastNotificationItems.length > 9 ? '9+' : String(lastNotificationItems.length);
       notificationCount.hidden = lastNotificationItems.length === 0;
     }
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-notifications', { detail: { count: lastNotificationItems.length } }));
     if (!lastNotificationItems.length) {
       const dashboard = document.querySelector('#notifications-dashboard');
       if (dashboard) dashboard.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
@@ -613,6 +752,7 @@ function bindShell(profile) {
     if (dashboard) dashboard.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
     const notificationCount = document.querySelector('#notification-count');
     if (notificationCount) notificationCount.hidden = true;
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-notifications', { detail: { count: 0 } }));
     const dismissAllButton = document.querySelector('#notifications-dismiss-all');
     if (dismissAllButton) dismissAllButton.hidden = true;
     void dismissNotifications(items);
@@ -650,10 +790,30 @@ function bindShell(profile) {
     try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* cierre local garantizado */ }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_profile');
+    clearWidgetCache();
     if ('clearAppBadge' in navigator) void navigator.clearAppBadge().catch(() => {});
     if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
     avatarObjectUrl = null;
     window.location.replace('/');
+  });
+  bindDashboardRefinements({
+    profile,
+    api,
+    widgetOrder: userPreferences.widget_order || DEFAULT_USER_PREFERENCES.widget_order,
+    persistWidgetOrder: async (widgetOrder) => {
+      const { preferences } = await api('/api/auth/profile/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify({ ...userPreferences, widget_order: widgetOrder }),
+      });
+      userPreferences = { ...DEFAULT_USER_PREFERENCES, ...preferences };
+    },
+    handlers: {
+      newTicket: () => openCoreTicketCreation(profile),
+      openTicket: (id) => openSelfTicketDetail(profile, id),
+      openRequisition: (id) => openRequisitionDetail(id, profile),
+      openAccount: () => renderAccount(profile),
+      openControlCenter: () => renderControlCenter(profile),
+    },
   });
   void loadNotifications(profile);
   if (notificationRefreshTimer) window.clearInterval(notificationRefreshTimer);
@@ -681,24 +841,68 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
   const firstName = profile.full_name.split(' ')[0];
   const location = [profile.physical_site_name, profile.physical_area_name].filter(Boolean).join(' · ') || 'Ubicación pendiente';
   const quickActions = [
-    { action: 'new-ticket', icon: '+', title: 'Nuevo ticket', copy: 'Reporta cualquier necesidad mediante Tickets.' },
-    { href: '#tickets-dashboard', icon: 'T', title: 'Mis tickets', copy: 'Consulta aquí su avance y prioridad.' },
-    { href: '#assets-dashboard', icon: 'A', title: 'Mis activos', copy: 'Consulta el equipo que tienes asignado.' },
+    { action: 'new-ticket', icon: ICONS.plus, title: 'Nuevo ticket', copy: 'Reporta cualquier necesidad mediante Tickets.' },
+    { href: '#tickets-dashboard', icon: ICONS.tickets, title: 'Mis tickets', copy: 'Consulta aquí su avance y prioridad.' },
+    { href: '#assets-dashboard', icon: `<svg ${SVG_ATTR}><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>`, title: 'Mis activos', copy: 'Consulta el equipo que tienes asignado.' },
+    userPreferences.show_requisitions ? { action: 'new-requisition', icon: `<svg ${SVG_ATTR}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>`, title: 'Nueva requisición', copy: 'Solicita una nueva plaza o sustitución.', id: 'quick-action-requisition', hidden: true } : null,
   ].filter(Boolean);
   app.innerHTML = shellMarkup(profile, `
     ${banner}
-    <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> Dashboard</div><h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>Este es tu dashboard.</em></h1>
+    <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> Dashboard</div>${avatarMarkup(profile, 'hero-avatar')}<h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>Este es tu dashboard.</em></h1>
       <p>Consulta tus gestiones, entra a tus módulos y adapta este espacio a tu forma de trabajar.</p>
+      <p id="home-contextual-message" class="home-contextual-message" hidden></p>
       <dl class="home-context"><div><dt>Fecha</dt><dd>${escapeHtml(longDate())}</dd></div><div><dt>Área</dt><dd id="home-department">${escapeHtml(profile.access_area_name || 'Sin área asignada')}</dd></div><div><dt>Puesto</dt><dd id="home-position">Consultando RH…</dd></div><div><dt>Ubicación</dt><dd>${escapeHtml(location)}</dd></div></dl></div>
-      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats">${userPreferences.show_tickets ? '<article class="home-stat" id="requests-stat"><span>Tickets abiertos</span><strong>—</strong><small>Consultando…</small></article>' : ''}${userPreferences.show_assets ? '<article class="home-stat" id="assets-stat"><span>Activos asignados</span><strong>—</strong><small>Consultando…</small></article>' : ''}</div></aside></section>
+      <aside class="home-overview" aria-label="Resumen personal"><p class="section-label">Tu resumen</p><div class="home-stats">${userPreferences.show_tickets ? '<article class="home-stat" id="requests-stat"><span><i class="home-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg></i>Tickets abiertos</span><strong class="skeleton"> </strong><small>Consultando…</small></article>' : ''}${userPreferences.show_assets ? '<article class="home-stat" id="assets-stat"><span><i class="home-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10"/></svg></i>Activos asignados</span><strong class="skeleton"> </strong><small>Consultando…</small></article>' : ''}${userPreferences.show_requisitions ? '<article class="home-stat" id="requisitions-stat"><span><i class="home-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6m3-3h-6"/></svg></i>Requisiciones activas</span><strong class="skeleton"> </strong><small>Consultando…</small></article>' : ''}</div></aside></section>
     <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
-    ? `<button class="quick-action" type="button" data-core-action="${action.action}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></button>`
-    : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true">→</b></a>`).join('')}</div></section>
-    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form">${pendingTicketAsset ? `<div class="notice" id="ticket-preset-asset">Activo relacionado: <strong>${escapeHtml(pendingTicketAsset.asset_label)}</strong> <button type="button" id="ticket-preset-asset-clear" class="text-download" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;">Quitar</button></div>` : ''}<label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div><div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
+    ? `<button class="quick-action" type="button" data-core-action="${action.action}"${action.id ? ` id="${action.id}"` : ''}${action.hidden ? ' hidden' : ''}><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true"><svg ${SVG_ATTR} width="16" height="16"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></b></button>`
+    : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true"><svg ${SVG_ATTR} width="16" height="16"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></b></a>`).join('')}</div></section>
+    <section class="personal-card recent-activity" aria-labelledby="recent-activity-title"><div class="personal-card-title"><div><p>Actividad</p><h3 id="recent-activity-title">Actividad reciente</h3></div></div><ol class="recent-activity-list" id="recent-activity-list"><li class="activity-empty">Consultando tus gestiones recientes…</li></ol></section>
+    <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form">${isAdministrator(profile) ? '<label>En nombre de<select name="on_behalf_of" id="ticket-on-behalf-of"><option value="">Yo mismo (mi usuario)</option></select><small class="field-help" style="margin-top:-6px;color:var(--ink-soft);font-size:.68rem">Solo visible para administradores. Selecciona al usuario que solicitó el ticket.</small></label>' : ''}${pendingTicketAsset ? `<div class="notice" id="ticket-preset-asset">Activo relacionado: <strong>${escapeHtml(pendingTicketAsset.asset_label)}</strong> <button type="button" id="ticket-preset-asset-clear" class="text-download" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;">Quitar</button></div>` : ''}<label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div>${profile.role === 'administrator' ? '<div id="ticket-equipment">Cargando equipos…</div>' : ''}<div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
+    ${userPreferences.show_requisitions ? `<section class="personal-dashboard requisition-self-service" id="requisition-self-service" hidden>
+      <details class="personal-card req-card" id="requisition-create-panel">
+        <summary class="req-summary"><span class="req-summary-icon"><svg ${SVG_ATTR}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg></span><span><small>Autoservicio</small><strong>Solicitar requisición de personal</strong></span><b class="req-summary-toggle">Mostrar formulario</b></summary>
+        <form class="personal-form req-form" id="requisition-self-form">
+          <fieldset class="req-fieldset">
+            <legend><span class="req-step">1</span> Tipo y prioridad</legend>
+            <div class="req-fields-row">
+              <label>Tipo de requisición<select name="type" id="req-type" required><option value="">Seleccionar tipo</option><option value="nueva_creacion">Nueva creación</option><option value="sustitucion_reemplazo">Sustitución / Reemplazo</option><option value="incapacidad_maternidad_temporal">Incapacidad / Maternidad temporal</option></select></label>
+              <label>Prioridad<select name="priority" id="req-priority"><option value="media" selected>Media</option><option value="baja">Baja</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
+            </div>
+          </fieldset>
+          <fieldset class="req-fieldset">
+            <legend><span class="req-step">2</span> Puesto</legend>
+            <label>Puesto solicitado<input id="req-position-name" name="position_name" maxlength="200" autocomplete="off" placeholder="Escribe para buscar o crear" required><input type="hidden" name="position_id" id="req-position"><small>Elige una coincidencia para reutilizarla; si no existe, se creará al enviar.</small></label>
+            <div id="req-position-matches" class="personal-suggestions" hidden></div>
+            <label id="req-new-position-unit" hidden>Unidad del nuevo puesto<select name="new_position_org_unit_id" id="req-org-unit"><option value="">Seleccionar unidad…</option></select></label>
+          </fieldset>
+          <fieldset class="req-fieldset">
+            <legend><span class="req-step">3</span> Organización y ubicación</legend>
+            <div class="req-fields-row">
+              <label>Departamento<select name="department_id" id="req-department"><option value="">Cargando departamentos…</option></select></label>
+              <label>Reporta al puesto<select name="reports_to_position_id" id="req-reports-to"><option value="">Cargando…</option></select></label>
+            </div>
+            <div class="req-fields-row req-fields-3col">
+              <label>Ubicación<select name="location" id="req-location"><option value="">Cargando ubicaciones…</option></select></label>
+              <label>Visibilidad<select name="visibility" id="req-visibility"><option value="publica">Pública</option><option value="interna">Interna</option><option value="confidencial">Confidencial</option></select></label>
+              <label>Plazas<input name="headcount" type="number" min="1" max="50" value="1"></label>
+            </div>
+          </fieldset>
+          <fieldset class="req-fieldset">
+            <legend><span class="req-step">4</span> Justificación y perfil</legend>
+            <label>Justificación<textarea name="justification" rows="3" maxlength="2000" placeholder="¿Por qué se requiere esta posición?"></textarea></label>
+            <label>Perfil requerido<textarea name="profile_description" rows="3" maxlength="2000" placeholder="Experiencia, habilidades y conocimientos deseados"></textarea></label>
+          </fieldset>
+          <div class="personal-form-message" id="requisition-form-message" hidden></div>
+          <div class="req-submit-row"><button class="personal-submit req-submit" type="submit"><svg ${SVG_ATTR} width="16" height="16"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg> Enviar requisición</button></div>
+        </form>
+      </details>
+    </section>` : ''}
+    <section class="personal-dashboard" id="requisition-approvals-section" hidden><div id="requisition-approvals-dashboard"></div></section>
     <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Dashboard</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
-      ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading">Cargando tu información de Recursos Humanos…</div>' : ''}
-      ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading">Cargando tu equipo asignado…</div>' : ''}
-      ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading">Cargando tus tickets…</div>' : ''}</section>`);
+      ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading" aria-live="polite">Cargando tu información de Recursos Humanos…</div>' : ''}
+      ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading" aria-live="polite">Cargando tu equipo asignado…</div>' : ''}
+      ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading" aria-live="polite">Cargando tus tickets…</div>' : ''}
+      ${userPreferences.show_requisitions ? '<div id="requisitions-dashboard" class="personal-loading" aria-live="polite">Cargando tus requisiciones…</div>' : ''}</section>`);
   bindShell(profile);
   bindTicketSelfService(profile);
   if (requestedView === 'account') renderAccount(profile);
@@ -711,19 +915,29 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
   void loadEmployeeDashboard(profile);
   void loadAssetsDashboard(profile);
   void loadTicketsDashboard(profile);
+  void loadRequisitionsDashboard(profile);
+  void loadRequisitionApprovals(profile);
+  void bindRequisitionSelfService(profile);
 }
 
 function shortDate(value) {
   return value ? String(value).slice(0, 10) : '—';
 }
 
-async function loadEmployeeDashboard(profile) {
+async function loadEmployeeDashboard(profile, { forceFresh = false } = {}) {
   const container = document.querySelector('#employee-dashboard');
   if (!container) return;
+  let refreshScheduled = false;
+  const refresh = () => {
+    if (!refreshScheduled && !forceFresh) {
+      refreshScheduled = true;
+      void loadEmployeeDashboard(profile, { forceFresh: true });
+    }
+  };
   try {
     const year = new Date().getFullYear();
-    const { data: employee } = await api('/rh-api/api/rh-self/me');
-    const { data: balances } = await api(`/rh-api/api/rh-self/me/leave-balances?year=${year}`);
+    const { data: employee, widgetMeta: employeeMeta } = await widgetApi('/rh-api/api/rh-self/me', profile, { forceFresh, onRefresh: refresh });
+    const { data: balances, widgetMeta } = await widgetApi(`/rh-api/api/rh-self/me/leave-balances?year=${year}`, profile, { forceFresh, onRefresh: refresh });
     const department = document.querySelector('#home-department');
     const position = document.querySelector('#home-position');
     if (department) department.textContent = employee.department_name || profile.access_area_name || 'Sin área asignada';
@@ -734,7 +948,10 @@ async function loadEmployeeDashboard(profile) {
       <article class="personal-card identity-card"><div class="personal-card-heading"><span class="personal-icon">ID</span><div><p>Mi información laboral</p><h3>${escapeHtml(employee.first_name)} ${escapeHtml(employee.last_name_p)} ${escapeHtml(employee.last_name_m || '')}</h3></div></div>
         <dl class="identity-details"><div><dt>Número</dt><dd>${escapeHtml(employee.employee_number)}</dd></div><div><dt>Puesto</dt><dd>${escapeHtml(employee.job_title || '—')}</dd></div><div><dt>Departamento</dt><dd>${escapeHtml(employee.department_name || '—')}</dd></div><div><dt>Jefe directo</dt><dd>${escapeHtml(employee.manager_name || '—')}</dd></div><div><dt>Correo</dt><dd>${escapeHtml(employee.work_email || profile.email)}</dd></div><div><dt>Ingreso</dt><dd>${shortDate(employee.hire_date)}</dd></div></dl></article>
       <article class="personal-card balance-card"><div class="personal-card-title"><div><p>Información de Recursos Humanos</p><h3>Saldos disponibles ${year}</h3></div></div><div class="personal-metrics">${balanceCards || '<p class="personal-empty">RH aún no ha asignado saldos.</p>'}</div><p class="personal-card-note">Las vacaciones, permisos y demás gestiones deben solicitarse mediante un ticket.</p></article>`;
+    setWidgetUpdated(container, widgetMeta || employeeMeta, () => void loadEmployeeDashboard(profile, { forceFresh: true }));
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'rh', data: [employee] } }));
   } catch (error) {
+    console.warn('No fue posible cargar el widget de Recursos Humanos.', error);
     const position = document.querySelector('#home-position');
     if (error.code === 'EMPLOYEE_NOT_LINKED' || error.status === 404) {
       if (position) position.textContent = 'Sin ficha laboral vinculada';
@@ -743,28 +960,37 @@ async function loadEmployeeDashboard(profile) {
       return;
     }
     if (position) position.textContent = 'Información no disponible';
-    container.className = 'notice error';
-    container.textContent = error.message;
+    renderWidgetError(container, () => void loadEmployeeDashboard(profile));
   }
 }
 
-async function loadAssetsDashboard() {
+async function loadAssetsDashboard(profile, { forceFresh = false } = {}) {
   const container = document.querySelector('#assets-dashboard');
   if (!container) return;
+  let refreshScheduled = false;
+  const refresh = () => {
+    if (!refreshScheduled && !forceFresh) {
+      refreshScheduled = true;
+      void loadAssetsDashboard(profile, { forceFresh: true });
+    }
+  };
   try {
-    const { data: assets } = await api('/activos-api/api/activos-self/me');
+    const { data: assets, widgetMeta } = await widgetApi('/activos-api/api/activos-self/me', profile, { forceFresh, onRefresh: refresh });
     setHomeStat('assets-stat', String(assets.length), assets.length === 1 ? 'Activo bajo tu resguardo' : 'Activos bajo tu resguardo', 'ok');
     container.className = 'personal-grid';
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'assets', data: assets } }));
     if (!assets.length) {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><p class="personal-empty">Aún no tienes equipo asignado en MRTI Activos.</p></article>`;
+      setWidgetUpdated(container, widgetMeta, () => void loadAssetsDashboard(profile, { forceFresh: true }));
       return;
     }
     const rows = assets.map((asset) => `<tr><td><strong>${escapeHtml(asset.cod_activo_fijo || asset.numero_serie || '—')}</strong><small>${escapeHtml(asset.descripcion || asset.tipo || '')}</small></td><td>${escapeHtml(asset.marca || '—')} ${escapeHtml(asset.modelo || '')}</td><td><span class="request-status ${asset.estado === 'Activo' ? 'approved' : 'pending'}">${escapeHtml(asset.estado || '—')}</span></td></tr>`).join('');
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Equipo</th><th>Marca/modelo</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div></article>`;
+    setWidgetUpdated(container, widgetMeta, () => void loadAssetsDashboard(profile, { forceFresh: true }));
   } catch (error) {
+    console.warn('No fue posible cargar el widget de Activos.', error);
     setHomeStat('assets-stat', '—', 'Activos no disponible', 'unavailable');
-    container.className = 'notice error';
-    container.textContent = error.message;
+    renderWidgetError(container, () => void loadAssetsDashboard(profile));
   }
 }
 
@@ -775,28 +1001,257 @@ const TICKET_STATUS_CLASS = {
 };
 const TICKET_OPEN_STATUSES = ['NEW', 'OPEN', 'ASSIGNED', 'IN_DIAGNOSIS', 'IN_PROGRESS', 'ON_HOLD_USER', 'ON_HOLD_VENDOR', 'REOPENED'];
 
-async function loadTicketsDashboard(profile, flash = '') {
+async function loadTicketsDashboard(profile, flash = '', { forceFresh = false } = {}) {
   const container = document.querySelector('#tickets-dashboard');
   if (!container) return;
+  let refreshScheduled = false;
+  const refresh = () => {
+    if (!refreshScheduled && !forceFresh) {
+      refreshScheduled = true;
+      void loadTicketsDashboard(profile, flash, { forceFresh: true });
+    }
+  };
   try {
-    const { data: tickets } = await api('/tickets-api/api/tickets-self/me');
+    const { data: tickets, widgetMeta } = await widgetApi('/tickets-api/api/tickets-self/me', profile, { forceFresh, onRefresh: refresh });
     const openTickets = tickets.filter((ticket) => TICKET_OPEN_STATUSES.includes(ticket.status_code)).length;
     setHomeStat('requests-stat', String(openTickets), `${tickets.length} ${tickets.length === 1 ? 'ticket total' : 'tickets totales'}`, openTickets ? 'attention' : 'ok');
     container.className = 'personal-grid';
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'tickets', data: tickets } }));
     if (!tickets.length) {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
+      setWidgetUpdated(container, widgetMeta, () => void loadTicketsDashboard(profile, flash, { forceFresh: true }));
       return;
     }
     const rows = tickets.map((ticket) => `<tr><td><button class="ticket-detail-trigger" type="button" data-ticket-detail="${escapeHtml(ticket.id)}" aria-label="Ver detalle de ${escapeHtml(ticket.folio)}"><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></button></td><td><strong>${escapeHtml(ticket.business_area_name || 'Sin área')}</strong><small>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div><p class="ticket-list-help">Selecciona un ticket para consultar su descripción sin salir de Core.</p></article><dialog class="ticket-detail-dialog" id="ticket-detail-dialog" aria-labelledby="ticket-detail-title"><div id="ticket-detail-content" class="ticket-detail-loading">Cargando ticket…</div></dialog>`;
+    setWidgetUpdated(container, widgetMeta, () => void loadTicketsDashboard(profile, flash, { forceFresh: true }));
     const dialog = document.querySelector('#ticket-detail-dialog');
     dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
     document.querySelectorAll('[data-ticket-detail]').forEach((button) => button.addEventListener('click', () => openSelfTicketDetail(profile, button.dataset.ticketDetail)));
   } catch (error) {
+    console.warn('No fue posible cargar el widget de Tickets.', error);
     setHomeStat('requests-stat', '—', 'Tickets no disponibles', 'unavailable');
-    container.className = 'notice error';
-    container.textContent = error.message;
+    renderWidgetError(container, () => void loadTicketsDashboard(profile, flash));
   }
+}
+
+const REQ_STATUS_LABEL = { draft: 'Borrador', pending: 'Pendiente', in_approval: 'En aprobación', approved: 'Aprobada', rejected: 'Rechazada', cancelled: 'Cancelada' };
+const REQ_STATUS_CLASS = { draft: 'pending', pending: 'pending', in_approval: 'pending', approved: 'approved', rejected: 'rejected', cancelled: 'rejected' };
+const REQ_TYPE_LABEL = { nueva_creacion: 'Nueva creación', sustitucion_reemplazo: 'Sustitución / Reemplazo', incapacidad_maternidad_temporal: 'Incapacidad / Maternidad' };
+const REQ_PRIORITY_LABEL = { baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente' };
+
+// Este carril no depende del permiso de RH ni de las preferencias de widgets:
+// el servidor sólo devuelve el paso cuyo aprobador es la sesión actual.
+async function loadRequisitionApprovals(profile) {
+  const section = document.querySelector('#requisition-approvals-section');
+  const container = document.querySelector('#requisition-approvals-dashboard');
+  if (!section || !container) return;
+  try {
+    const [pendingResponse, recoverableResponse] = await Promise.all([
+      widgetApi('/rh-api/api/rh-self/me/requisitions/pending-approvals', profile, { forceFresh: true }),
+      isAdministrator(profile) ? widgetApi('/rh-api/api/rh-self/me/requisitions/rejected-recoverable', profile, { forceFresh: true }) : Promise.resolve({ data: [] }),
+    ]);
+    const pending = pendingResponse.data;
+    const recoverable = recoverableResponse.data;
+    if (!pending.length && !recoverable.length) return;
+    section.hidden = false;
+    const pendingCard = pending.length ? `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Firma requerida</p><h3>Requisiciones pendientes de tu autorización</h3></div><small class="table-hint">Selecciona una fila para revisar y decidir.</small></div><div class="personal-table-scroll"><table><thead><tr><th>Folio</th><th>Puesto</th><th>Solicitante</th></tr></thead><tbody>${pending.map((r) => `<tr class="req-approval-row" data-requisition-detail="${r.id}" tabindex="0" role="button" aria-label="Abrir requisición ${escapeHtml(r.folio)}"><td><strong>${escapeHtml(r.folio)}</strong><small>${escapeHtml(r.role_label)}</small></td><td>${escapeHtml(r.position_name)}</td><td>${escapeHtml(r.requester_name)}</td></tr>`).join('')}</tbody></table></div></article>` : '';
+    const recoveryCard = recoverable.length ? `<article class="personal-card requests-card requisition-recovery-card"><div class="personal-card-title"><div><p>Administración</p><h3>Requisiciones rechazadas recuperables</h3></div><small class="table-hint">Abre una fila para revisar y restaurar la solicitud.</small></div><div class="personal-table-scroll"><table><thead><tr><th>Folio</th><th>Puesto</th><th>Rechazada por</th></tr></thead><tbody>${recoverable.map((r) => `<tr class="req-approval-row" data-requisition-detail="${r.id}" tabindex="0" role="button" aria-label="Abrir requisición ${escapeHtml(r.folio)}"><td><strong>${escapeHtml(r.folio)}</strong><small>${escapeHtml(r.department_name || 'Sin departamento')}</small></td><td>${escapeHtml(r.position_name)}</td><td><strong>${escapeHtml(r.rejected_by_name || '—')}</strong><small>${escapeHtml(r.rejection_notes || 'Sin motivo registrado')}</small></td></tr>`).join('')}</tbody></table></div></article>` : '';
+    container.innerHTML = pendingCard + recoveryCard;
+    setWidgetUpdated(container, pendingResponse.widgetMeta, () => void loadRequisitionApprovals(profile));
+    container.querySelectorAll('.req-approval-row').forEach((row) => row.addEventListener('click', (event) => {
+      if (!event.target.closest('button')) openRequisitionDetail(row.dataset.requisitionDetail, profile);
+    }));
+    container.querySelectorAll('.req-approval-row').forEach((row) => row.addEventListener('keydown', (event) => {
+      if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('button')) { event.preventDefault(); openRequisitionDetail(row.dataset.requisitionDetail, profile); }
+    }));
+  } catch (error) {
+    console.warn('No fue posible cargar las autorizaciones de requisiciones.', error);
+    section.hidden = false;
+    renderWidgetError(container, () => void loadRequisitionApprovals(profile));
+  }
+}
+
+async function openRequisitionDetail(id, profile) {
+  let dialog = document.querySelector('#requisition-detail-dialog');
+  if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'requisition-detail-dialog'; dialog.className = 'requisition-detail-dialog'; document.body.append(dialog); }
+  dialog.innerHTML = '<div class="requisition-detail-loading">Cargando requisición…</div>';
+  dialog.showModal();
+  try {
+    const { data: r } = await api(`/rh-api/api/rh-self/me/requisitions/${id}`);
+    const field = (label, value) => `<div><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`;
+    const decisionActions = r.can_decide ? `<div class="requisition-detail-decisions"><button class="personal-submit req-modal-approve" type="button">Aprobar requisición</button><button class="req-reject-button req-modal-reject" type="button">Rechazar requisición</button></div>` : '';
+    const recoveryAction = isAdministrator(profile) && r.status === 'rejected' ? `<div class="requisition-detail-decisions"><button class="secondary-button req-modal-recover" type="button">Recuperar requisición</button></div>` : '';
+    const decisionLabel = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' };
+const approvalProgress = r.can_view_tracking === true && r.approvals?.length ? `<section class="requisition-detail-section"><h3>Seguimiento de autorizaciones</h3><ol class="requisition-approval-timeline">${r.approvals.map((approval) => `<li class="${escapeHtml(approval.decision)}"><span></span><div><strong>${escapeHtml(approval.role_label)}</strong><small>${escapeHtml(approval.approver_name || 'Sin asignar')} · ${escapeHtml(decisionLabel[approval.decision] || approval.decision)}${approval.decided_at ? ` · ${escapeHtml(shortDate(approval.decided_at))}` : ''}</small>${approval.notes ? `<em>${escapeHtml(approval.notes)}</em>` : ''}</div></li>`).join('')}</ol></section>` : '';
+    dialog.innerHTML = `<article class="requisition-detail-content"><header><div><p>Requisición de personal · ${escapeHtml(r.folio)}</p><h2>${escapeHtml(r.position_name)}</h2><small>${r.can_decide ? 'Revisa la información antes de emitir tu autorización.' : 'Consulta la información completa de esta requisición.'}</small></div><button class="dialog-close" type="button" aria-label="Cerrar">×</button></header><div class="requisition-detail-body"><section class="requisition-detail-summary"><h3>Definición de la plaza</h3><div class="detail-grid">${field('Solicitante', r.requester_name)}${field('Departamento', r.department_name)}${field('Reporta a', r.reports_to_position_name)}${field('Ubicación', r.location)}${field('Plazas', String(r.headcount))}${field('Centro de costos', r.cost_center_project)}</div></section>${approvalProgress}${r.justification ? `<section class="requisition-detail-section"><h3>Justificación</h3><p>${escapeHtml(r.justification)}</p></section>` : ''}${r.profile_description ? `<section class="requisition-detail-section"><h3>Perfil requerido</h3><p>${escapeHtml(r.profile_description)}</p></section>` : ''}</div><footer>${decisionActions}${recoveryAction}<button class="secondary-button dialog-close" type="button">Cerrar detalle</button></footer></article>`;
+    dialog.querySelectorAll('.dialog-close').forEach((button) => button.addEventListener('click', () => dialog.close()));
+    const decide = async (action) => {
+      const message = action === 'reject' ? `¿Confirmas el rechazo de ${r.folio}? La requisición se detendrá hasta que un administrador la recupere.` : `¿Confirmas que apruebas la requisición ${r.folio}? Tu firma quedará registrada.`;
+      if (!confirm(message)) return;
+      const notes = action === 'reject' ? prompt(`Motivo del rechazo de ${r.folio} (mínimo 5 caracteres):`) : 'Aprobado desde dashboard';
+      if (!notes || (action === 'reject' && notes.trim().length < 5)) return;
+      const button = dialog.querySelector(action === 'reject' ? '.req-modal-reject' : '.req-modal-approve');
+      button.disabled = true;
+      try { await api(`/rh-api/api/rh-self/me/requisitions/${id}/${action}`, { method: 'PATCH', body: JSON.stringify({ notes }) }); dialog.close(); await loadRequisitionApprovals(profile); await loadRequisitionsDashboard(profile); }
+      catch (error) { alert(error.message); button.disabled = false; }
+    };
+    dialog.querySelector('.req-modal-approve')?.addEventListener('click', () => decide('approve'));
+    dialog.querySelector('.req-modal-reject')?.addEventListener('click', () => decide('reject'));
+    dialog.querySelector('.req-modal-recover')?.addEventListener('click', async () => {
+      const reason = prompt(`Indica por qué recuperas la requisición ${r.folio} (mínimo 5 caracteres):`);
+      if (!reason || reason.trim().length < 5 || !confirm(`¿Recuperar ${r.folio}? Volverá al paso de firma que la rechazó.`)) return;
+      const button = dialog.querySelector('.req-modal-recover'); button.disabled = true;
+      try { await api(`/rh-api/api/rh-self/me/requisitions/${id}/recover-rejected`, { method: 'PATCH', body: JSON.stringify({ reason }) }); dialog.close(); await loadRequisitionApprovals(profile); await loadRequisitionsDashboard(profile); }
+      catch (error) { alert(error.message); button.disabled = false; }
+    });
+  } catch (error) { dialog.innerHTML = `<div class="ticket-detail-content"><button class="dialog-close" type="button">×</button><p class="notice error">${escapeHtml(error.message)}</p></div>`; dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close()); }
+}
+
+async function loadRequisitionsDashboard(profile, { forceFresh = false } = {}) {
+  const container = document.querySelector('#requisitions-dashboard');
+  if (!container) return;
+  let refreshScheduled = false;
+  const refresh = () => {
+    if (!refreshScheduled && !forceFresh) {
+      refreshScheduled = true;
+      void loadRequisitionsDashboard(profile, { forceFresh: true });
+    }
+  };
+  try {
+    const [mineResponse, pendingResponse] = await Promise.all([
+      widgetApi('/rh-api/api/rh-self/me/requisitions/tracking', profile, { forceFresh, onRefresh: refresh }),
+      widgetApi('/rh-api/api/rh-self/me/requisitions/pending-approvals', profile, { forceFresh, onRefresh: refresh }),
+    ]);
+    const { data: mine, widgetMeta } = mineResponse;
+    const { data: pending } = pendingResponse;
+    container.className = 'personal-grid';
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'requisitions', data: mine } }));
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'approvals', data: pending } }));
+    setHomeStat('requisitions-stat', String(mine.filter((item) => ['pending', 'in_approval'].includes(item.status)).length), 'Pendientes o en firma', mine.length ? 'attention' : 'ok');
+    const mineRows = mine.map((r) => `<tr class="req-approval-row" data-requisition-detail="${r.id}" tabindex="0" role="button"><td><strong>${escapeHtml(r.folio)}</strong><small>${escapeHtml(REQ_TYPE_LABEL[r.type] || r.type)}</small></td><td>${escapeHtml(r.position_name)}</td><td>${escapeHtml(r.department_name || '—')}</td><td><span class="request-status ${REQ_STATUS_CLASS[r.status] || 'pending'}">${escapeHtml(REQ_STATUS_LABEL[r.status] || r.status)}</span><small>${r.current_role_label ? `En firma: ${escapeHtml(r.current_role_label)}${r.current_approver_name ? ` · ${escapeHtml(r.current_approver_name)}` : ''}` : r.status === 'approved' ? 'Proceso concluido' : ''}</small></td></tr>`).join('');
+    const mineCard = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Requisiciones de personal</p><h3>Seguimiento de mis requisiciones</h3></div><small class="table-hint">Abre una fila para ver cada firma.</small></div>${mine.length ? `<div class="personal-table-scroll"><table><thead><tr><th>Folio</th><th>Puesto</th><th>Departamento</th><th>Seguimiento</th></tr></thead><tbody>${mineRows}</tbody></table></div>` : '<p class="personal-empty">No has creado requisiciones de personal.</p>'}</article>`;
+    container.innerHTML = mineCard;
+    setWidgetUpdated(container, widgetMeta || pendingResponse.widgetMeta, () => void loadRequisitionsDashboard(profile, { forceFresh: true }));
+    container.querySelectorAll('.req-approval-row').forEach((row) => {
+      row.addEventListener('click', () => openRequisitionDetail(row.dataset.requisitionDetail, profile));
+      row.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openRequisitionDetail(row.dataset.requisitionDetail, profile); } });
+    });
+
+    container.querySelectorAll('.req-approve-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.reqId;
+        const folio = btn.dataset.reqFolio;
+        if (!confirm(`¿Confirmas que apruebas la requisición ${folio}? Tu firma digital quedará registrada.`)) return;
+        btn.disabled = true;
+        btn.textContent = 'Firmando…';
+        try {
+          await api(`/rh-api/api/rh-self/me/requisitions/${id}/approve`, { method: 'PATCH', body: JSON.stringify({ notes: 'Aprobado desde portal' }) });
+          btn.textContent = '✓ Firmada';
+          btn.closest('tr').style.opacity = '0.5';
+          setTimeout(() => loadRequisitionsDashboard(profile), 1500);
+        } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = 'Aprobar'; }
+      });
+    });
+    container.querySelectorAll('.req-reject-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.reqId;
+        const folio = btn.dataset.reqFolio;
+        const notes = prompt(`Motivo del rechazo de ${folio} (mínimo 5 caracteres):`);
+        if (!notes || notes.length < 5) return;
+        btn.disabled = true;
+        btn.textContent = 'Enviando…';
+        try {
+          await api(`/rh-api/api/rh-self/me/requisitions/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ notes }) });
+          btn.textContent = '✗ Rechazada';
+          btn.closest('tr').style.opacity = '0.5';
+          setTimeout(() => loadRequisitionsDashboard(profile), 1500);
+        } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = 'Rechazar'; }
+      });
+    });
+  } catch (error) {
+    console.warn('No fue posible cargar el widget de requisiciones.', error);
+    if (error.status === 404 || error.code === 'EMPLOYEE_NOT_LINKED') {
+      container.innerHTML = '';
+      container.className = '';
+      return;
+    }
+    renderWidgetError(container, () => void loadRequisitionsDashboard(profile));
+  }
+}
+
+async function bindRequisitionSelfService(profile) {
+  const section = document.querySelector('#requisition-self-service');
+  if (!section) return;
+  try {
+    const { data: { allowed } } = await api('/rh-api/api/rh-self/me/can-create-requisition');
+    if (!allowed) return;
+  } catch { return; }
+  section.hidden = false;
+  const quickBtn = document.querySelector('#quick-action-requisition');
+  if (quickBtn) quickBtn.hidden = false;
+  const panel = document.querySelector('#requisition-create-panel');
+  const form = document.querySelector('#requisition-self-form');
+  const message = document.querySelector('#requisition-form-message');
+  const positionSelect = document.querySelector('#req-position');
+  const positionName = document.querySelector('#req-position-name');
+  quickBtn?.addEventListener('click', () => {
+    panel.open = true;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    form.elements.type.focus({ preventScroll: true });
+  });
+  try {
+    const { data: catalogs } = await api('/rh-api/api/rh-self/me/requisition-catalogs');
+    const matches = document.querySelector('#req-position-matches');
+    const newUnit = document.querySelector('#req-new-position-unit');
+    document.querySelector('#req-org-unit').innerHTML = `<option value="">Seleccionar unidad…</option>${catalogs.orgUnits.map((u) => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('')}`;
+    document.querySelector('#req-department').innerHTML = `<option value="">— Opcional —</option>${catalogs.departments.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('')}`;
+    document.querySelector('#req-location').innerHTML = `<option value="">— Opcional —</option>${catalogs.locations.map((l) => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}`;
+    document.querySelector('#req-reports-to').innerHTML = `<option value="">— Seleccionar —</option>${catalogs.positions.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}`;
+    positionName.addEventListener('input', () => { positionSelect.value = ''; const term = positionName.value.trim().toLowerCase(); const list = catalogs.positions.filter((p) => term && p.name.toLowerCase().includes(term)).slice(0, 6); matches.hidden = !list.length; matches.innerHTML = list.map((p) => `<button type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`).join(''); newUnit.hidden = false; });
+    matches.addEventListener('click', (event) => { const button = event.target.closest('button[data-id]'); if (!button) return; const p = catalogs.positions.find((item) => String(item.id) === button.dataset.id); positionSelect.value = p.id; positionName.value = p.name; document.querySelector('#req-reports-to').value = p.reports_to_position_id || ''; if (!form.elements.profile_description.value) form.elements.profile_description.value = p.description || ''; matches.hidden = true; newUnit.hidden = true; });
+  } catch (error) {
+    positionSelect.innerHTML = '<option value="">No disponible</option>';
+    message.hidden = false;
+    message.textContent = `No fue posible cargar los catálogos: ${error.message}`;
+  }
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const values = new FormData(form);
+    button.disabled = true;
+    message.hidden = true;
+    try {
+      const result = await api('/rh-api/api/rh-self/me/requisitions', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: values.get('type'),
+          priority: values.get('priority') || 'media',
+          position_id: values.get('position_id') || null,
+          new_position: values.get('position_id') ? null : { name: values.get('position_name'), org_unit_id: values.get('new_position_org_unit_id'), description: values.get('profile_description') },
+          position_name: values.get('position_name'),
+          department_id: values.get('department_id') || null,
+          reports_to_position_id: values.get('reports_to_position_id') || null,
+          location: values.get('location') || null,
+          visibility: values.get('visibility') || 'publica',
+          headcount: Number(values.get('headcount')) || 1,
+          justification: values.get('justification') || null,
+          profile_description: values.get('profile_description') || null,
+        }),
+      });
+      form.reset();
+      panel.open = false;
+      message.className = 'personal-form-message success';
+      message.textContent = `Requisición ${result.data.folio} enviada correctamente.`;
+      message.hidden = false;
+      await loadRequisitionsDashboard(profile);
+      document.querySelector('#requisitions-dashboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+      message.hidden = false;
+      message.className = 'personal-form-message';
+      message.textContent = error.message;
+    } finally { button.disabled = false; }
+  });
 }
 
 // Pantalla de administración (Core/RH): a diferencia de la portada pública,
@@ -1171,7 +1626,7 @@ async function openSelfTicketDetail(profile, ticketId) {
       ? `<form class="personal-form ticket-detail-form" id="ticket-detail-form"><label>Título<input name="title" maxlength="255" value="${escapeHtml(ticket.title)}" required></label><label>Descripción<textarea name="description" maxlength="10000" rows="7" placeholder="Sin descripción">${escapeHtml(ticket.description || '')}</textarea></label><div class="personal-form-message" id="ticket-detail-message" hidden></div><button class="personal-submit" type="submit">Guardar cambios</button></form>`
       : `<section class="ticket-description"><small>Descripción</small><p>${escapeHtml(ticket.description || 'Sin descripción capturada.')}</p></section>`;
     content.className = 'ticket-detail-content';
-    content.innerHTML = `<header><div><small>Detalle del ticket</small><h2 id="ticket-detail-title">${escapeHtml(ticket.folio)}</h2></div><button type="button" data-close-ticket-detail aria-label="Cerrar detalle">×</button></header><div class="ticket-detail-body"><h3>${escapeHtml(ticket.title)}</h3><dl class="ticket-detail-meta"><div><dt>Estatus</dt><dd><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></dd></div><div><dt>Área</dt><dd>${escapeHtml(ticket.business_area_name || 'Sin área')}</dd></div><div><dt>Categoría</dt><dd>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</dd></div><div><dt>Prioridad</dt><dd>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</dd></div><div><dt>Creado</dt><dd>${escapeHtml(ticketDateTime(ticket.created_at))}</dd></div><div><dt>Actualizado</dt><dd>${escapeHtml(ticketDateTime(ticket.updated_at))}</dd></div></dl><p class="ticket-edit-rule ${ticket.editable ? 'editable' : ''}">${escapeHtml(editMessage)}</p>${editableContent}</div>`;
+    content.innerHTML = `<header><div><small>Detalle del ticket</small><h2 id="ticket-detail-title">${escapeHtml(ticket.folio)}</h2></div><button type="button" data-close-ticket-detail aria-label="Cerrar detalle">×</button></header><div class="ticket-detail-body"><h3>${escapeHtml(ticket.title)}</h3><dl class="ticket-detail-meta"><div><dt>Estatus</dt><dd><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></dd></div><div><dt>Área</dt><dd>${escapeHtml(ticket.business_area_name || 'Sin área')}</dd></div><div><dt>Categoría</dt><dd>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</dd></div><div><dt>Prioridad</dt><dd>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</dd></div><div><dt>Equipo afectado</dt><dd>${escapeHtml([ticket.affected_device_internal_id || ticket.asset_number, ticket.affected_device_name].filter(Boolean).join(' · ') || 'Sin equipo específico')}</dd></div><div><dt>Creado</dt><dd>${escapeHtml(ticketDateTime(ticket.created_at))}</dd></div><div><dt>Actualizado</dt><dd>${escapeHtml(ticketDateTime(ticket.updated_at))}</dd></div></dl><p class="ticket-edit-rule ${ticket.editable ? 'editable' : ''}">${escapeHtml(editMessage)}</p>${editableContent}</div>`;
     content.querySelector('[data-close-ticket-detail]').addEventListener('click', () => dialog.close());
     const form = content.querySelector('#ticket-detail-form');
     form?.addEventListener('submit', async (event) => {
@@ -1212,9 +1667,22 @@ async function bindTicketSelfService(profile) {
     form.elements.title.focus({ preventScroll: true });
   });
   document.querySelector('#ticket-preset-asset-clear')?.addEventListener('click', () => {
+    const select = form.querySelector('#ticket-equipment-select');
+    if (select) { select.value = ''; select.name = 'affected_equipment'; }
     pendingTicketAsset = null;
     document.querySelector('#ticket-preset-asset')?.remove();
   });
+  void bindTicketEquipment({ form, api, escapeHtml, preset: pendingTicketAsset, onChange: () => {
+    pendingTicketAsset = null;
+    document.querySelector('#ticket-preset-asset')?.remove();
+  } });
+  const onBehalfSelect = document.querySelector('#ticket-on-behalf-of');
+  if (onBehalfSelect && isAdministrator(profile)) {
+    api('/api/auth/users').then(({ data }) => {
+      const sorted = data.filter((u) => u.is_active).sort((a, b) => a.full_name.localeCompare(b.full_name));
+      onBehalfSelect.innerHTML = `<option value="">Yo mismo (${escapeHtml(profile.full_name)})</option>${sorted.map((u) => `<option value="${escapeHtml(u.id)}" data-name="${escapeHtml(u.full_name)}" data-email="${escapeHtml(u.email || '')}">${escapeHtml(u.full_name)}${u.email ? ` · ${escapeHtml(u.email)}` : ''}</option>`).join('')}`;
+    }).catch(() => { onBehalfSelect.innerHTML = '<option value="">No se pudieron cargar los usuarios</option>'; });
+  }
   try {
     const { data } = await api('/tickets-api/api/tickets-self/options');
     businessArea.innerHTML = `<option value="">Seleccionar área</option>${data.business_areas.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}`;
@@ -1246,6 +1714,9 @@ async function bindTicketSelfService(profile) {
     button.disabled = true;
     message.hidden = true;
     try {
+      const onBehalfSelect = form.querySelector('#ticket-on-behalf-of');
+      const onBehalfOpt = onBehalfSelect?.selectedOptions[0];
+      const onBehalfOf = onBehalfOpt?.value || null;
       const result = await api('/tickets-api/api/tickets-self', {
         method: 'POST',
         body: JSON.stringify({
@@ -1256,6 +1727,8 @@ async function bindTicketSelfService(profile) {
           subcategory_id: values.get('subcategory_id') || null,
           priority_code: values.get('priority_code') || 'P3',
           asset_uid: pendingTicketAsset?.asset_uid || null,
+          ...(values.has('affected_equipment') ? { affected_equipment: values.get('affected_equipment') } : {}),
+          ...(onBehalfOf ? { on_behalf_of_user_id: onBehalfOf, on_behalf_of_name: onBehalfOpt.dataset.name, on_behalf_of_email: onBehalfOpt.dataset.email } : {}),
         }),
       });
       form.reset();
@@ -1293,6 +1766,7 @@ async function loadNotifications(profile) {
     notificationCount.textContent = items.length > 9 ? '9+' : String(items.length);
     notificationCount.hidden = items.length === 0;
   }
+  window.dispatchEvent(new CustomEvent('mrti:dashboard-notifications', { detail: { count: items.length } }));
   if (dismissAllButton) dismissAllButton.hidden = items.length === 0;
   notificationButton?.setAttribute('aria-label', items.length ? `Ver notificaciones: ${items.length} nuevas` : 'Ver notificaciones');
   void syncDeviceNotifications(profile, items);
@@ -1352,7 +1826,7 @@ function renderAccount(profile, { required = false } = {}) {
       <section class="account-card"><div><p class="section-label">Foto</p><h2>Imagen de perfil</h2></div><div class="avatar-editor"><div id="avatar-preview">${avatarMarkup(profile, 'preview')}</div><div><label class="avatar-file">Tomar foto<input id="avatar-camera" type="file" accept="image/*" capture="user"></label><label class="avatar-file secondary-avatar-file">Elegir archivo<input id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><button class="secondary-button" id="remove-avatar" type="button" ${profile.avatar_url ? '' : 'disabled'}>Quitar foto</button><small>En el teléfono puedes abrir la cámara directamente. La imagen se recorta y optimiza antes de guardarse.</small></div></div><div class="form-message" id="avatar-message" hidden></div></section>
       <section class="account-card mobile-app-card"><div><p class="section-label">Aplicación y notificaciones</p><h2>MRTI en este dispositivo</h2></div><p class="mobile-app-status" id="mobile-app-status" role="status">Comprobando capacidades del dispositivo…</p><div class="mobile-app-actions"><button class="primary-button" id="install-app-button" type="button" disabled>Instalar aplicación</button><button class="secondary-button" id="enable-device-notifications" type="button">Activar notificaciones</button></div>${window.isSecureContext ? '' : '<div class="desktop-http-tools"><strong>Ventanas de notificación en Windows sin HTTPS</strong><span>Descarga y ejecuta como administrador la preparación de esta PC. Después cierra por completo y vuelve a abrir Chrome o Edge.</span><div><a class="secondary-button" href="/tools/preparar-notificaciones-mrti-windows.cmd" download>Preparar esta PC</a><a class="text-download" href="/tools/revertir-notificaciones-mrti-windows.cmd" download>Descargar reversión</a></div></div>'}<small class="field-help">MRTI consulta la campanilla cada minuto mientras la página permanece abierta. En HTTP, los avisos internos usan sonido, contador y una tarjeta flotante.</small></section>
       <section class="account-card account-preferences"><div><p class="section-label">Dashboard</p><h2>Apariencia y contenido</h2></div>
-        <form class="control-form" id="preferences-form"><div class="preference-selects"><label>Tema<select name="theme"><option value="system" ${userPreferences.theme === 'system' ? 'selected' : ''}>Usar el del dispositivo</option><option value="light" ${userPreferences.theme === 'light' ? 'selected' : ''}>Claro</option><option value="dark" ${userPreferences.theme === 'dark' ? 'selected' : ''}>Oscuro</option></select></label><label>Densidad<select name="density"><option value="comfortable" ${userPreferences.density === 'comfortable' ? 'selected' : ''}>Cómoda</option><option value="compact" ${userPreferences.density === 'compact' ? 'selected' : ''}>Compacta</option></select></label></div><fieldset class="widget-options"><legend>Mostrar en mi dashboard</legend><label><input type="checkbox" name="show_rh" ${checked(userPreferences.show_rh)}> Recursos Humanos</label><label><input type="checkbox" name="show_assets" ${checked(userPreferences.show_assets)}> Activos</label><label><input type="checkbox" name="show_tickets" ${checked(userPreferences.show_tickets)}> Tickets</label></fieldset><div class="form-message" id="preferences-message" hidden></div><button class="primary-button" type="submit">Guardar preferencias</button></form>
+        <form class="control-form" id="preferences-form"><div class="preference-selects"><label>Tema<select name="theme"><option value="system" ${userPreferences.theme === 'system' ? 'selected' : ''}>Usar el del dispositivo</option><option value="light" ${userPreferences.theme === 'light' ? 'selected' : ''}>Claro</option><option value="dark" ${userPreferences.theme === 'dark' ? 'selected' : ''}>Oscuro</option></select></label><label>Densidad<select name="density"><option value="comfortable" ${userPreferences.density === 'comfortable' ? 'selected' : ''}>Cómoda</option><option value="compact" ${userPreferences.density === 'compact' ? 'selected' : ''}>Compacta</option></select></label></div><fieldset class="widget-options"><legend>Mostrar en mi dashboard</legend><label><input type="checkbox" name="show_rh" ${checked(userPreferences.show_rh)}> Recursos Humanos</label><label><input type="checkbox" name="show_assets" ${checked(userPreferences.show_assets)}> Activos</label><label><input type="checkbox" name="show_tickets" ${checked(userPreferences.show_tickets)}> Tickets</label><label><input type="checkbox" name="show_requisitions" ${checked(userPreferences.show_requisitions)}> Requisiciones de personal</label></fieldset><div class="form-message" id="preferences-message" hidden></div><button class="primary-button" type="submit">Guardar preferencias</button></form>
       </section>
       <section class="account-card"><div><p class="section-label">Seguridad</p><h2>Cambiar contraseña</h2></div><form class="control-form" id="password-form"><label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label><label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label><div class="form-message" id="password-message" hidden></div><button class="primary-button" type="submit">Guardar nueva contraseña</button></form></section>
     </div>
@@ -1380,7 +1854,7 @@ function renderAccount(profile, { required = false } = {}) {
 
   const preferencesForm = document.querySelector('#preferences-form');
   preferencesForm.addEventListener('submit', async (event) => {
-    event.preventDefault(); const message = document.querySelector('#preferences-message'); const values = new FormData(preferencesForm); const payload = { theme: values.get('theme'), density: values.get('density'), show_notifications: userPreferences.show_notifications, show_rh: values.has('show_rh'), show_assets: values.has('show_assets'), show_tickets: values.has('show_tickets') };
+    event.preventDefault(); const message = document.querySelector('#preferences-message'); const values = new FormData(preferencesForm); const payload = { theme: values.get('theme'), density: values.get('density'), show_notifications: userPreferences.show_notifications, show_rh: values.has('show_rh'), show_assets: values.has('show_assets'), show_tickets: values.has('show_tickets'), show_requisitions: values.has('show_requisitions') };
     try { const { preferences } = await api('/api/auth/profile/preferences', { method: 'PATCH', body: JSON.stringify(payload) }); userPreferences = preferences; if (preferences.theme === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, preferences.theme); applyTheme(currentTheme()); document.documentElement.dataset.density = preferences.density; message.className = 'form-message success'; message.textContent = 'Tu espacio quedó actualizado.'; message.hidden = false; }
     catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
   });
@@ -1393,7 +1867,7 @@ function bindPasswordForm(profile, required) {
     event.preventDefault(); const data = new FormData(form); const message = document.querySelector('#password-message');
     if (data.get('new_password') !== data.get('confirmation')) { message.className = 'form-message error'; message.textContent = 'Las contraseñas nuevas no coinciden.'; message.hidden = false; return; }
     const button = form.querySelector('button[type="submit"]'); button.disabled = true;
-    try { await api('/api/auth/profile/password', { method: 'PATCH', body: JSON.stringify({ current_password: data.get('current_password'), new_password: data.get('new_password') }) }); form.reset(); message.className = 'form-message success'; message.textContent = 'Contraseña actualizada correctamente.'; message.hidden = false; if (required) { const { profile: updated } = await api('/api/auth/me'); updated.password_change_required = false; localStorage.setItem('auth_profile', JSON.stringify(updated)); await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(updated)]); renderPortal(updated); } }
+    try { await api('/api/auth/profile/password', { method: 'PATCH', body: JSON.stringify({ ...(required ? {} : { current_password: data.get('current_password') }), new_password: data.get('new_password') }) }); form.reset(); message.className = 'form-message success'; message.textContent = 'Contraseña actualizada correctamente.'; message.hidden = false; if (required) { const { profile: updated } = await api('/api/auth/me'); updated.password_change_required = false; localStorage.setItem('auth_profile', JSON.stringify(updated)); await Promise.all([refreshApplications(), refreshPreferences(), refreshAvatar(updated)]); renderPortal(updated); } }
     catch (error) { message.className = 'form-message error'; message.textContent = error.message; message.hidden = false; }
     finally { button.disabled = false; }
   });
@@ -1404,7 +1878,6 @@ function renderRequiredPassword(profile) {
     <p class="section-label">Mi cuenta</p><h1>Crea tu contraseña personal</h1>
     <p class="panel-copy">Por seguridad, reemplaza la contraseña temporal antes de continuar.</p>
     <form class="control-form" id="password-form">
-      <label>Contraseña actual<input name="current_password" type="password" autocomplete="current-password" required></label>
       <label>Nueva contraseña<input name="new_password" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
       <label>Confirmar nueva contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password" required></label>
       <div class="form-message" id="password-message" hidden></div>
@@ -1646,7 +2119,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       <input name="description" value="${escapeHtml(area.description || '')}" placeholder="Descripción del área">
       <div class="module-options">${moduleChecks(data.modules, area.module_codes)}</div>
       <button class="secondary-button" type="submit">Guardar área</button></form>`).join('');
-    const roleOptions = (selected = 'viewer') => ['administrator', 'supervisor', 'technician', 'viewer']
+    const roleOptions = (selected = 'viewer') => (data.roles || ['administrator', 'supervisor', 'technician', 'viewer'])
       .map((role) => `<option value="${role}" ${role === selected ? 'selected' : ''}>${escapeHtml(roleName(role))}</option>`).join('');
     const areaOptions = (selected = '') => `<option value="">Sin área</option>${activeAreas
       .map((area) => `<option value="${area.id}" ${area.id === selected ? 'selected' : ''}>${escapeHtml(area.name)}</option>`).join('')}`;
@@ -1664,7 +2137,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     }
     function otherUserFormMarkup(user) {
       const identifier = userIdentifier(user.user_number);
-      return `<form class="user-editor" data-user-id="${user.id}">
+      return `<form class="user-editor" data-user-id="${user.id}" data-user-name="${escapeHtml(user.full_name)}" data-current-role="${escapeHtml(user.role)}">
         <div class="user-detail-heading"><strong>Datos de ${identifier}</strong><small>ID interno: ${escapeHtml(user.id)}</small></div>
         <div class="user-fields"><label>Nombre<input name="full_name" value="${escapeHtml(user.full_name)}" required></label><label>Correo<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
           <label>Rol<select name="role">${roleOptions(user.role)}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions(user.access_area_id || '')}</select></label>
@@ -1686,7 +2159,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       return `<details class="user-list-item" data-user-id="${user.id}" data-user-search="${escapeHtml(searchValue)}" data-user-status="${status}"><summary>
         <span class="user-number">${identifier}</span><span class="user-summary-name"><strong>${escapeHtml(user.full_name)}</strong><small>${escapeHtml(user.email)}</small></span>
         <span class="user-summary-meta">${escapeHtml(roleName(user.role))}</span><span class="user-summary-meta">${accessMeta}</span>
-        <span class="status-badge ${status}">${status === 'active' ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">⌄</span>
+        <span class="status-badge ${status}">${status === 'active' ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">${ICONS.chevDown}</span>
       </summary><div class="details-body"></div></details>`;
     }).join('');
     const activeTicketCandidates = data.users.filter((user) => user.is_active);
@@ -1735,14 +2208,15 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
       ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
-      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button><button class="control-tab control-tab-link" type="button" id="control-tab-news">Noticias ↗</button></nav>
-      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Crear cuentas desde RH</strong><p>Altas únicas con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create"><summary>Crear un usuario manualmente</summary><form class="create-user-form" id="create-user">
+      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="permissions">Roles y permisos</button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button><button class="control-tab control-tab-link" type="button" id="control-tab-news">Noticias ↗</button></nav>
+      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Alta masiva desde RH</strong><p>Crea de una vez todas las cuentas pendientes con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create" id="create-user-panel"><summary>Crear un usuario</summary><div class="create-user-source"><div class="create-user-modes" role="radiogroup" aria-label="Origen de los datos"><label><input type="radio" name="create-user-mode" value="rh" checked> Desde expediente de RH</label><label><input type="radio" name="create-user-mode" value="manual"> Sin expediente de RH</label></div><div class="rh-candidate-picker" id="rh-candidate-picker"><span class="rh-candidate-title">Empleado registrado en RH</span><div class="rh-candidate-row"><input id="rh-candidate-search" type="search" placeholder="Buscar por nombre, número de empleado, puesto o área…" autocomplete="off" aria-label="Buscar empleado de RH"><select id="rh-candidate-select" aria-label="Empleado de RH"><option value="">Cargando empleados de RH…</option></select></div><p class="field-help" id="rh-candidate-status">Cargando empleados de RH…</p></div></div><form class="create-user-form" id="create-user"><input type="hidden" name="employee_id" value="">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
         <label>Rol<select name="role">${roleOptions()}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions()}</select></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions()}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions()}</select></label>
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
-      </form><p class="field-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
+      </form><p class="field-help" id="create-user-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
+      <div class="control-panel" data-control-panel="permissions" hidden><div class="control-section" id="permission-control"></div></div>
       <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><p class="field-help">Un área de acceso agrupa a los usuarios que deben entrar a los mismos módulos (por ejemplo, "Sistemas" o "Compras") -- es distinta de la ubicación física de un usuario (sitio/edificio/piso), que se administra desde MRTI Monitor.</p><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span id="areas-visible-count">${data.areas.length} configuradas</span></div><div class="user-filters"><input id="area-search" type="search" placeholder="Buscar por nombre de área…"></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div><p class="empty-users" id="empty-areas" hidden>No se encontraron áreas.</p></div></div>
       <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Dashboard las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div><section class="ticket-limits-section"><div class="users-heading"><div><h2>Límites de creación por usuario</h2><span>Control contra uso indebido</span></div></div><p class="field-help">Deja un campo vacío para no limitarlo. “Por 24 horas” usa una ventana móvil desde el momento de cada intento. El bloqueo impide crear tanto desde Dashboard como desde la API de Tickets.</p><div class="ticket-limit-list">${ticketLimitRows || '<p>No hay usuarios activos.</p>'}</div></section>`}</div></div>
       <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span id="applications-visible-count">${applicationData.data.length} registradas</span></div><div class="user-filters"><input id="application-search" type="search" placeholder="Buscar por nombre, código o categoría…"></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
@@ -1751,6 +2225,7 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       <div class="control-panel" data-control-panel="audit" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Historial de actividad de la plataforma</h2><span id="audit-visible-count">${auditData.data.length} eventos</span></div><div class="audit-filters"><input id="audit-search" type="search" placeholder="Usuario, acción o registro…"><select id="audit-module-filter"><option value="all">Todos los módulos</option>${auditModules.map((moduleCode) => `<option value="${escapeHtml(moduleCode)}">${escapeHtml(moduleCode)}</option>`).join('')}</select></div></div>${auditSourceFailures.length ? `<div class="notice">Historial parcial: no respondieron ${auditSourceFailures.map((source) => escapeHtml(source.source)).join(', ')}.</div>` : ''}<p class="field-help">Los datos sensibles se redactan automáticamente. Cada módulo conserva su historial y Core reúne aquí una vista de consulta.</p><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Módulo</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Cambios</th></tr></thead><tbody id="audit-table-body">${auditRows || '<tr><td colspan="6" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div><p class="personal-empty" id="audit-empty" hidden>No hay eventos que coincidan con los filtros.</p></div></div>
     </section>`);
     bindShell(profile);
+    void mountPermissionControl(document.querySelector('#permission-control'), { api, users: data.users });
     document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
     // Cada pestaña actualiza la URL (sin recargar) para que se pueda
     // compartir o recargar sin volver siempre a Usuarios -- ver
@@ -1909,6 +2384,8 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       if (password !== String(values.get('confirmation') || '')) return window.alert('Las contraseñas no coinciden.');
       const payload = { full_name: values.get('full_name'), email: values.get('email'), role: values.get('role'), is_active: values.get('is_active') === 'on' };
       if (password) payload.password = password;
+      const warnings = [payload.role !== form.dataset.currentRole ? `cambiar el rol a ${roleName(payload.role)}` : '', !payload.is_active ? 'desactivar la cuenta' : '', password ? 'reemplazar la contraseña' : ''].filter(Boolean);
+      if (!window.confirm(`¿Guardar los cambios de ${form.dataset.userName}?${warnings.length ? `\n\nTambién se va a ${warnings.join(', ')}.` : ''}`)) return;
       try {
         await api(`/api/auth/users/${form.dataset.userId}`, { method: 'PATCH', body: JSON.stringify(payload) });
         await api(`/api/auth/users/${form.dataset.userId}/access-area`, { method: 'PATCH', body: JSON.stringify({ access_area_id: values.get('access_area_id') || null }) });
@@ -1939,12 +2416,136 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         body.querySelector('form').addEventListener('submit', isSelf ? handleOwnLocationSubmit : handleUserEditorSubmit);
       });
     });
-    document.querySelector('#create-user').addEventListener('submit', async (event) => {
+    // Alta individual: "Desde expediente de RH" toma nombre y correo de la
+    // ficha (RH es su propietario) y crea la cuenta con el aprovisionamiento
+    // dirigido de Core, que también vincula employees.portal_user_id; "Sin
+    // expediente" conserva el alta manual para externos o cuentas de servicio.
+    const createUserPanel = document.querySelector('#create-user-panel');
+    const rhSearch = document.querySelector('#rh-candidate-search');
+    const rhStatus = document.querySelector('#rh-candidate-status');
+    const rhSelect = document.querySelector('#rh-candidate-select');
+    const RH_CANDIDATE_GROUPS = [
+      ['available', 'Listos para crear (correo corporativo confirmado)'],
+      ['needs_email', 'Sin correo corporativo — captúralo para crear la cuenta'],
+      ['has_account', 'Ya existe una cuenta con su correo'],
+      ['linked', 'Ya tienen cuenta vinculada'],
+      ['conflict', 'Vinculados a una cuenta que ya no existe'],
+    ];
+    const RH_CREATABLE = new Set(['available', 'needs_email']);
+    const rhCandidateLabel = (candidate) => {
+      const detail = [candidate.job_title, candidate.department_name].filter(Boolean).join(' · ');
+      return `${candidate.full_name}${candidate.employee_number ? ` (#${candidate.employee_number})` : ''}${detail ? ` — ${detail}` : ''}${candidate.email ? ` · ${candidate.email}` : ''}`;
+    };
+    let rhCandidates = null;
+    let rhCandidatesLoading = null;
+    const createUserMode = () => createUserPanel.querySelector('input[name="create-user-mode"]:checked').value;
+    const selectedRhCandidate = () => rhCandidates?.find((candidate) => String(candidate.employee_id) === rhSelect.value) || null;
+    const setRhSelection = (candidate) => {
+      const needsEmail = candidate?.status === 'needs_email';
+      createUserForm.elements.employee_id.value = candidate ? String(candidate.employee_id) : '';
+      createUserForm.elements.full_name.value = candidate ? candidate.full_name : '';
+      createUserForm.elements.email.value = candidate ? (candidate.email || candidate.suggested_email || '') : '';
+      createUserForm.elements.email.readOnly = !needsEmail;
+      createUserForm.elements.email.placeholder = needsEmail ? 'nombre@mrtcorporativo.mx' : '';
+      if (needsEmail) createUserForm.elements.email.setAttribute('pattern', '[^@\\s]+@mrtcorporativo\\.mx');
+      else createUserForm.elements.email.removeAttribute('pattern');
+      if (!candidate) return;
+      rhStatus.textContent = needsEmail
+        ? `${candidate.full_name} no tiene correo corporativo confirmado en RH. Escribe su correo @mrtcorporativo.mx: se guardará y confirmará en su ficha de RH al crear la cuenta.`
+        : `Expediente RH #${candidate.employee_id} seleccionado; su correo ya está confirmado en RH.`;
+    };
+    const renderRhOptions = () => {
+      if (!rhCandidates) return;
+      const term = rhSearch.value.trim().toLocaleLowerCase('es-MX');
+      const previous = rhSelect.value;
+      const matches = rhCandidates.filter((candidate) => !term || rhCandidateLabel(candidate).toLocaleLowerCase('es-MX').includes(term));
+      rhSelect.innerHTML = `<option value="">${matches.length ? 'Selecciona un empleado…' : 'Ningún empleado coincide con la búsqueda'}</option>${RH_CANDIDATE_GROUPS.map(([status, label]) => {
+        const group = matches.filter((candidate) => candidate.status === status);
+        return group.length ? `<optgroup label="${escapeHtml(`${label} (${group.length})`)}">${group.map((candidate) => `<option value="${candidate.employee_id}" ${RH_CREATABLE.has(status) ? '' : 'disabled'}>${escapeHtml(rhCandidateLabel(candidate))}</option>`).join('')}</optgroup>` : '';
+      }).join('')}`;
+      if (matches.some((candidate) => String(candidate.employee_id) === previous)) rhSelect.value = previous;
+      else if (previous) setRhSelection(null);
+    };
+    const applyCreateUserMode = () => {
+      const fromRh = createUserMode() === 'rh';
+      document.querySelector('#rh-candidate-picker').hidden = !fromRh;
+      createUserForm.elements.full_name.readOnly = fromRh;
+      createUserForm.elements.password.required = !fromRh;
+      createUserForm.elements.confirmation.required = !fromRh;
+      createUserForm.elements.password.placeholder = fromRh ? 'Vacía = se genera una' : '';
+      createUserForm.elements.confirmation.placeholder = fromRh ? 'Vacía = se genera una' : '';
+      document.querySelector('#create-user-help').textContent = fromRh
+        ? 'El nombre viene del expediente de RH. Si dejas la contraseña vacía se genera una aleatoria que verás una sola vez. El usuario deberá cambiarla al iniciar sesión.'
+        : 'Para personas sin expediente en RH (externos, proveedores o cuentas de servicio). El usuario deberá cambiar su contraseña temporal al iniciar sesión.';
+      if (fromRh) setRhSelection(selectedRhCandidate());
+      else {
+        createUserForm.elements.employee_id.value = '';
+        createUserForm.elements.email.readOnly = false;
+        createUserForm.elements.email.removeAttribute('pattern');
+        createUserForm.elements.email.placeholder = '';
+      }
+    };
+    const loadRhCandidates = () => {
+      rhCandidatesLoading ||= api('/api/auth/users/rh-candidates').then((result) => {
+        rhCandidates = result.data;
+        renderRhOptions();
+        const count = (status) => rhCandidates.filter((candidate) => candidate.status === status).length;
+        rhStatus.textContent = `${rhCandidates.length} empleados activos en RH: ${count('available')} listos para crear, ${count('needs_email')} sin correo corporativo, ${count('linked') + count('has_account')} ya con cuenta.`;
+      }).catch((error) => {
+        rhCandidatesLoading = null;
+        rhSelect.innerHTML = '<option value="">RH no está disponible</option>';
+        rhStatus.textContent = `No fue posible consultar RH: ${error.message}. Puedes crear el usuario sin expediente de RH.`;
+      });
+      return rhCandidatesLoading;
+    };
+    createUserPanel.addEventListener('toggle', () => { if (createUserPanel.open) void loadRhCandidates(); });
+    createUserPanel.querySelectorAll('input[name="create-user-mode"]').forEach((radio) => radio.addEventListener('change', applyCreateUserMode));
+    rhSearch.addEventListener('input', renderRhOptions);
+    rhSelect.addEventListener('change', () => setRhSelection(selectedRhCandidate()));
+    applyCreateUserMode();
+    function showTemporaryPassword(name, email, password) {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'ticket-detail-dialog';
+      dialog.innerHTML = `<div class="ticket-detail-content"><header><div><small>Cuenta creada</small><h2>${escapeHtml(name)}</h2></div><button type="button" data-close-temporary-password aria-label="Cerrar">×</button></header><div class="ticket-detail-body"><p>Comparte esta contraseña temporal con <strong>${escapeHtml(email)}</strong>. No se volverá a mostrar; deberá cambiarla al iniciar sesión.</p><p><code class="temporary-password">${escapeHtml(password)}</code></p><div class="dialog-actions"><button class="secondary-button" type="button" data-copy-temporary-password>Copiar</button><button class="primary-button" type="button" data-close-temporary-password>Listo</button></div></div></div>`;
+      document.body.append(dialog);
+      dialog.querySelectorAll('[data-close-temporary-password]').forEach((button) => button.addEventListener('click', () => dialog.close()));
+      dialog.querySelector('[data-copy-temporary-password]').addEventListener('click', async (event) => {
+        try { await navigator.clipboard.writeText(password); event.currentTarget.textContent = 'Copiada'; } catch { window.prompt('Copia la contraseña temporal:', password); }
+      });
+      dialog.addEventListener('close', () => dialog.remove());
+      dialog.showModal();
+    }
+    createUserForm.addEventListener('submit', async (event) => {
       event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
       if (values.get('password') !== values.get('confirmation')) return window.alert('Las contraseñas no coinciden.');
+      const submitButton = form.querySelector('button[type="submit"]');
+      const accountSettings = { role: values.get('role'), access_area_id: values.get('access_area_id') || null, is_active: values.get('is_active') === 'on' };
+      const location = { physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null };
+      if (createUserMode() === 'rh') {
+        const employeeId = Number(values.get('employee_id'));
+        const candidate = selectedRhCandidate();
+        if (!employeeId || !candidate) return window.alert('Elige un empleado de RH de la lista.');
+        const workEmail = candidate.status === 'needs_email' ? String(values.get('email') || '').trim().toLowerCase() : null;
+        if (workEmail !== null && !/^[^@\s]+@mrtcorporativo\.mx$/.test(workEmail)) return window.alert('Escribe un correo que termine en @mrtcorporativo.mx.');
+        if (!window.confirm(`¿Crear la cuenta de ${candidate.full_name} con el rol ${roleName(accountSettings.role)}?${workEmail ? ` También se guardará ${workEmail} como correo corporativo confirmado en RH.` : ''} Podrás ajustar sus permisos individuales después.`)) return;
+        submitButton.disabled = true;
+        try {
+          const result = await api('/api/auth/users/provision-rh', { method: 'POST', body: JSON.stringify({ dry_run: false, employee_id: employeeId, ...(workEmail ? { work_email: workEmail } : {}), ...accountSettings, ...(values.get('password') ? { password: values.get('password') } : {}) }) });
+          const created = result.created[0];
+          if (!created) {
+            submitButton.disabled = false;
+            return window.alert(result.conflicts.length ? 'No se creó la cuenta: el expediente de RH está vinculado a otra cuenta.' : 'Ya existía una cuenta con ese correo; sólo se vinculó al expediente de RH.');
+          }
+          await api(`/api/auth/users/${created.id}/location`, { method: 'PATCH', body: JSON.stringify(location) });
+          await renderControlCenter(profile, `Usuario ${created.full_name} creado desde RH y vinculado a su expediente.`);
+          if (created.temporary_password) showTemporaryPassword(created.full_name, created.email, created.temporary_password);
+        } catch (error) { window.alert(error.message); submitButton.disabled = false; }
+        return;
+      }
+      if (!window.confirm(`¿Crear esta cuenta con el rol ${roleName(accountSettings.role)}? Podrás ajustar sus permisos individuales después.`)) return;
       try {
-        const created = await api('/api/auth/users', { method: 'POST', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email'), password: values.get('password'), role: values.get('role'), access_area_id: values.get('access_area_id') || null, is_active: values.get('is_active') === 'on' }) });
-        await api(`/api/auth/users/${created.profile.id}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
+        const created = await api('/api/auth/users', { method: 'POST', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email'), password: values.get('password'), ...accountSettings }) });
+        await api(`/api/auth/users/${created.profile.id}/location`, { method: 'PATCH', body: JSON.stringify(location) });
         await renderControlCenter(profile, 'Usuario creado correctamente.');
       } catch (error) { window.alert(error.message); }
     });
@@ -2077,9 +2678,9 @@ async function initialize() {
         const { profile } = await api('/api/auth/me');
         await refreshApplications();
         navigationMarkup = moduleSwitcherMarkup(profile);
-      } catch { /* El home sigue siendo público si la sesión no está disponible. */ }
+      } catch { localStorage.removeItem('auth_token'); localStorage.removeItem('auth_profile'); }
     }
-    return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup });
+    return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup, themeToggleMarkup, bindThemeToggle });
   }
   // Página propia de cada noticia, pública igual que el home.
   const newsDetailMatch = window.location.pathname.match(/^\/noticias\/([^/]+)\/?$/);
@@ -2090,9 +2691,9 @@ async function initialize() {
         const { profile } = await api('/api/auth/me');
         await refreshApplications();
         navigationMarkup = moduleSwitcherMarkup(profile);
-      } catch { /* La noticia sigue siendo pública si la sesión no está disponible. */ }
+      } catch { localStorage.removeItem('auth_token'); localStorage.removeItem('auth_profile'); }
     }
-    return renderNewsDetail({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup }, decodeURIComponent(newsDetailMatch[1]));
+    return renderNewsDetail({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup, themeToggleMarkup, bindThemeToggle }, decodeURIComponent(newsDetailMatch[1]));
   }
   if (!token()) return renderLogin();
   try {

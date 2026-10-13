@@ -1,3 +1,4 @@
+import { propagationHeaders } from '../vendor/mrti-platform/request-context.js';
 const OPEN_TICKET_STATUSES = new Set([
   'NEW',
   'OPEN',
@@ -17,7 +18,7 @@ function ticketsUrl(path) {
 async function fetchTicketSource(path, authorization) {
   try {
     const response = await fetch(ticketsUrl(path), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -40,19 +41,16 @@ function slaUrgencyLabel(ticket) {
   return null;
 }
 
-// Quien reporta un ticket antes no se enteraba de nada salvo que volviera a
-// entrar a "Mis tickets" -- a diferencia de "assigned" (arriba), aquí sí hace
-// falta una ventana de tiempo: CLOSED es un estado permanente, y sin ella un
-// ticket cerrado hace meses seguiría apareciendo en la campanilla para
-// siempre.
-const REQUESTER_ATTENTION_STATUSES = new Set(['RESOLVED', 'CLOSED', 'ON_HOLD_USER', 'REOPENED']);
-const REQUESTER_NOTICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+// La campanilla debe contener trabajo pendiente, no el historial completo del
+// solicitante. Resolver o cerrar ya concluye la gestión y se ve en “Mis
+// tickets”; mantenerlo como aviso durante días hace que parezca que aún falta
+// una acción. Sólo permanecen los estados que requieren seguimiento de quien
+// reportó el ticket.
+const REQUESTER_ATTENTION_STATUSES = new Set(['ON_HOLD_USER', 'REOPENED']);
 
 function requesterStatusLabel(ticket) {
   if (ticket.status_code === 'ON_HOLD_USER') return 'Necesitan información tuya';
-  if (ticket.status_code === 'REOPENED') return 'Se reabrió';
-  if (ticket.status_code === 'CLOSED') return 'Se cerró';
-  return 'Se resolvió';
+  return 'Se reabrió';
 }
 
 export function normalizeTicketNotifications({ ownTickets = [], teamTickets = [], userId, canOpenTickets }) {
@@ -81,8 +79,7 @@ export function normalizeTicketNotifications({ ownTickets = [], teamTickets = []
     .filter((ticket) => String(ticket.requester_id || '') === String(userId)
       && !assignedIds.has(String(ticket.id))
       && REQUESTER_ATTENTION_STATUSES.has(ticket.status_code)
-      && ticket.updated_at
-      && (Date.now() - new Date(ticket.updated_at).getTime()) < REQUESTER_NOTICE_WINDOW_MS)
+      && ticket.updated_at)
     .map((ticket) => ({
       id: `requester-ticket:${ticket.id}`,
       ticket_id: String(ticket.id),
@@ -153,7 +150,7 @@ export async function fetchAssetNotifications({ authorization, canOpenAssets }) 
   }
   try {
     const response = await fetch(assetsUrl('/api/activos-suite/license-notifications'), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -169,7 +166,7 @@ export async function fetchAssetNotifications({ authorization, canOpenAssets }) 
 async function fetchRhSource(path, authorization) {
   try {
     const response = await fetch(rhUrl(path), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -184,17 +181,16 @@ async function fetchRhSource(path, authorization) {
 // empleado autenticado); aquí solo se combinan documentos laborales y salas
 // de juntas (mismo patrón de dos fuentes que fetchTicketNotifications).
 export async function fetchRhNotifications({ authorization, canOpenRh }) {
-  const [documents, rooms, lifecycleTasks] = await Promise.all([
+  const [documents, rooms, lifecycleTasks, requisitions] = await Promise.all([
     fetchRhSource('/api/rh-self/me/documents/notifications', authorization),
     fetchRhSource('/api/rh-self/me/meeting-room-bookings/notifications', authorization),
-    // Tareas de altas/bajas vencidas o por vencer, propias o sin asignar en un
-    // módulo donde la persona está registrada como responsable -- no depende
-    // de tener acceso al módulo RH para RECIBIR el aviso, sólo para abrirlo
-    // (el href se anula abajo igual que las otras dos fuentes de RH).
     fetchRhSource('/api/rh-self/me/lifecycle-tasks/notifications', authorization),
+    fetchRhSource('/api/rh-self/me/requisitions/notifications', authorization),
   ]);
-  const items = [...documents.data, ...rooms.data, ...lifecycleTasks.data]
-    .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh ? item.href : null }))
+  const items = [...documents.data, ...rooms.data, ...lifecycleTasks.data, ...requisitions.data]
+    // Una firma de requisición se atiende desde Core, incluso cuando el
+    // directivo no tiene habilitado el módulo administrativo de RH.
+    .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh || String(item.kind || '').startsWith('requisition_') ? item.href : null }))
     .sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
   return {
     items,
@@ -202,6 +198,7 @@ export async function fetchRhNotifications({ authorization, canOpenRh }) {
       { source: 'rh-documents', ok: documents.ok, error: documents.error },
       { source: 'rh-meeting-rooms', ok: rooms.ok, error: rooms.error },
       { source: 'rh-lifecycle-tasks', ok: lifecycleTasks.ok, error: lifecycleTasks.error },
+      { source: 'rh-requisitions', ok: requisitions.ok, error: requisitions.error },
     ],
   };
 }
@@ -212,7 +209,7 @@ export async function fetchRhNotifications({ authorization, canOpenRh }) {
 export async function fetchLegalNotifications({ authorization, canOpenLegal }) {
   try {
     const response = await fetch(legalUrl('/api/legal-self/notifications'), {
-      headers: { Authorization: authorization },
+      headers: propagationHeaders({ Authorization: authorization }),
       signal: AbortSignal.timeout(3500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

@@ -12,10 +12,20 @@ const DEFAULTS = Object.freeze({
   show_rh: true,
   show_assets: true,
   show_tickets: true,
+  show_requisitions: true,
+  widget_order: Object.freeze(['rh', 'assets', 'tickets', 'requisitions']),
 });
 
 function serializePreferences(row) {
-  if (!row) return { ...DEFAULTS };
+  if (!row) return { ...DEFAULTS, widget_order: [...DEFAULTS.widget_order] };
+  let widgetOrder = row.widget_order;
+  if (typeof widgetOrder === 'string') {
+    try {
+      widgetOrder = JSON.parse(widgetOrder);
+    } catch {
+      widgetOrder = DEFAULTS.widget_order;
+    }
+  }
   return {
     theme: row.theme,
     density: row.density,
@@ -23,11 +33,20 @@ function serializePreferences(row) {
     show_rh: Boolean(row.show_rh),
     show_assets: Boolean(row.show_assets),
     show_tickets: Boolean(row.show_tickets),
+    show_requisitions: row.show_requisitions == null ? DEFAULTS.show_requisitions : Boolean(row.show_requisitions),
+    widget_order: validWidgetOrder(widgetOrder) ? widgetOrder : [...DEFAULTS.widget_order],
   };
 }
 
 function validWorkspaceTheme(value) {
   return ['system', 'light', 'dark'].includes(value);
+}
+
+function validWidgetOrder(value) {
+  return Array.isArray(value)
+    && value.length === DEFAULTS.widget_order.length
+    && new Set(value).size === DEFAULTS.widget_order.length
+    && value.every((key) => DEFAULTS.widget_order.includes(key));
 }
 
 function parseAvatarDataUrl(value) {
@@ -56,6 +75,10 @@ personalizationRouter.get('/profile/preferences', authRequired, async (req, res,
 
 personalizationRouter.patch('/profile/preferences', authRequired, async (req, res, next) => {
   try {
+    const [existingRows] = await pool.query(
+      'SELECT widget_order FROM user_workspace_preferences WHERE user_id = ? LIMIT 1',
+      [req.user.id]
+    );
     const theme = String(req.body?.theme || 'system');
     const density = String(req.body?.density || 'comfortable');
     if (!['system', 'light', 'dark'].includes(theme) || !['comfortable', 'compact'].includes(density)) {
@@ -67,18 +90,29 @@ personalizationRouter.patch('/profile/preferences', authRequired, async (req, re
       req.body?.show_rh !== false,
       req.body?.show_assets !== false,
       req.body?.show_tickets !== false,
+      req.body?.show_requisitions !== false,
+      JSON.stringify(req.body?.widget_order == null
+        ? serializePreferences(existingRows[0]).widget_order
+        : req.body.widget_order),
     ];
+    if (!validWidgetOrder(JSON.parse(values[8]))) {
+      return res.status(400).json({ error: 'El orden de los widgets no es válido' });
+    }
     await pool.query(
       `INSERT INTO user_workspace_preferences
-        (user_id, theme, density, show_notifications, show_rh, show_assets, show_tickets)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+        (user_id, theme, density, show_notifications, show_rh, show_assets, show_tickets, show_requisitions, widget_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE theme = VALUES(theme), density = VALUES(density),
          show_notifications = VALUES(show_notifications), show_rh = VALUES(show_rh),
-         show_assets = VALUES(show_assets), show_tickets = VALUES(show_tickets)`,
+         show_assets = VALUES(show_assets), show_tickets = VALUES(show_tickets),
+         show_requisitions = VALUES(show_requisitions), widget_order = VALUES(widget_order)`,
       values
     );
     await recordAudit({ req, action: 'profile.preferences_updated', entityType: 'user', entityId: req.user.id });
-    res.json({ preferences: serializePreferences({ theme, density, show_notifications: values[3], show_rh: values[4], show_assets: values[5], show_tickets: values[6] }) });
+    res.json({ preferences: serializePreferences({
+      theme, density, show_notifications: values[3], show_rh: values[4], show_assets: values[5],
+      show_tickets: values[6], show_requisitions: values[7], widget_order: JSON.parse(values[8]),
+    }) });
   } catch (error) {
     next(error);
   }
@@ -146,4 +180,10 @@ personalizationRouter.get('/profile/avatar/content', authRequired, async (req, r
   }
 });
 
-export { DEFAULTS as DEFAULT_WORKSPACE_PREFERENCES, serializePreferences, validAvatarDataUrl, validWorkspaceTheme };
+export {
+  DEFAULTS as DEFAULT_WORKSPACE_PREFERENCES,
+  serializePreferences,
+  validAvatarDataUrl,
+  validWidgetOrder,
+  validWorkspaceTheme,
+};

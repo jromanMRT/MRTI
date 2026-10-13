@@ -1,13 +1,15 @@
+import { propagationHeaders } from './vendor/mrti-platform/request-context.js';
+
 const MRTI_ASSETS_URL = process.env.MRTI_ASSETS_URL || 'http://127.0.0.1:3003';
 const TIMEOUT_MS = 3000;
 
 async function request(path, { authorizationHeader, method = 'GET', body } = {}) {
   const response = await fetch(`${MRTI_ASSETS_URL}${path}`, {
     method,
-    headers: {
+    headers: propagationHeaders({
       ...(authorizationHeader ? { Authorization: authorizationHeader } : {}),
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-    },
+    }),
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });

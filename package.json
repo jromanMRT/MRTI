@@ -5,10 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/mrti-platform/release.mjs build",
+    "build:local": "vite build",
+    "release": "node scripts/mrti-platform/release.mjs publish",
+    "release:promote": "node scripts/mrti-platform/release.mjs promote",
+    "release:rollback": "node scripts/mrti-platform/release.mjs rollback",
+    "release:preview": "node scripts/mrti-platform/release.mjs preview",
+    "release:status": "node scripts/mrti-platform/release.mjs status",
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3",
     "vite": "^8.2.0"
+  },
+  "mrtiRelease": {
+    "publicPath": "/",
+    "keep": 3
   }
 }

@@ -61,6 +61,16 @@ test('catálogo requiere sesión', async () => {
   assert.equal(response.status, 401);
 });
 
+test('búsqueda global requiere sesión', async () => {
+  const response = await fetch(`${BASE_URL}/api/portal/v1/search?q=TK-100`);
+  assert.equal(response.status, 401);
+});
+
+test('búsqueda global valida la longitud de la consulta', async () => {
+  const response = await request('/api/portal/v1/search?q=a', viewerToken);
+  assert.equal(response.status, 400);
+});
+
 test('catálogo devuelve sólo aplicaciones permitidas', async () => {
   const response = await request('/api/portal/v1/applications', viewerToken);
   assert.equal(response.status, 200);

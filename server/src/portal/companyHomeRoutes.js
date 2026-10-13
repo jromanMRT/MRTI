@@ -1,3 +1,4 @@
+import { permissionFor, levelAllows } from '../vendor/mrti-platform/permissions.js';
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { authRequired } from '../auth/shared.js';
@@ -26,7 +27,7 @@ function httpError(status, message) {
 
 // Administradores globales y cualquier persona con acceso al módulo RH.
 function newsManagerOnly(req, res, next) {
-  if (req.user?.role === 'administrator' || req.user?.allowed_modules?.includes('rh')) return next();
+  if (levelAllows(permissionFor(req.user, 'rh', 'news'), req.method)) return next();
   return res.status(403).json({ error: 'Sólo Recursos Humanos o un administrador global pueden editar la portada' });
 }
 

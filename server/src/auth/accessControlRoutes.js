@@ -1,7 +1,8 @@
+import { requestAllowed } from '../vendor/mrti-platform/permissions.js';
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { authRequired, findProfile } from './shared.js';
+import { authRequired, findProfile, USER_ROLES, USER_ROLE_LABELS } from './shared.js';
 import { recordAudit } from '../audit.js';
 import { getPhysicalArea, listPhysicalAreas } from '../infraClient.js';
 import { listAssignableAssets, setPrimaryAsset } from '../assetsClient.js';
@@ -79,6 +80,8 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
     ]);
     const physicalAreaNameById = new Map(physicalAreas.map((area) => [area.id, area.name]));
     res.json({
+      roles: USER_ROLES,
+      role_labels: USER_ROLE_LABELS,
       modules: await moduleCatalog(),
       areas: areas.map((area) => ({
         ...area,
@@ -156,6 +159,10 @@ accessControlRouter.get('/module-access/:moduleCode', authRequired, (req, res) =
       if (!rows.length) return res.status(404).json({ error: 'Módulo no encontrado' });
       if (req.user.role !== 'administrator' && !req.user.allowed_modules?.includes(moduleCode)) {
         return res.status(403).json({ error: 'Tu área no tiene acceso a este módulo', code: 'MODULE_FORBIDDEN' });
+      }
+      if (req.query.method || req.query.path) {
+        if (typeof req.query.method !== 'string' || typeof req.query.path !== 'string' || !['GET','HEAD','OPTIONS','POST','PUT','PATCH','DELETE'].includes(req.query.method)) return res.status(400).json({ error: 'Consulta de permiso inválida' });
+        if (!requestAllowed(req.user, moduleCode, req.query.method, req.query.path)) return res.status(403).json({ error: 'No tienes permiso para esta sección o acción', code: 'PERMISSION_FORBIDDEN' });
       }
       return res.status(204).end();
     })

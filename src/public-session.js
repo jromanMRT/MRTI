@@ -8,10 +8,7 @@ export function mountPublicSession(header = document.querySelector('.home-public
 
   const actions = document.createElement('div');
   actions.className = 'home-header-actions';
-  // La navegación ya trae su propia pestaña "Dashboard" (module-tab
-  // is-current); no duplicarla aquí con un enlace aparte.
-  const navigation = header.querySelector('#module-switcher, .portal-header-navigation');
-  if (navigation) actions.append(navigation);
+  // La sesión ocupa la primera fila; los módulos conservan su propio espacio.
   const account = document.createElement('div');
   account.className = 'home-session-controls';
   const identity = document.createElement('span');
@@ -45,5 +42,6 @@ export function mountPublicSession(header = document.querySelector('.home-public
   });
   account.append(identity, button);
   actions.append(account);
+  header.querySelector('#home-login-button')?.remove();
   header.append(actions);
 }
