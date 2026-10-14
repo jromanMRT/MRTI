@@ -1,11 +1,11 @@
-const CACHE_NAME = 'mrti-shell-v1';
+const CACHE_NAME = 'mrti-shell-v2';
 const APP_SHELL = [
   '/',
   '/manifest.json',
   '/offline.html',
   '/offline.css',
   '/company-logo.svg',
-  '/favicon.svg',
+  '/mrti-logo.png?v=20261013',
   '/fonts/ibm-plex-sans-400.woff2',
   '/fonts/ibm-plex-sans-500.woff2',
   '/fonts/ibm-plex-sans-600.woff2',

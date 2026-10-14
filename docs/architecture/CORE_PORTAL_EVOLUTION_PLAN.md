@@ -145,10 +145,22 @@ consultas paralelas a Tickets, Activos y RH; las requisiciones se consultan por
 acceso al módulo RH. Las llamadas reenvían la sesión y devuelven resultados
 normalizados, con fallos parciales por fuente. El dashboard permite reordenar
 los cuatro widgets personales y guarda `widget_order` junto con las preferencias
-del usuario mediante una migración aditiva. La UI incluye actividad derivada de
-las respuestas `*-self`, estados de carga/reintento y caché temporal por usuario.
-Este cambio aún no está desplegado: faltan aplicar la migración, probar las
-integraciones con los módulos publicados y ejecutar el smoke test.
+del usuario mediante una migración aditiva. La edición del dashboard se abre
+explícitamente desde **Editar dashboard**: sólo entonces se pueden arrastrar o
+reordenar con teclado las tarjetas, activar/desactivar widgets y guardar los
+cambios por usuario desde un panel lateral. La UI incluye actividad derivada de
+las respuestas `*-self`, estados de carga/reintento sin mostrar una fecha de
+actualización junto a cada widget y caché temporal por usuario. El modo de
+edición se publicó inicialmente en `20261013-114408-8d435c8-dirty` y se corrigió
+tras verificar la experiencia en producción: el botón ahora indica **Editar y
+mover widgets**, el panel ofrece botones ↑/↓ visibles además del arrastre y
+teclado, y el arrastre se bloquea en captura mientras no se edita. La versión
+corregida está en el release `20261013-121524-011d411-dirty`; `widget_order` y
+las preferencias requeridas ya estaban soportados por la migración 012 aplicada.
+Siete pruebas focalizadas, build y smoke del portal/JS/CSS (200) aprobados; las
+preferencias sin sesión responden 401. La búsqueda federada sigue registrada
+como implementación local pendiente de publicación y verificación
+independiente.
 
 ## 7. Inventario funcional después de la Etapa 2
 
@@ -163,7 +175,7 @@ integraciones con los módulos publicados y ejecutar el smoke test.
 | Documentos | Pendiente de módulo propietario | No almacenar expedientes o archivos sensibles en Core |
 | Directorio | Pendiente, Etapa 5 | Contrato de RH limitado a datos corporativos autorizados |
 | Búsqueda global | Implementada localmente, Etapa 5 pendiente de despliegue | Federación con sesión, permisos y timeout por fuente |
-| Orden personal de widgets | Implementado localmente, Etapa 5 pendiente de despliegue | Core guarda `widget_order`; sin reordenamiento por rol/departamento |
+| Orden personal de widgets | Publicado en Core, 2026-10-13 | Release `20261013-121524-011d411-dirty`; edición explícita, controles ↑/↓, arrastre sólo en edición y orden/visibilidad guardados por usuario; sin reordenamiento por rol/departamento |
 | Widgets administrables | Pendiente, Etapa 5 | Configuración en Core; datos maestros permanecen fuera |
 
 ## 8. Identidad visual

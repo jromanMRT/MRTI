@@ -209,7 +209,7 @@ export function renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, read
       <section class="public-private-callout" aria-labelledby="private-callout-title"><div><p>Área privada</p><h2 id="private-callout-title">¿Eres empleado? Accede a tus herramientas.</h2><span>Servicios personales, tickets, trámites de RH, solicitudes y aplicaciones requieren iniciar sesión.</span></div><a href="/login">Ingresar al portal del personal <b>↗</b></a></section>
       <footer class="public-footer">
         <div class="public-footer-grid">
-          <div class="public-footer-brand"><img src="/company-logo.svg" alt="MRT" class="public-footer-logo"><p id="public-home-footer-tagline">${escapeHtml(DEFAULT_HOME_SETTINGS.footer_tagline)}</p></div>
+          <div class="public-footer-brand"><img src="/mrti-logo.png?v=20261013-0930" alt="MRT" class="public-footer-logo"><p id="public-home-footer-tagline">${escapeHtml(DEFAULT_HOME_SETTINGS.footer_tagline)}</p></div>
           <div class="public-footer-col"><h4>Portal</h4><a href="/login">Iniciar sesión</a><a href="#comunidad">Comunidad</a><a href="#home-news-section">Noticias</a></div>
           <div class="public-footer-col"><h4>Empresa</h4><a href="#community-events">Agenda</a><a href="#public-home-facts">Datos de la empresa</a><a href="#community-channel">Canal anónimo</a></div>
         </div>

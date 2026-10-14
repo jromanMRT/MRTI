@@ -9,7 +9,21 @@ export function text(value, label, max, min = 0) {
 }
 export function normalizeReport(body = {}) {
   if (!CATEGORIES.includes(body.category)) throw fail(400, 'Selecciona el tipo de mensaje.');
-  return { category: body.category, subject: text(body.subject, 'Asunto', 160, 5), body: text(body.body, 'Descripción', 5000, 20) };
+  const identityMode = body.identity_mode || 'anonymous';
+  if (!['anonymous', 'identified'].includes(identityMode)) throw fail(400, 'Selecciona cómo deseas enviar el mensaje.');
+  const report = {
+    category: body.category,
+    subject: text(body.subject, 'Asunto', 160, 5),
+    body: text(body.body, 'Descripción', 5000, 20),
+    identity_mode: identityMode,
+    sender_name: null,
+    sender_location: null,
+  };
+  if (identityMode === 'identified') {
+    report.sender_name = text(body.sender_name, 'Tu nombre', 120, 2);
+    report.sender_location = text(body.sender_location, 'De dónde escribes', 160, 2);
+  }
+  return report;
 }
 export function normalizePoll(body = {}, now = Date.now()) {
   const question = text(body.question, 'Pregunta', 240, 5);

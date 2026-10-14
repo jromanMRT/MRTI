@@ -23,7 +23,10 @@ test('comunidad: HTTP/MySQL aislado, sin cuentas ni tablas de negocio', {skip:pr
  const report=()=>({category:'denuncia',subject:'Reporte temporal QA',body:'Contenido de prueba privado sin datos reales.',...challenge()});
  let server;
  try {
-  const ddl=await readFile(new URL('../../mysql/migrations/024_community_home.sql',import.meta.url),'utf8');
+  const ddl=[
+    await readFile(new URL('../../mysql/migrations/024_community_home.sql',import.meta.url),'utf8'),
+    await readFile(new URL('../../mysql/migrations/026_community_report_identity.sql',import.meta.url),'utf8'),
+  ].join('\n');
   const migrate=async()=>{for(const sql of ddl.replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await db.query(sql);};
   await migrate();await migrate();
   const app=express();app.use(express.json());app.use('/api/portal/v1/community',createCommunityRouter({db,authRequired:auth,secret,audit:async a=>audit.push(a),fetchCalendar:async()=>({range:{from:'2026-10-09',to:'2026-11-08'},birthdays:[{name:'Persona QA',date:'2026-10-09',company:'Minera Río Tinto'}],events:[{title:'Encuentro de la comunidad',description:'Evento de prueba',starts_at:'2026-10-15T10:00:00',ends_at:null,all_day:false,location_label:'Sala de reuniones'}]})}));
@@ -65,6 +68,14 @@ test('comunidad: HTTP/MySQL aislado, sin cuentas ni tablas de negocio', {skip:pr
     assert.equal((await call('/reports',null,'POST',{...report(),website:'spam'})).status,400);
     assert.equal((await call('/reports',null,'POST',{...report(),answer:'0'})).status,400);
   });
+  await t.test('identidad voluntaria sólo se muestra a RH',async()=>{
+    const payload={...report(),identity_mode:'identified',sender_name:'Persona QA',sender_location:'Planta de prueba'};
+    const created=await call('/reports',null,'POST',payload);assert.equal(created.status,201);const receipt2=(await created.json()).data;
+    const [[stored]]=await db.query('SELECT id,identity_mode,sender_name,sender_location FROM community_reports WHERE folio=?',[receipt2.folio]);
+    assert.deepEqual(stored.identity_mode,'identified');assert.equal(stored.sender_name,payload.sender_name);assert.equal(stored.sender_location,payload.sender_location);
+    const publicStatus=await (await call('/report-status',null,'POST',receipt2)).json();assert.doesNotMatch(JSON.stringify(publicStatus),/Persona QA|Planta de prueba|identity_mode/);
+    const detail=await (await call(`/admin/reports/${stored.id}`,'rh')).json();assert.equal(detail.data.sender_name,payload.sender_name);assert.equal(detail.data.sender_location,payload.sender_location);
+  });
   await t.test('seguimiento privado, respuesta pública y concurrencia',async()=>{
     assert.equal((await call(`/admin/reports/${reportId}`,'viewer')).status,403);
     const update={status:'reviewing',public_reply:'Estamos revisando tu mensaje.',internal_note:'Nota privada QA',revision:1};
@@ -74,7 +85,7 @@ test('comunidad: HTTP/MySQL aislado, sin cuentas ni tablas de negocio', {skip:pr
     const detail=await(await call(`/admin/reports/${reportId}`,'rh')).json();assert.equal(detail.data.history.length,1);assert.equal(detail.data.history[0].internal_note,update.internal_note);assert.equal(detail.data.access_digest,undefined);
   });
   await t.test('migración repetida conserva votos y reportes',async()=>{
-    await migrate();assert.equal((await db.query('SELECT COUNT(*) AS n FROM community_reports'))[0][0].n,1);assert.equal((await db.query('SELECT COUNT(*) AS n FROM community_votes'))[0][0].n,1);
+    await migrate();assert.equal((await db.query('SELECT COUNT(*) AS n FROM community_reports'))[0][0].n,2);assert.equal((await db.query('SELECT COUNT(*) AS n FROM community_votes'))[0][0].n,1);
   });
   await t.test('rollback transaccional sin reportes/contadores/challenges parciales',async()=>{
     const before=(await db.query('SELECT SUM(hits) AS n FROM community_rate_buckets'))[0][0].n;failInsert=true;

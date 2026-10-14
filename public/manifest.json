@@ -15,9 +15,9 @@
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/company-logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/mrti-logo.png?v=20261013",
+      "sizes": "200x200",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

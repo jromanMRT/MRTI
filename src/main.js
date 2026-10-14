@@ -51,7 +51,6 @@ let userPreferences = { ...DEFAULT_USER_PREFERENCES };
 let avatarObjectUrl = null;
 let notificationRefreshTimer = null;
 let lastNotificationItems = [];
-let widgetUpdatedTimer = null;
 // Activo preseleccionado al abrir el formulario de ticket desde el botón
 // "Crear ticket" del popup de un activo en MRTI-Activos (Fase 1 de la
 // integración de plataforma, ?openTicket=1&asset_uid=...&asset_label=...).
@@ -366,42 +365,21 @@ async function widgetApi(path, profile, { forceFresh = false, onRefresh } = {}) 
   }
 }
 
-function setWidgetUpdated(container, meta, retry) {
+function setWidgetStatus(container, meta, retry) {
   if (!container || !meta) return;
-  container.querySelector('.widget-updated')?.remove();
+  container.querySelector('.widget-status')?.remove();
+  if (!meta.stale) return;
   const updated = document.createElement('small');
-  updated.className = `widget-updated${meta.stale ? ' is-stale' : ''}`;
-  updated.dataset.updatedAt = String(meta.updatedAt);
-  updated.dataset.stale = String(meta.stale);
-  const updateLabel = () => {
-    const minutes = Math.max(0, Math.floor((Date.now() - meta.updatedAt) / 60000));
-    updated.textContent = `${meta.stale ? 'Datos guardados · ' : ''}Última actualización: ${minutes ? `hace ${minutes} min` : 'ahora'}`;
-  };
-  updateLabel();
-  if (meta.stale) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'widget-retry';
-    button.textContent = 'Reintentar';
-    button.addEventListener('click', retry, { once: true });
-    updated.append(button);
-  }
+  updated.className = 'widget-status is-stale';
+  updated.setAttribute('role', 'status');
+  updated.textContent = 'El servicio no respondió; se muestran datos guardados.';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'widget-retry';
+  button.textContent = 'Reintentar';
+  button.addEventListener('click', retry, { once: true });
+  updated.append(button);
   container.append(updated);
-  if (!widgetUpdatedTimer) {
-    widgetUpdatedTimer = window.setInterval(() => {
-      const labels = document.querySelectorAll('.widget-updated');
-      if (!labels.length) {
-        window.clearInterval(widgetUpdatedTimer);
-        widgetUpdatedTimer = null;
-        return;
-      }
-      labels.forEach((label) => {
-        const updatedAt = Number(label.dataset.updatedAt);
-        const minutes = Math.max(0, Math.floor((Date.now() - updatedAt) / 60000));
-        label.textContent = `${label.dataset.stale === 'true' ? 'Datos guardados · ' : ''}Última actualización: ${minutes ? `hace ${minutes} min` : 'ahora'}`;
-      });
-    }, 60_000);
-  }
 }
 
 function renderWidgetError(container, retry) {
@@ -563,13 +541,11 @@ function moduleTabMarkup(module) {
 }
 
 // Pestañas visibles directamente en el encabezado, sin nada que abrir.
-function moduleSwitcherMarkup(profile) {
+function moduleSwitcherMarkup(profile, currentModule = 'dashboard') {
   const available = portalApplications.filter((module) => canOpen(profile, module.code));
-  // Core no aparece en el catálogo de aplicaciones (es la raíz, no un módulo
-  // instalable), así que su propia pestaña "Dashboard" siempre se marca
-  // como la actual dentro de su propio encabezado.
+  const dashboardCurrent = currentModule === 'dashboard';
   const tabs = [
-    `<a class="module-tab is-current" href="/dashboard" aria-current="page">Dashboard</a>`,
+    `<a class="module-tab${dashboardCurrent ? ' is-current' : ''}" href="/dashboard"${dashboardCurrent ? ' aria-current="page"' : ''}>Dashboard</a>`,
     ...available.map(moduleTabMarkup),
   ].join('');
   return `<nav class="portal-header-navigation module-tabs" aria-label="Navegación de la plataforma">${tabs}</nav>`;
@@ -620,6 +596,7 @@ function shellMarkup(profile, content) {
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Cerrar navegación" tabindex="-1"></button>
     <aside class="portal-sidebar" id="portal-sidebar" aria-label="Navegación del portal">
       <div class="sidebar-brand">${brandMarkup()}</div>
+      <div class="sidebar-search-slot" id="sidebar-search-slot"></div>
       <nav class="primary-nav" aria-label="Navegación principal">
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.home}</span><span class="nav-label">Inicio</span></button>
         <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.plus}</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.tickets}</span><span class="nav-label">Mis tickets</span></button>
@@ -634,7 +611,6 @@ function shellMarkup(profile, content) {
         <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">${ICONS.menu}</button>
         <div class="mobile-brand">${brandMarkup()}</div>
         ${moduleSwitcherMarkup(profile)}
-        <div class="topbar-context"><strong>Dashboard</strong><small>Dashboard y configuración personal</small></div>
         <div class="topbar-actions">
           <div class="notification-center">
             <button class="notification-button" id="notifications-button" type="button" aria-label="Ver notificaciones" aria-expanded="false" aria-controls="notifications-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="notification-count" id="notification-count" hidden></span></button>
@@ -710,6 +686,12 @@ function bindShell(profile) {
   document.querySelector('#core-my-tickets-button')?.addEventListener('click', () => openCoreTicketHistory(profile));
   notificationPanelController?.abort();
   notificationPanelController = new AbortController();
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && shell?.classList.contains('sidebar-mobile-open')) {
+      closeMobileMenu();
+      mobileButton?.focus();
+    }
+  }, { signal: notificationPanelController.signal });
   const notificationButton = document.querySelector('#notifications-button');
   const notificationPanel = document.querySelector('#notifications-panel');
   const setNotificationPanelOpen = (open) => {
@@ -798,21 +780,46 @@ function bindShell(profile) {
   });
   bindDashboardRefinements({
     profile,
+    applications: portalApplications,
     api,
     widgetOrder: userPreferences.widget_order || DEFAULT_USER_PREFERENCES.widget_order,
-    persistWidgetOrder: async (widgetOrder) => {
+    widgetVisibility: {
+      rh: userPreferences.show_rh,
+      assets: userPreferences.show_assets,
+      tickets: userPreferences.show_tickets,
+      requisitions: userPreferences.show_requisitions,
+    },
+    persistDashboardPreferences: async ({ widgetVisibility, widgetOrder }) => {
       const { preferences } = await api('/api/auth/profile/preferences', {
         method: 'PATCH',
-        body: JSON.stringify({ ...userPreferences, widget_order: widgetOrder }),
+        body: JSON.stringify({
+          ...userPreferences,
+          show_rh: widgetVisibility.rh,
+          show_assets: widgetVisibility.assets,
+          show_tickets: widgetVisibility.tickets,
+          show_requisitions: widgetVisibility.requisitions,
+          widget_order: widgetOrder,
+        }),
       });
       userPreferences = { ...DEFAULT_USER_PREFERENCES, ...preferences };
+      return userPreferences;
     },
     handlers: {
+      home: () => renderPortal(profile, null),
       newTicket: () => openCoreTicketCreation(profile),
+      openTickets: () => openCoreTicketHistory(profile),
       openTicket: (id) => openSelfTicketDetail(profile, id),
       openRequisition: (id) => openRequisitionDetail(id, profile),
       openAccount: () => renderAccount(profile),
+      openNews: () => renderCompanyNews(profile),
+      openBrand: () => renderBrandAssets(profile),
       openControlCenter: () => renderControlCenter(profile),
+      loadWidget: (key) => {
+        if (key === 'rh') void loadEmployeeDashboard(profile);
+        else if (key === 'assets') void loadAssetsDashboard(profile);
+        else if (key === 'tickets') void loadTicketsDashboard(profile);
+        else if (key === 'requisitions') void loadRequisitionsDashboard(profile);
+      },
     },
   });
   void loadNotifications(profile);
@@ -844,8 +851,8 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
     { action: 'new-ticket', icon: ICONS.plus, title: 'Nuevo ticket', copy: 'Reporta cualquier necesidad mediante Tickets.' },
     { href: '#tickets-dashboard', icon: ICONS.tickets, title: 'Mis tickets', copy: 'Consulta aquí su avance y prioridad.' },
     { href: '#assets-dashboard', icon: `<svg ${SVG_ATTR}><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>`, title: 'Mis activos', copy: 'Consulta el equipo que tienes asignado.' },
-    userPreferences.show_requisitions ? { action: 'new-requisition', icon: `<svg ${SVG_ATTR}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>`, title: 'Nueva requisición', copy: 'Solicita una nueva plaza o sustitución.', id: 'quick-action-requisition', hidden: true } : null,
-  ].filter(Boolean);
+    { action: 'new-requisition', icon: `<svg ${SVG_ATTR}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>`, title: 'Nueva requisición', copy: 'Solicita una nueva plaza o sustitución.', id: 'quick-action-requisition', hidden: true },
+  ];
   app.innerHTML = shellMarkup(profile, `
     ${banner}
     <section class="hero personal-hero home-hero"><div class="home-intro"><div class="eyebrow"><span></span> Dashboard</div>${avatarMarkup(profile, 'hero-avatar')}<h1>${greeting()}, ${escapeHtml(firstName)}.<br><em>Este es tu dashboard.</em></h1>
@@ -856,9 +863,8 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
     <section class="quick-actions" aria-labelledby="quick-actions-title"><div class="section-heading"><div><p class="section-label">Acciones rápidas</p><h2 id="quick-actions-title">Empieza por lo que necesitas</h2></div></div><div class="quick-action-grid">${quickActions.map((action) => action.action
     ? `<button class="quick-action" type="button" data-core-action="${action.action}"${action.id ? ` id="${action.id}"` : ''}${action.hidden ? ' hidden' : ''}><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true"><svg ${SVG_ATTR} width="16" height="16"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></b></button>`
     : `<a class="quick-action" href="${action.href}"><span>${action.icon}</span><div><strong>${action.title}</strong><small>${action.copy}</small></div><b aria-hidden="true"><svg ${SVG_ATTR} width="16" height="16"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></b></a>`).join('')}</div></section>
-    <section class="personal-card recent-activity" aria-labelledby="recent-activity-title"><div class="personal-card-title"><div><p>Actividad</p><h3 id="recent-activity-title">Actividad reciente</h3></div></div><ol class="recent-activity-list" id="recent-activity-list"><li class="activity-empty">Consultando tus gestiones recientes…</li></ol></section>
     <section class="personal-dashboard ticket-self-service" id="ticket-self-service"><details class="personal-card ticket-create-card" id="ticket-create-panel"><summary><span><small>Autoservicio</small><strong>Levantar un ticket desde Core</strong></span><b>Mostrar formulario</b></summary><form class="personal-form ticket-self-form" id="ticket-self-form">${isAdministrator(profile) ? '<label>En nombre de<select name="on_behalf_of" id="ticket-on-behalf-of"><option value="">Yo mismo (mi usuario)</option></select><small class="field-help" style="margin-top:-6px;color:var(--ink-soft);font-size:.68rem">Solo visible para administradores. Selecciona al usuario que solicitó el ticket.</small></label>' : ''}${pendingTicketAsset ? `<div class="notice" id="ticket-preset-asset">Activo relacionado: <strong>${escapeHtml(pendingTicketAsset.asset_label)}</strong> <button type="button" id="ticket-preset-asset-clear" class="text-download" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;">Quitar</button></div>` : ''}<label>Título<input name="title" maxlength="255" placeholder="Describe brevemente el problema" required></label><label>Descripción<textarea name="description" rows="5" maxlength="10000" placeholder="Incluye síntomas y cualquier dato útil"></textarea></label><div class="personal-form-dates ticket-destination-fields"><label>Área<select name="business_area_id" id="ticket-business-area" required><option value="">Cargando áreas…</option></select></label><label>Categoría<select name="category_id" id="ticket-category" required disabled><option value="">Selecciona primero el área</option></select></label><label>Detalle<select name="subcategory_id" id="ticket-subcategory" disabled><option value="">Selecciona primero la categoría</option></select></label><label>Prioridad<select name="priority_code" id="ticket-priority"><option value="P3">P3 · Normal</option></select></label></div>${profile.role === 'administrator' ? '<div id="ticket-equipment">Cargando equipos…</div>' : ''}<div class="personal-form-message" id="ticket-form-message" hidden></div><button class="personal-submit" type="submit">Enviar ticket</button></form></details></section>
-    ${userPreferences.show_requisitions ? `<section class="personal-dashboard requisition-self-service" id="requisition-self-service" hidden>
+    <section class="personal-dashboard requisition-self-service" id="requisition-self-service" hidden>
       <details class="personal-card req-card" id="requisition-create-panel">
         <summary class="req-summary"><span class="req-summary-icon"><svg ${SVG_ATTR}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg></span><span><small>Autoservicio</small><strong>Solicitar requisición de personal</strong></span><b class="req-summary-toggle">Mostrar formulario</b></summary>
         <form class="personal-form req-form" id="requisition-self-form">
@@ -866,7 +872,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
             <legend><span class="req-step">1</span> Tipo y prioridad</legend>
             <div class="req-fields-row">
               <label>Tipo de requisición<select name="type" id="req-type" required><option value="">Seleccionar tipo</option><option value="nueva_creacion">Nueva creación</option><option value="sustitucion_reemplazo">Sustitución / Reemplazo</option><option value="incapacidad_maternidad_temporal">Incapacidad / Maternidad temporal</option></select></label>
-              <label>Prioridad<select name="priority" id="req-priority"><option value="media" selected>Media</option><option value="baja">Baja</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
+              <label>Prioridad<select name="priority" id="req-priority"><option value="media" selected>Media</option><option value="baja">Baja</option><option value="alta">Alta</option></select></label>
             </div>
             <label id="req-estimated-end-wrap" hidden>Fecha estimada de término<input name="estimated_end_date" id="req-estimated-end" type="date"></label>
             <div id="req-replacement-wrap" class="req-fields-row" hidden><label>Colaborador saliente<select name="replacement_employee_id" id="req-replacement-employee"><option value="">Seleccionar colaborador…</option></select></label><label>Motivo de sustitución<textarea name="replacement_reason" id="req-replacement-reason" rows="2" maxlength="500" placeholder="Indica el motivo de la baja o sustitución"></textarea></label></div>
@@ -882,30 +888,46 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
             <legend><span class="req-step">3</span> Organización y ubicación</legend>
             <div class="req-fields-row">
               <label>Departamento<select name="department_id" id="req-department"><option value="">Cargando departamentos…</option></select></label>
-              <label>Reporta al puesto<select name="reports_to_position_id" id="req-reports-to"><option value="">Cargando…</option></select></label>
+              <label>Reporta al puesto<select name="reports_to_position_id" id="req-reports-to" required><option value="">Cargando…</option></select></label>
             </div>
             <div class="req-fields-row req-fields-3col">
               <label>Ubicación<select name="location" id="req-location"><option value="">Cargando ubicaciones…</option></select></label>
-              <label>Visibilidad<select name="visibility" id="req-visibility"><option value="publica">Pública</option><option value="interna">Interna</option><option value="confidencial">Confidencial</option></select></label>
-              <label>Plazas<input name="headcount" type="number" min="1" max="50" value="1"></label>
+              <label>Visibilidad<select name="visibility" id="req-visibility"><option value="publica">Pública</option><option value="interna">Interna / Convocatoria cerrada</option><option value="confidencial">Confidencial</option></select></label>
             </div>
           </fieldset>
           <fieldset class="req-fieldset">
             <legend><span class="req-step">4</span> Justificación y perfil</legend>
+            <label>Centro de costos / proyecto<textarea name="cost_center_project" rows="3" maxlength="160" placeholder="Pendiente por definir"></textarea></label>
             <label>Justificación<textarea name="justification" rows="3" maxlength="2000" placeholder="¿Por qué se requiere esta posición?"></textarea></label>
             <label>Perfil requerido<textarea name="profile_description" rows="3" maxlength="2000" placeholder="Experiencia, habilidades y conocimientos deseados"></textarea></label>
+            <div id="req-vacancy-profile-wrap" class="req-vacancy-profile" hidden>
+              <details open>
+                <summary>Perfil de esta vacante <span>(editable sin alterar el catálogo)</span></summary>
+                <p id="req-vacancy-profile-source"></p>
+                <label>Objetivo de la vacante<textarea id="req-vacancy-objective" rows="3" maxlength="2000"></textarea></label>
+                <label>Perfil requerido<textarea id="req-vacancy-requirements" rows="4" placeholder="Un requisito por renglón"></textarea><small>Un requisito por renglón.</small></label>
+                <label>Actividades y entregables<textarea id="req-vacancy-activities" rows="4" placeholder="Una actividad por renglón"></textarea><small>Una actividad por renglón.</small></label>
+                <button type="button" id="req-vacancy-restore" class="secondary-button">Restaurar información base</button>
+              </details>
+            </div>
           </fieldset>
           <div class="personal-form-message" id="requisition-form-message" hidden></div>
           <div class="req-submit-row"><button class="personal-submit req-submit" type="submit"><svg ${SVG_ATTR} width="16" height="16"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg> Enviar requisición</button></div>
         </form>
       </details>
-    </section>` : ''}
+    </section>
     <section class="personal-dashboard" id="requisition-approvals-section" hidden><div id="requisition-approvals-dashboard"></div></section>
-    <section class="personal-dashboard"><div class="section-heading"><div><p class="section-label">Dashboard</p><h2>Información y gestiones personales</h2></div><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span></div>
-      ${userPreferences.show_rh ? '<div id="employee-dashboard" class="personal-loading" aria-live="polite">Cargando tu información de Recursos Humanos…</div>' : ''}
-      ${userPreferences.show_assets ? '<div id="assets-dashboard" class="personal-loading" aria-live="polite">Cargando tu equipo asignado…</div>' : ''}
-      ${userPreferences.show_tickets ? '<div id="tickets-dashboard" class="personal-loading" aria-live="polite">Cargando tus tickets…</div>' : ''}
-      ${userPreferences.show_requisitions ? '<div id="requisitions-dashboard" class="personal-loading" aria-live="polite">Cargando tus requisiciones…</div>' : ''}</section>`);
+    <section class="personal-dashboard personal-widget-section" aria-labelledby="personal-widgets-title">
+      <div class="section-heading"><div><p class="section-label">Dashboard</p><h2 id="personal-widgets-title">Información y gestiones personales</h2></div><div class="dashboard-widget-actions"><span class="app-count">${escapeHtml(userIdentifier(profile.user_number))}</span><button class="secondary-button dashboard-edit-button" id="dashboard-edit-button" type="button" aria-haspopup="dialog" aria-controls="dashboard-editor"><span aria-hidden="true">${ICONS.settings}</span>Editar y mover widgets</button></div></div>
+      <div class="dashboard-editor-layout" id="dashboard-editor-layout">
+        <div class="personal-grid dashboard-widget-grid" id="dashboard-widget-grid">
+          <div id="employee-dashboard" class="personal-loading" draggable="false" aria-live="polite" ${userPreferences.show_rh ? '' : 'hidden'}>Cargando tu información de Recursos Humanos…</div>
+          <div id="assets-dashboard" class="personal-loading" draggable="false" aria-live="polite" ${userPreferences.show_assets ? '' : 'hidden'}>Cargando tu equipo asignado…</div>
+          <div id="tickets-dashboard" class="personal-loading" draggable="false" aria-live="polite" ${userPreferences.show_tickets ? '' : 'hidden'}>Cargando tus tickets…</div>
+          <div id="requisitions-dashboard" class="personal-loading" draggable="false" aria-live="polite" ${userPreferences.show_requisitions ? '' : 'hidden'}>Cargando tus requisiciones…</div>
+        </div>
+      </div>
+    </section>`);
   bindShell(profile);
   bindTicketSelfService(profile);
   if (requestedView === 'account') renderAccount(profile);
@@ -915,16 +937,32 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
   else if (requestedView === 'notifications') document.querySelector('#notifications-button')?.click();
   // Cada widget corre por separado: si Activos o Tickets no responden, el
   // dashboard de RH y el resto de la página no se ven afectados.
-  void loadEmployeeDashboard(profile);
-  void loadAssetsDashboard(profile);
-  void loadTicketsDashboard(profile);
-  void loadRequisitionsDashboard(profile);
+  if (userPreferences.show_rh) void loadEmployeeDashboard(profile);
+  if (userPreferences.show_assets) void loadAssetsDashboard(profile);
+  if (userPreferences.show_tickets) void loadTicketsDashboard(profile);
+  if (userPreferences.show_requisitions) void loadRequisitionsDashboard(profile);
   void loadRequisitionApprovals(profile);
   void bindRequisitionSelfService(profile);
 }
 
 function shortDate(value) {
   return value ? String(value).slice(0, 10) : '—';
+}
+
+function requisitionElapsedLabel(hours) {
+  const total = Number(hours);
+  if (!Number.isFinite(total) || total < 0) return '—';
+  if (total < 1) return 'menos de 1 h';
+  const days = Math.floor(total / 24);
+  const remainingHours = total % 24;
+  return days ? `${days} d${remainingHours ? ` ${remainingHours} h` : ''}` : `${remainingHours} h`;
+}
+
+function requisitionDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return `${shortDate(value)} ${date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 async function loadEmployeeDashboard(profile, { forceFresh = false } = {}) {
@@ -951,7 +989,7 @@ async function loadEmployeeDashboard(profile, { forceFresh = false } = {}) {
       <article class="personal-card identity-card"><div class="personal-card-heading"><span class="personal-icon">ID</span><div><p>Mi información laboral</p><h3>${escapeHtml(employee.first_name)} ${escapeHtml(employee.last_name_p)} ${escapeHtml(employee.last_name_m || '')}</h3></div></div>
         <dl class="identity-details"><div><dt>Número</dt><dd>${escapeHtml(employee.employee_number)}</dd></div><div><dt>Puesto</dt><dd>${escapeHtml(employee.job_title || '—')}</dd></div><div><dt>Departamento</dt><dd>${escapeHtml(employee.department_name || '—')}</dd></div><div><dt>Jefe directo</dt><dd>${escapeHtml(employee.manager_name || '—')}</dd></div><div><dt>Correo</dt><dd>${escapeHtml(employee.work_email || profile.email)}</dd></div><div><dt>Ingreso</dt><dd>${shortDate(employee.hire_date)}</dd></div></dl></article>
       <article class="personal-card balance-card"><div class="personal-card-title"><div><p>Información de Recursos Humanos</p><h3>Saldos disponibles ${year}</h3></div></div><div class="personal-metrics">${balanceCards || '<p class="personal-empty">RH aún no ha asignado saldos.</p>'}</div><p class="personal-card-note">Las vacaciones, permisos y demás gestiones deben solicitarse mediante un ticket.</p></article>`;
-    setWidgetUpdated(container, widgetMeta || employeeMeta, () => void loadEmployeeDashboard(profile, { forceFresh: true }));
+    setWidgetStatus(container, widgetMeta || employeeMeta, () => void loadEmployeeDashboard(profile, { forceFresh: true }));
     window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'rh', data: [employee] } }));
   } catch (error) {
     console.warn('No fue posible cargar el widget de Recursos Humanos.', error);
@@ -984,12 +1022,12 @@ async function loadAssetsDashboard(profile, { forceFresh = false } = {}) {
     window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'assets', data: assets } }));
     if (!assets.length) {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><p class="personal-empty">Aún no tienes equipo asignado en MRTI Activos.</p></article>`;
-      setWidgetUpdated(container, widgetMeta, () => void loadAssetsDashboard(profile, { forceFresh: true }));
+      setWidgetStatus(container, widgetMeta, () => void loadAssetsDashboard(profile, { forceFresh: true }));
       return;
     }
     const rows = assets.map((asset) => `<tr><td><strong>${escapeHtml(asset.cod_activo_fijo || asset.numero_serie || '—')}</strong><small>${escapeHtml(asset.descripcion || asset.tipo || '')}</small></td><td>${escapeHtml(asset.marca || '—')} ${escapeHtml(asset.modelo || '')}</td><td><span class="request-status ${asset.estado === 'Activo' ? 'approved' : 'pending'}">${escapeHtml(asset.estado || '—')}</span></td></tr>`).join('');
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Activos</p><h3>Mi equipo asignado</h3></div></div><div class="personal-table-scroll"><table><thead><tr><th>Equipo</th><th>Marca/modelo</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div></article>`;
-    setWidgetUpdated(container, widgetMeta, () => void loadAssetsDashboard(profile, { forceFresh: true }));
+    setWidgetStatus(container, widgetMeta, () => void loadAssetsDashboard(profile, { forceFresh: true }));
   } catch (error) {
     console.warn('No fue posible cargar el widget de Activos.', error);
     setHomeStat('assets-stat', '—', 'Activos no disponible', 'unavailable');
@@ -1022,15 +1060,33 @@ async function loadTicketsDashboard(profile, flash = '', { forceFresh = false } 
     window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'tickets', data: tickets } }));
     if (!tickets.length) {
       container.innerHTML = `<article class="personal-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div><p class="personal-empty">No tienes tickets creados ni asignados.</p></article>`;
-      setWidgetUpdated(container, widgetMeta, () => void loadTicketsDashboard(profile, flash, { forceFresh: true }));
+      setWidgetStatus(container, widgetMeta, () => void loadTicketsDashboard(profile, flash, { forceFresh: true }));
       return;
     }
     const rows = tickets.map((ticket) => `<tr><td><button class="ticket-detail-trigger" type="button" data-ticket-detail="${escapeHtml(ticket.id)}" aria-label="Ver detalle de ${escapeHtml(ticket.folio)}"><strong>${escapeHtml(ticket.folio)}</strong><small>${escapeHtml(ticket.title)}</small></button></td><td><strong>${escapeHtml(ticket.business_area_name || 'Sin área')}</strong><small>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</small></td><td>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</td><td><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></td><td>${escapeHtml(shortDate(ticket.updated_at))}</td></tr>`).join('');
     container.innerHTML = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Tickets</p><h3>Mis tickets</h3></div></div>${flash ? `<div class="personal-flash">${escapeHtml(flash)}</div>` : ''}<div class="personal-table-scroll"><table><thead><tr><th>Ticket</th><th>Categoría</th><th>Prioridad</th><th>Estatus</th><th>Actualización</th></tr></thead><tbody>${rows}</tbody></table></div><p class="ticket-list-help">Selecciona un ticket para consultar su descripción sin salir de Core.</p></article><dialog class="ticket-detail-dialog" id="ticket-detail-dialog" aria-labelledby="ticket-detail-title"><div id="ticket-detail-content" class="ticket-detail-loading">Cargando ticket…</div></dialog>`;
-    setWidgetUpdated(container, widgetMeta, () => void loadTicketsDashboard(profile, flash, { forceFresh: true }));
+    setWidgetStatus(container, widgetMeta, () => void loadTicketsDashboard(profile, flash, { forceFresh: true }));
     const dialog = document.querySelector('#ticket-detail-dialog');
     dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
     document.querySelectorAll('[data-ticket-detail]').forEach((button) => button.addEventListener('click', () => openSelfTicketDetail(profile, button.dataset.ticketDetail)));
+    const ticketRows = [...container.querySelectorAll('tbody tr')];
+    let ticketPage = 0;
+    if (ticketRows.length > 5) {
+      const pagination = document.createElement('nav');
+      pagination.className = 'ticket-widget-pagination';
+      pagination.setAttribute('aria-label', 'Páginas de mis tickets');
+      pagination.innerHTML = '<span aria-live="polite"></span><button type="button" class="secondary-button" data-prev>Anterior</button><button type="button" class="secondary-button" data-next>Siguiente</button>';
+      container.querySelector('.personal-table-scroll').after(pagination);
+      const renderPage = () => {
+        ticketRows.forEach((row, index) => { row.hidden = index < ticketPage * 5 || index >= (ticketPage + 1) * 5; });
+        pagination.querySelector('span').textContent = `${ticketPage * 5 + 1}–${Math.min((ticketPage + 1) * 5, ticketRows.length)} de ${ticketRows.length} tickets`;
+        pagination.querySelector('[data-prev]').disabled = ticketPage === 0;
+        pagination.querySelector('[data-next]').disabled = (ticketPage + 1) * 5 >= ticketRows.length;
+      };
+      pagination.querySelector('[data-prev]').onclick = () => { ticketPage--; renderPage(); };
+      pagination.querySelector('[data-next]').onclick = () => { ticketPage++; renderPage(); };
+      renderPage();
+    }
   } catch (error) {
     console.warn('No fue posible cargar el widget de Tickets.', error);
     setHomeStat('requests-stat', '—', 'Tickets no disponibles', 'unavailable');
@@ -1061,7 +1117,7 @@ async function loadRequisitionApprovals(profile) {
     const pendingCard = pending.length ? `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Firma requerida</p><h3>Requisiciones pendientes de tu autorización</h3></div><small class="table-hint">Selecciona una fila para revisar y decidir.</small></div><div class="personal-table-scroll"><table><thead><tr><th>Folio</th><th>Puesto</th><th>Solicitante</th></tr></thead><tbody>${pending.map((r) => `<tr class="req-approval-row" data-requisition-detail="${r.id}" tabindex="0" role="button" aria-label="Abrir requisición ${escapeHtml(r.folio)}"><td><strong>${escapeHtml(r.folio)}</strong><small>${escapeHtml(r.role_label)}</small></td><td>${escapeHtml(r.position_name)}</td><td>${escapeHtml(r.requester_name)}</td></tr>`).join('')}</tbody></table></div></article>` : '';
     const recoveryCard = recoverable.length ? `<article class="personal-card requests-card requisition-recovery-card"><div class="personal-card-title"><div><p>Administración</p><h3>Requisiciones rechazadas recuperables</h3></div><small class="table-hint">Abre una fila para revisar y restaurar la solicitud.</small></div><div class="personal-table-scroll"><table><thead><tr><th>Folio</th><th>Puesto</th><th>Rechazada por</th></tr></thead><tbody>${recoverable.map((r) => `<tr class="req-approval-row" data-requisition-detail="${r.id}" tabindex="0" role="button" aria-label="Abrir requisición ${escapeHtml(r.folio)}"><td><strong>${escapeHtml(r.folio)}</strong><small>${escapeHtml(r.department_name || 'Sin departamento')}</small></td><td>${escapeHtml(r.position_name)}</td><td><strong>${escapeHtml(r.rejected_by_name || '—')}</strong><small>${escapeHtml(r.rejection_notes || 'Sin motivo registrado')}</small></td></tr>`).join('')}</tbody></table></div></article>` : '';
     container.innerHTML = pendingCard + recoveryCard;
-    setWidgetUpdated(container, pendingResponse.widgetMeta, () => void loadRequisitionApprovals(profile));
+    setWidgetStatus(container, pendingResponse.widgetMeta, () => void loadRequisitionApprovals(profile));
     container.querySelectorAll('.req-approval-row').forEach((row) => row.addEventListener('click', (event) => {
       if (!event.target.closest('button')) openRequisitionDetail(row.dataset.requisitionDetail, profile);
     }));
@@ -1083,11 +1139,19 @@ async function openRequisitionDetail(id, profile) {
   try {
     const { data: r } = await api(`/rh-api/api/rh-self/me/requisitions/${id}`);
     const field = (label, value) => `<div><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`;
+    const typeLabels = { nueva_creacion: 'Nueva creación', sustitucion_reemplazo: 'Sustitución / Reemplazo', incapacidad_maternidad_temporal: 'Incapacidad / Maternidad / Temporal' };
+    const priorityLabels = { baja: 'Baja', media: 'Media', alta: 'Alta' };
+    const visibilityLabels = { publica: 'Pública', interna: 'Interna / Convocatoria cerrada', confidencial: 'Confidencial' };
     const decisionActions = r.can_decide ? `<div class="requisition-detail-decisions"><button class="personal-submit req-modal-approve" type="button">Aprobar requisición</button><button class="req-reject-button req-modal-reject" type="button">Rechazar requisición</button></div>` : '';
     const recoveryAction = isAdministrator(profile) && r.status === 'rejected' ? `<div class="requisition-detail-decisions"><button class="secondary-button req-modal-recover" type="button">Recuperar requisición</button></div>` : '';
-    const decisionLabel = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' };
-const approvalProgress = r.can_view_tracking === true && r.approvals?.length ? `<section class="requisition-detail-section"><h3>Seguimiento de autorizaciones</h3><ol class="requisition-approval-timeline">${r.approvals.map((approval) => `<li class="${escapeHtml(approval.decision)}"><span></span><div><strong>${escapeHtml(approval.role_label)}</strong><small>${escapeHtml(approval.approver_name || 'Sin asignar')} · ${escapeHtml(decisionLabel[approval.decision] || approval.decision)}${approval.decided_at ? ` · ${escapeHtml(shortDate(approval.decided_at))}` : ''}</small>${approval.notes ? `<em>${escapeHtml(approval.notes)}</em>` : ''}</div></li>`).join('')}</ol></section>` : '';
-    dialog.innerHTML = `<article class="requisition-detail-content"><header><div><p>Requisición de personal · ${escapeHtml(r.folio)}</p><h2>${escapeHtml(r.position_name)}</h2><small>${r.can_decide ? 'Revisa la información antes de emitir tu autorización.' : 'Consulta la información completa de esta requisición.'}</small></div><button class="dialog-close" type="button" aria-label="Cerrar">×</button></header><div class="requisition-detail-body"><section class="requisition-detail-summary"><h3>Definición de la plaza</h3><div class="detail-grid">${field('Solicitante', r.requester_name)}${field('Departamento', r.department_name)}${field('Reporta a', r.reports_to_position_name)}${field('Ubicación', r.location)}${field('Plazas', String(r.headcount))}${field('Centro de costos', r.cost_center_project)}</div></section>${approvalProgress}${r.justification ? `<section class="requisition-detail-section"><h3>Justificación</h3><p>${escapeHtml(r.justification)}</p></section>` : ''}${r.profile_description ? `<section class="requisition-detail-section"><h3>Perfil requerido</h3><p>${escapeHtml(r.profile_description)}</p></section>` : ''}</div><footer>${decisionActions}${recoveryAction}<button class="secondary-button dialog-close" type="button">Cerrar detalle</button></footer></article>`;
+    const decisionLabel = { pending: 'Pendiente', current: 'En firma', queued: 'En espera', stopped: 'Detenida por rechazo', cancelled: 'Cancelada', approved: 'Aprobada', rejected: 'Rechazada' };
+    const approvalProgress = r.can_view_tracking === true && r.approvals?.length ? `<section class="requisition-detail-section"><h3>Ruta de firmas</h3><ol class="requisition-approval-timeline">${r.approvals.map((approval) => {
+      const state = approval.timeline_state || approval.decision;
+      const duration = approval.elapsed_hours == null ? '' : `${approval.decision === 'pending' ? 'Lleva' : 'Duró'} ${requisitionElapsedLabel(approval.elapsed_hours)}`;
+      const sla = approval.days_to_approve == null ? 'Sin SLA' : `SLA ${approval.days_to_approve} días${approval.is_overdue || approval.is_sla_breached ? ' · vencido' : ''}`;
+      return `<li class="${escapeHtml(state)}"><span></span><div><strong>${escapeHtml(approval.role_label)}</strong><small>${escapeHtml(approval.approver_name || 'Sin asignar')} · ${escapeHtml(decisionLabel[state] || state)}${approval.started_at ? ` · inicio ${escapeHtml(requisitionDateTime(approval.started_at))}` : ''}${approval.decided_at ? ` · firma ${escapeHtml(requisitionDateTime(approval.decided_at))}` : ''}</small><small>${escapeHtml([duration, sla].filter(Boolean).join(' · '))}</small>${approval.notes ? `<em>${escapeHtml(approval.notes)}</em>` : ''}</div></li>`;
+    }).join('')}</ol></section>` : '';
+    dialog.innerHTML = `<article class="requisition-detail-content"><header><div><p>Requisición de personal · ${escapeHtml(r.folio)}</p><h2>${escapeHtml(r.position_name)}</h2><small>${r.can_decide ? 'Revisa la información antes de emitir tu autorización.' : 'Consulta la información completa de esta requisición.'}</small></div><button class="dialog-close" type="button" aria-label="Cerrar">×</button></header><div class="requisition-detail-body"><section class="requisition-detail-summary"><h3>Definición de la plaza</h3><div class="detail-grid">${field('Tipo', typeLabels[r.type] || r.type)}${field('Prioridad', priorityLabels[r.priority] || r.priority)}${field('Solicitante', r.requester_name)}${field('Departamento', r.department_name)}${field('Reporta al puesto', r.reports_to_position_name)}${field('Ubicación', r.location)}${field('Visibilidad', visibilityLabels[r.visibility] || r.visibility)}${field('Centro de costos / proyecto', r.cost_center_project)}</div></section>${approvalProgress}${r.replacement_reason ? `<section class="requisition-detail-section"><h3>Motivo de sustitución</h3><p>${escapeHtml(r.replacement_reason)}</p></section>` : ''}${r.estimated_end_date ? `<section class="requisition-detail-section"><h3>Fecha estimada de término</h3><p>${escapeHtml(shortDate(r.estimated_end_date))}</p></section>` : ''}${r.justification ? `<section class="requisition-detail-section"><h3>Justificación</h3><p>${escapeHtml(r.justification)}</p></section>` : ''}${r.profile_description ? `<section class="requisition-detail-section"><h3>Perfil requerido</h3><p>${escapeHtml(r.profile_description)}</p></section>` : ''}</div><footer>${decisionActions}${recoveryAction}<button class="secondary-button dialog-close" type="button">Cerrar detalle</button></footer></article>`;
     dialog.querySelectorAll('.dialog-close').forEach((button) => button.addEventListener('click', () => dialog.close()));
     const decide = async (action) => {
       const message = action === 'reject' ? `¿Confirmas el rechazo de ${r.folio}? La requisición se detendrá hasta que un administrador la recupere.` : `¿Confirmas que apruebas la requisición ${r.folio}? Tu firma quedará registrada.`;
@@ -1132,10 +1196,10 @@ async function loadRequisitionsDashboard(profile, { forceFresh = false } = {}) {
     window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'requisitions', data: mine } }));
     window.dispatchEvent(new CustomEvent('mrti:dashboard-widget', { detail: { widget: 'approvals', data: pending } }));
     setHomeStat('requisitions-stat', String(mine.filter((item) => ['pending', 'in_approval'].includes(item.status)).length), 'Pendientes o en firma', mine.length ? 'attention' : 'ok');
-    const mineRows = mine.map((r) => `<tr class="req-approval-row" data-requisition-detail="${r.id}" tabindex="0" role="button"><td><strong>${escapeHtml(r.folio)}</strong><small>${escapeHtml(REQ_TYPE_LABEL[r.type] || r.type)}</small></td><td>${escapeHtml(r.position_name)}</td><td>${escapeHtml(r.department_name || '—')}</td><td><span class="request-status ${REQ_STATUS_CLASS[r.status] || 'pending'}">${escapeHtml(REQ_STATUS_LABEL[r.status] || r.status)}</span><small>${r.current_role_label ? `En firma: ${escapeHtml(r.current_role_label)}${r.current_approver_name ? ` · ${escapeHtml(r.current_approver_name)}` : ''}` : r.status === 'approved' ? 'Proceso concluido' : ''}</small></td></tr>`).join('');
+    const mineRows = mine.map((r) => `<tr class="req-approval-row" data-requisition-detail="${r.id}" tabindex="0" role="button"><td><strong>${escapeHtml(r.folio)}</strong><small>${escapeHtml(REQ_TYPE_LABEL[r.type] || r.type)}</small></td><td>${escapeHtml(r.position_name)}</td><td>${escapeHtml(r.department_name || '—')}</td><td><span class="request-status ${REQ_STATUS_CLASS[r.status] || 'pending'}">${escapeHtml(REQ_STATUS_LABEL[r.status] || r.status)}</span><small>${r.current_role_label ? `En firma: ${escapeHtml(r.current_role_label)}${r.current_approver_name ? ` · ${escapeHtml(r.current_approver_name)}` : ''} · lleva ${escapeHtml(requisitionElapsedLabel(r.current_elapsed_hours))}` : r.status === 'approved' ? 'Proceso concluido' : ''}</small>${r.current_is_overdue ? '<small class="requisition-overdue">Atrasada según SLA</small>' : ''}</td></tr>`).join('');
     const mineCard = `<article class="personal-card requests-card"><div class="personal-card-title"><div><p>Requisiciones de personal</p><h3>Seguimiento de mis requisiciones</h3></div><small class="table-hint">Abre una fila para ver cada firma.</small></div>${mine.length ? `<div class="personal-table-scroll"><table><thead><tr><th>Folio</th><th>Puesto</th><th>Departamento</th><th>Seguimiento</th></tr></thead><tbody>${mineRows}</tbody></table></div>` : '<p class="personal-empty">No has creado requisiciones de personal.</p>'}</article>`;
     container.innerHTML = mineCard;
-    setWidgetUpdated(container, widgetMeta || pendingResponse.widgetMeta, () => void loadRequisitionsDashboard(profile, { forceFresh: true }));
+    setWidgetStatus(container, widgetMeta || pendingResponse.widgetMeta, () => void loadRequisitionsDashboard(profile, { forceFresh: true }));
     container.querySelectorAll('.req-approval-row').forEach((row) => {
       row.addEventListener('click', () => openRequisitionDetail(row.dataset.requisitionDetail, profile));
       row.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openRequisitionDetail(row.dataset.requisitionDetail, profile); } });
@@ -1204,6 +1268,10 @@ async function bindRequisitionSelfService(profile) {
   const replacementWrap = document.querySelector('#req-replacement-wrap');
   const replacementEmployee = document.querySelector('#req-replacement-employee');
   const replacementReason = document.querySelector('#req-replacement-reason');
+  const profileEditor = document.querySelector('#req-vacancy-profile-wrap');
+  const profileSource = document.querySelector('#req-vacancy-profile-source');
+  let selectedPositionTemplate = null;
+  let positionTemplateRequest = 0;
   const syncRequisitionTypeFields = () => {
     const isTemporary = requisitionType.value === 'incapacidad_maternidad_temporal';
     const isReplacement = requisitionType.value === 'sustitucion_reemplazo';
@@ -1213,6 +1281,7 @@ async function bindRequisitionSelfService(profile) {
     replacementWrap.hidden = !isReplacement;
     replacementEmployee.required = isReplacement;
     replacementReason.required = isReplacement;
+    replacementReason.maxLength = 500;
     if (!isReplacement) { replacementEmployee.value = ''; replacementReason.value = ''; }
   };
   requisitionType.addEventListener('change', syncRequisitionTypeFields);
@@ -1231,8 +1300,55 @@ async function bindRequisitionSelfService(profile) {
     document.querySelector('#req-location').innerHTML = `<option value="">— Opcional —</option>${catalogs.locations.map((l) => `<option value="${l.name}">${escapeHtml(l.name)}</option>`).join('')}`;
     document.querySelector('#req-reports-to').innerHTML = `<option value="">— Seleccionar —</option>${catalogs.positions.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}`;
     replacementEmployee.innerHTML = `<option value="">Seleccionar colaborador…</option>${(catalogs.employees || []).map((employee) => `<option value="${employee.id}">${escapeHtml(employee.name)}${employee.job_title ? ` — ${escapeHtml(employee.job_title)}` : ''}</option>`).join('')}`;
-    positionName.addEventListener('input', () => { positionSelect.value = ''; const term = positionName.value.trim().toLowerCase(); const list = catalogs.positions.filter((p) => term && p.name.toLowerCase().includes(term)).slice(0, 6); matches.hidden = !list.length; matches.innerHTML = list.map((p) => `<button type="button" data-id="${p.id}">${escapeHtml(p.name)}</button>`).join(''); newUnit.hidden = true; });
-    matches.addEventListener('click', (event) => { const button = event.target.closest('button[data-id]'); if (!button) return; const p = catalogs.positions.find((item) => String(item.id) === button.dataset.id); positionSelect.value = p.id; positionName.value = p.name; document.querySelector('#req-reports-to').value = p.reports_to_position_id || ''; if (!form.elements.profile_description.value) form.elements.profile_description.value = p.description || ''; matches.hidden = true; newUnit.hidden = true; });
+    const renderVacancyProfile = (restoreBase = false) => {
+      if (!selectedPositionTemplate?.base_profile || !selectedPositionTemplate?.vacancy_profile) {
+        profileEditor.hidden = true;
+        return;
+      }
+      if (restoreBase) selectedPositionTemplate.vacancy_profile = JSON.parse(JSON.stringify(selectedPositionTemplate.base_profile));
+      const base = selectedPositionTemplate.base_profile;
+      const vacancy = selectedPositionTemplate.vacancy_profile;
+      const content = vacancy.content || {};
+      profileEditor.hidden = false;
+      profileSource.textContent = `Base oficial: ${base.position_name}${base.source_version ? ` · versión ${base.source_version}` : ''}. Los cambios se guardarán sólo en esta requisición.`;
+      document.querySelector('#req-vacancy-objective').value = content.objective || '';
+      document.querySelector('#req-vacancy-requirements').value = (content.profile_requirements || []).join('\n');
+      document.querySelector('#req-vacancy-activities').value = (content.activities || []).join('\n');
+    };
+    profileEditor.addEventListener('input', (event) => {
+      const content = selectedPositionTemplate?.vacancy_profile?.content;
+      if (!content) return;
+      if (event.target.id === 'req-vacancy-objective') content.objective = event.target.value;
+      if (event.target.id === 'req-vacancy-requirements') content.profile_requirements = event.target.value.split('\n').map((item) => item.trim()).filter(Boolean);
+      if (event.target.id === 'req-vacancy-activities') content.activities = event.target.value.split('\n').map((item) => item.trim()).filter(Boolean);
+    });
+    document.querySelector('#req-vacancy-restore').addEventListener('click', () => renderVacancyProfile(true));
+    positionName.addEventListener('input', () => { positionTemplateRequest += 1; positionSelect.value = ''; selectedPositionTemplate = null; profileEditor.hidden = true; const term = positionName.value.trim().toLowerCase(); const list = catalogs.positions.filter((p) => term && `${p.position_code || ''} ${p.name}`.toLowerCase().includes(term)).slice(0, 6); matches.hidden = !list.length; matches.innerHTML = list.map((p) => `<button type="button" data-id="${p.id}">${escapeHtml(p.name)} · ${escapeHtml(p.org_unit_name || p.position_code || 'Catálogo')}</button>`).join(''); newUnit.hidden = true; });
+    matches.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-id]');
+      if (!button) return;
+      const position = catalogs.positions.find((item) => String(item.id) === button.dataset.id);
+      const requestId = ++positionTemplateRequest;
+      positionSelect.value = position.id;
+      positionName.value = position.name;
+      message.hidden = true;
+      matches.hidden = true;
+      newUnit.hidden = true;
+      try {
+        const { data: template } = await api(`/rh-api/api/rh-self/me/requisition-position-template/${position.id}`);
+        if (requestId !== positionTemplateRequest) return;
+        selectedPositionTemplate = { base_profile: template.base_profile, vacancy_profile: template.vacancy_profile };
+        document.querySelector('#req-reports-to').value = template.reports_to_position_id || '';
+        if (!form.elements.profile_description.value) form.elements.profile_description.value = template.profile_description || '';
+        renderVacancyProfile();
+      } catch (error) {
+        if (requestId !== positionTemplateRequest) return;
+        selectedPositionTemplate = null;
+        positionSelect.value = '';
+        message.hidden = false;
+        message.textContent = error.message;
+      }
+    });
     document.querySelector('#req-create-position')?.addEventListener('click', () => openPositionCreationRequest(catalogs, profile));
   } catch (error) {
     positionSelect.innerHTML = '<option value="">No disponible</option>';
@@ -1259,15 +1375,20 @@ async function bindRequisitionSelfService(profile) {
           reports_to_position_id: values.get('reports_to_position_id') || null,
           location: values.get('location') || null,
           visibility: values.get('visibility') || 'publica',
-          headcount: Number(values.get('headcount')) || 1,
+          cost_center_project: values.get('cost_center_project') || null,
           justification: values.get('justification') || null,
           profile_description: values.get('profile_description') || null,
+          vacancy_profile: selectedPositionTemplate?.vacancy_profile || null,
           estimated_end_date: values.get('estimated_end_date') || null,
           replacement_employee_id: values.get('replacement_employee_id') || null,
           replacement_reason: values.get('replacement_reason') || null,
         }),
       });
       form.reset();
+      positionTemplateRequest += 1;
+      selectedPositionTemplate = null;
+      profileEditor.hidden = true;
+      syncRequisitionTypeFields();
       panel.open = false;
       message.className = 'personal-form-message success';
       message.textContent = `Requisición ${result.data.folio} enviada correctamente.`;
@@ -2169,20 +2290,22 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     const deviceOptions = (selected = '', ownerId = '') => `<option value="">Sin equipo habitual</option>${data.devices
       .map((device) => `<option value="${device.id}" data-area-id="${device.area_id || ''}" data-owner-id="${device.assigned_user_id || ''}" ${device.id === selected ? 'selected' : ''} ${device.assigned_user_id && device.assigned_user_id !== ownerId ? 'disabled' : ''}>${escapeHtml(`${device.internal_id} · ${device.name}${device.assigned_user_id && device.assigned_user_id !== ownerId ? ' · asignado' : ''}`)}</option>`).join('')}`;
     function ownUserFormMarkup(user) {
-      return `<form class="own-user own-location-editor" data-user-id="${user.id}"><p>Como administrador puedes corregir aquí el nombre y el correo de acceso. La contraseña se cambia desde “Mi cuenta”.</p><div class="user-fields">
+      const primaryAssetId = data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '';
+      return `<form class="own-user own-location-editor" data-user-id="${user.id}" data-initial-physical-area-id="${escapeHtml(user.physical_area_id || '')}" data-initial-primary-device-id="${escapeHtml(primaryAssetId)}"><p>Como administrador puedes corregir aquí el nombre y el correo de acceso. La contraseña se cambia desde “Mi cuenta”.</p><div class="user-fields">
         <label>Nombre<input name="full_name" value="${escapeHtml(user.full_name)}" required></label>
         <label>Correo<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions(user.physical_area_id || '')}</select></label>
-        <label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '', user.id)}</select></label>
+        <label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(primaryAssetId, user.id)}</select></label>
       </div><button class="secondary-button" type="submit">Guardar usuario</button></form>`;
     }
     function otherUserFormMarkup(user) {
       const identifier = userIdentifier(user.user_number);
-      return `<form class="user-editor" data-user-id="${user.id}" data-user-name="${escapeHtml(user.full_name)}" data-current-role="${escapeHtml(user.role)}">
+      const primaryAssetId = data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '';
+      return `<form class="user-editor" data-user-id="${user.id}" data-user-name="${escapeHtml(user.full_name)}" data-current-role="${escapeHtml(user.role)}" data-initial-physical-area-id="${escapeHtml(user.physical_area_id || '')}" data-initial-primary-device-id="${escapeHtml(primaryAssetId)}">
         <div class="user-detail-heading"><strong>Datos de ${identifier}</strong><small>ID interno: ${escapeHtml(user.id)}</small></div>
         <div class="user-fields"><label>Nombre<input name="full_name" value="${escapeHtml(user.full_name)}" required></label><label>Correo<input name="email" type="email" value="${escapeHtml(user.email)}" required></label>
           <label>Rol<select name="role">${roleOptions(user.role)}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions(user.access_area_id || '')}</select></label>
-          <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions(user.physical_area_id || '')}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(data.devices.find((device) => device.assigned_user_id === user.id && device.is_primary_user_device)?.id || '', user.id)}</select></label>
+          <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions(user.physical_area_id || '')}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions(primaryAssetId, user.id)}</select></label>
           <label>Nueva contraseña <small>(opcional)</small><input name="password" type="password" minlength="6" maxlength="128" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>
           <label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" autocomplete="new-password"></label></div>
         <div class="user-actions"><label class="active-toggle"><input name="is_active" type="checkbox" ${user.is_active ? 'checked' : ''}> Cuenta activa</label><button class="secondary-button" type="submit">Guardar usuario</button></div>
@@ -2420,6 +2543,21 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     const createUserForm = document.querySelector('#create-user');
     syncDeviceOptions(createUserForm);
     createUserForm.querySelector('.physical-area-select')?.addEventListener('change', () => syncDeviceOptions(createUserForm));
+    // El editor de usuarios también guarda nombre, rol y área de acceso. No
+    // debe convertir una omisión del selector en una devolución patrimonial:
+    // sólo se escribe ubicación/equipo cuando alguno de esos dos valores cambió.
+    const locationUpdatePayload = (form, values) => {
+      const physicalAreaId = values.get('physical_area_id') || '';
+      const primaryAssetId = values.get('primary_device_id') || '';
+      const areaChanged = physicalAreaId !== (form.dataset.initialPhysicalAreaId || '');
+      const primaryAssetChanged = primaryAssetId !== (form.dataset.initialPrimaryDeviceId || '');
+      if (!areaChanged && !primaryAssetChanged) return null;
+      return {
+        physical_area_id: physicalAreaId || null,
+        primary_device_id: primaryAssetId || null,
+        primary_asset_changed: primaryAssetChanged,
+      };
+    };
     async function handleUserEditorSubmit(event) {
       event.preventDefault(); const form = event.currentTarget; const values = new FormData(form); const password = String(values.get('password') || '');
       if (password !== String(values.get('confirmation') || '')) return window.alert('Las contraseñas no coinciden.');
@@ -2430,7 +2568,8 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       try {
         await api(`/api/auth/users/${form.dataset.userId}`, { method: 'PATCH', body: JSON.stringify(payload) });
         await api(`/api/auth/users/${form.dataset.userId}/access-area`, { method: 'PATCH', body: JSON.stringify({ access_area_id: values.get('access_area_id') || null }) });
-        await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
+        const location = locationUpdatePayload(form, values);
+        if (location) await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify(location) });
         await renderControlCenter(profile, 'Usuario actualizado correctamente.');
       } catch (error) { window.alert(error.message); }
     }
@@ -2438,7 +2577,8 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       event.preventDefault(); const form = event.currentTarget; const values = new FormData(form);
       try {
         const result = await api(`/api/auth/users/${form.dataset.userId}`, { method: 'PATCH', body: JSON.stringify({ full_name: values.get('full_name'), email: values.get('email') }) });
-        await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify({ physical_area_id: values.get('physical_area_id') || null, primary_device_id: values.get('primary_device_id') || null }) });
+        const location = locationUpdatePayload(form, values);
+        if (location) await api(`/api/auth/users/${form.dataset.userId}/location`, { method: 'PATCH', body: JSON.stringify(location) });
         localStorage.setItem('auth_profile', JSON.stringify(result.profile));
         await renderControlCenter(result.profile, 'Usuario actualizado correctamente.');
       } catch (error) { window.alert(error.message); }
@@ -2718,7 +2858,7 @@ async function initialize() {
       try {
         const { profile } = await api('/api/auth/me');
         await refreshApplications();
-        navigationMarkup = moduleSwitcherMarkup(profile);
+        navigationMarkup = moduleSwitcherMarkup(profile, null);
       } catch { localStorage.removeItem('auth_token'); localStorage.removeItem('auth_profile'); }
     }
     return renderPublicHome({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup, themeToggleMarkup, bindThemeToggle });
@@ -2731,7 +2871,7 @@ async function initialize() {
       try {
         const { profile } = await api('/api/auth/me');
         await refreshApplications();
-        navigationMarkup = moduleSwitcherMarkup(profile);
+        navigationMarkup = moduleSwitcherMarkup(profile, null);
       } catch { localStorage.removeItem('auth_token'); localStorage.removeItem('auth_profile'); }
     }
     return renderNewsDetail({ app, brandMarkup, escapeHtml, shortDate, readableFileSize, navigationMarkup, themeToggleMarkup, bindThemeToggle }, decodeURIComponent(newsDetailMatch[1]));

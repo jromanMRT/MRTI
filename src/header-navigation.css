@@ -8,6 +8,25 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
+/* Encabezado adaptable: navegación desplazable y controles sin superposición. */
+.topbar:has(.portal-header-navigation), .portal-module-topbar { gap:12px; min-width:0; }
+.portal-header-navigation.module-tabs { flex:0 1 auto; min-width:0; }
+.topbar-context, .portal-module-context { min-width:0; }
+.topbar-context strong, .topbar-context small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.topbar-actions, .portal-module-actions { flex-shrink:0; margin-left:auto; }
+@media (max-width:1200px) {
+  .topbar .topbar-context, .portal-module-topbar .portal-module-context { display:none; }
+  .topbar .session-user, .portal-module-topbar .portal-account-identity { display:none; }
+  .portal-module-topbar { padding-inline:16px; }
+}
+@media (max-width:900px) {
+  .portal-module-topbar .portal-module-menu { display:grid; flex:0 0 38px; }
+  .portal-header-navigation.module-tabs { max-width:calc(100vw - 180px); }
+  .portal-module-topbar { gap:8px; padding-inline:12px; }
+}
+@media (max-width:359px) {
+  .portal-module-topbar { flex-wrap:wrap; padding-block:8px; }
+}
 .module-tabs::-webkit-scrollbar { display: none; }
 .module-tab {
   flex-shrink: 0;

@@ -48,7 +48,12 @@ export function createCommunityRouter({ db, authRequired, secret, audit = async 
         await conn.query('INSERT INTO community_rate_buckets (bucket_key,hits,expires_at) VALUES (?,1,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 2 DAY)) ON DUPLICATE KEY UPDATE hits=hits+1',[bucket]);
       }
       await conn.query('INSERT INTO community_used_challenges (nonce,expires_at) VALUES (?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 20 MINUTE))',[nonce]);
-      await conn.query('INSERT INTO community_reports (id,folio,access_digest,category,subject,body) VALUES (?,?,?,?,?,?)',[id,folio,digest(accessCode),report.category,report.subject,report.body]);
+      await conn.query(`INSERT INTO community_reports
+        (id,folio,access_digest,category,subject,body,identity_mode,sender_name,sender_location)
+        VALUES (?,?,?,?,?,?,?,?,?)`,[
+        id,folio,digest(accessCode),report.category,report.subject,report.body,
+        report.identity_mode,report.sender_name,report.sender_location,
+      ]);
     });
     // No audit call: would associate IP/session with an anonymous report.
     res.status(201).json({ data:{folio,access_code:accessCode} });
@@ -114,12 +119,13 @@ export function createCommunityRouter({ db, authRequired, secret, audit = async 
     const page = Math.max(1,Math.min(10000,parseInt(req.query.page)||1));
     const where = status?' WHERE status=?':'';
     const params = status?[status]:[];
-    const [rows] = await db.query(`SELECT id,folio,category,subject,status,created_at FROM community_reports${where} ORDER BY created_at DESC,id LIMIT 20 OFFSET ?`,[...params,(page-1)*20]);
+    const [rows] = await db.query(`SELECT id,folio,category,subject,status,identity_mode,created_at FROM community_reports${where} ORDER BY created_at DESC,id LIMIT 20 OFFSET ?`,[...params,(page-1)*20]);
     const [[{total}]] = await db.query(`SELECT COUNT(*) AS total FROM community_reports${where}`,params);
     res.json({data:rows,total:Number(total),page});
   }));
   router.get('/admin/reports/:id', wrap(async (req,res) => {
-    const [[row]] = await db.query('SELECT id,folio,category,subject,body,status,public_reply,revision,created_at,updated_at FROM community_reports WHERE id=?',[req.params.id]);
+    const [[row]] = await db.query(`SELECT id,folio,category,subject,body,status,public_reply,identity_mode,
+      sender_name,sender_location,revision,created_at,updated_at FROM community_reports WHERE id=?`,[req.params.id]);
     if (!row) throw fail(404,'Reporte no encontrado.');
     const [history] = await db.query('SELECT status,internal_note,public_reply,created_at,actor_user_id FROM community_report_updates WHERE report_id=? ORDER BY id DESC',[row.id]);
     await audit({req,action:'community.report_read',entityType:'community_report',entityId:row.id});

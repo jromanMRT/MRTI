@@ -25,6 +25,19 @@ test('el orden de widgets acepta sólo una permutación completa', () => {
   ]);
 });
 
+test('las preferencias conservan widgets ocultos y el orden personal', () => {
+  const preferences = serializePreferences({
+    show_rh: 0,
+    show_assets: 1,
+    show_tickets: 1,
+    show_requisitions: 0,
+    widget_order: '["tickets","requisitions","rh","assets"]',
+  });
+  assert.equal(preferences.show_rh, false);
+  assert.equal(preferences.show_requisitions, false);
+  assert.deepEqual(preferences.widget_order, ['tickets', 'requisitions', 'rh', 'assets']);
+});
+
 test('avatar sólo acepta imágenes pequeñas con firma real', () => {
   const png = `data:image/png;base64,${Buffer.from('89504e470d0a1a0a00000000', 'hex').toString('base64')}`;
   assert.equal(validAvatarDataUrl(png), true);

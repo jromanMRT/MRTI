@@ -1,3 +1,5 @@
+import { buildNavigationDestinations, searchNavigationDestinations } from './navigation-search.js';
+
 const ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 let activeController = null;
 let dashboardObserver = null;
@@ -7,6 +9,12 @@ let notificationCount = 0;
 const widgetIds = ['employee-dashboard', 'assets-dashboard', 'tickets-dashboard', 'requisitions-dashboard'];
 const widgetKeys = ['rh', 'assets', 'tickets', 'requisitions'];
 const widgetLabels = new Map(widgetIds.map((id, index) => [id, widgetKeys[index]]));
+const widgetOptions = [
+  { key: 'rh', label: 'Recursos Humanos', id: 'employee-dashboard' },
+  { key: 'assets', label: 'Activos', id: 'assets-dashboard' },
+  { key: 'tickets', label: 'Tickets', id: 'tickets-dashboard' },
+  { key: 'requisitions', label: 'Requisiciones de personal', id: 'requisitions-dashboard' },
+];
 
 function relativeTime(value) {
   if (!value) return 'Fecha no disponible';
@@ -132,80 +140,55 @@ function updateWelcome(profile) {
   }
 }
 
-function addSearch(profile, api, handlers) {
-  const actions = document.querySelector('.topbar-actions');
-  const notifications = document.querySelector('.notification-center');
-  if (!actions || !notifications) return;
+function addSearch(profile, applications, handlers) {
+  const slot = document.querySelector('#sidebar-search-slot');
+  if (!slot) return;
   const search = document.createElement('div');
   search.className = 'global-search';
-  search.innerHTML = `<label class="global-search-box"><span class="global-search-icon">${ICON}<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input id="global-search-input" type="search" placeholder="Folio, empleado o activo" autocomplete="off" aria-label="Búsqueda global" aria-controls="global-search-results" aria-expanded="false"><kbd>Ctrl K</kbd></label><div class="global-search-results" id="global-search-results" role="listbox" hidden></div>`;
-  actions.insertBefore(search, notifications);
+  search.innerHTML = `<label class="global-search-box"><span class="global-search-icon">${ICON}<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></span><input id="global-search-input" type="search" placeholder="¿A dónde quieres ir?" autocomplete="off" aria-label="Buscar páginas y módulos" aria-controls="global-search-results" aria-expanded="false"><kbd>Ctrl K</kbd></label><div class="global-search-results" id="global-search-results" role="group" aria-label="Destinos disponibles" hidden></div>`;
+  slot.append(search);
   const input = search.querySelector('input');
   const results = search.querySelector('.global-search-results');
-  let searchTimer = 0;
-  let requestController = null;
+  const destinations = buildNavigationDestinations(profile, applications);
   let latestResults = [];
 
   const closeResults = () => {
     results.hidden = true;
     input.setAttribute('aria-expanded', 'false');
   };
-  const renderResults = (items, partial = false) => {
+  const renderResults = (items) => {
     latestResults = items;
     results.replaceChildren();
     if (!items.length) {
       const empty = document.createElement('p');
       empty.className = 'global-search-empty';
-      empty.textContent = partial ? 'Sin coincidencias disponibles; una fuente no respondió.' : 'No se encontraron coincidencias.';
+      empty.textContent = 'No se encontraron páginas ni módulos. Prueba con otra palabra.';
       results.append(empty);
     } else {
-      for (const item of items) {
+      items.forEach((item, index) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'global-search-result';
-        button.setAttribute('role', 'option');
-        button.dataset.resultIndex = String(latestResults.indexOf(item));
+        button.dataset.resultIndex = String(index);
         const type = document.createElement('small');
-        type.textContent = ({ ticket: 'Ticket', requisition: 'Requisición', asset: 'Activo', employee: 'Empleado' })[item.type] || 'Resultado';
+        type.textContent = item.type;
         const title = document.createElement('strong');
-        title.textContent = item.title || 'Resultado';
+        title.textContent = item.title;
         const detail = document.createElement('span');
-        detail.textContent = item.detail || '';
+        detail.textContent = item.detail || 'Abrir destino';
         button.append(type, title, detail);
         results.append(button);
-      }
+      });
     }
     results.hidden = false;
     input.setAttribute('aria-expanded', 'true');
   };
 
-  input.addEventListener('input', () => {
-    window.clearTimeout(searchTimer);
-    requestController?.abort();
-    const query = input.value.trim();
-    if (query.length < 2) {
-      closeResults();
-      return;
-    }
-    searchTimer = window.setTimeout(async () => {
-      requestController = new AbortController();
-      results.innerHTML = '<p class="global-search-empty">Buscando…</p>';
-      results.hidden = false;
-      input.setAttribute('aria-expanded', 'true');
-      try {
-        const response = await api(`/api/portal/v1/search?q=${encodeURIComponent(query)}`, { signal: requestController.signal });
-        renderResults(response.data, response.partial);
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-        results.innerHTML = '';
-        const failure = document.createElement('p');
-        failure.className = 'global-search-empty';
-        failure.textContent = 'No fue posible completar la búsqueda. Inténtalo nuevamente.';
-        results.append(failure);
-        results.hidden = false;
-        input.setAttribute('aria-expanded', 'true');
-      }
-    }, 250);
+  const updateResults = () => renderResults(searchNavigationDestinations(destinations, input.value));
+  input.addEventListener('focus', updateResults);
+  input.addEventListener('input', updateResults);
+  input.addEventListener('click', () => {
+    if (results.hidden) updateResults();
   });
 
   results.addEventListener('click', (event) => {
@@ -214,10 +197,36 @@ function addSearch(profile, api, handlers) {
     const item = latestResults[Number(button.dataset.resultIndex)];
     closeResults();
     if (!item) return;
-    if (item.type === 'requisition') handlers.openRequisition(item.id);
-    else if (item.type === 'ticket' && !item.href) handlers.openTicket(item.id);
-    else if (item.type === 'asset' && !item.href) document.querySelector('#assets-dashboard')?.scrollIntoView({ behavior: 'smooth' });
+    if (item.action) handlers[item.action]?.();
     else if (item.href) window.location.assign(item.href);
+  });
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown' && !results.hidden) {
+      event.preventDefault();
+      results.querySelector('.global-search-result')?.focus();
+    } else if (event.key === 'Escape' && !results.hidden) {
+      event.preventDefault();
+      closeResults();
+      if (!input.value) input.blur();
+    }
+  });
+  results.addEventListener('keydown', (event) => {
+    const button = event.target.closest('.global-search-result');
+    if (!button) return;
+    const buttons = [...results.querySelectorAll('.global-search-result')];
+    const index = buttons.indexOf(button);
+    if (event.key === 'ArrowDown' && index < buttons.length - 1) {
+      event.preventDefault();
+      buttons[index + 1].focus();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (index > 0) buttons[index - 1].focus();
+      else input.focus();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeResults();
+      input.focus();
+    }
   });
   document.addEventListener('click', (event) => {
     if (!search.contains(event.target)) closeResults();
@@ -228,18 +237,20 @@ function addSearch(profile, api, handlers) {
       && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
+      const shell = document.querySelector('.page-shell');
+      if (window.matchMedia('(max-width: 900px)').matches && !shell?.classList.contains('sidebar-mobile-open')) {
+        shell?.classList.add('sidebar-mobile-open');
+        document.querySelector('#mobile-menu-button')?.setAttribute('aria-expanded', 'true');
+      }
       input.focus();
       input.select();
+      updateResults();
     } else if (!typing && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'n') {
       event.preventDefault();
       handlers.newTicket();
     } else if ((event.ctrlKey || event.metaKey) && event.key === ',') {
       event.preventDefault();
       handlers.openAccount();
-    } else if (event.key === 'Escape' && document.activeElement === input) {
-      input.value = '';
-      closeResults();
-      input.blur();
     }
   }, { signal: activeController.signal });
 }
@@ -279,69 +290,223 @@ function addNotificationQuickAction() {
   }
 }
 
-function orderWidgets(order, persist) {
-  const container = widgetIds.map((id) => document.getElementById(id)).find(Boolean)?.parentElement;
-  if (!container) return;
-  const items = widgetIds.map((id) => document.getElementById(id)).filter(Boolean);
-  const sorted = [...items].sort((a, b) => order.indexOf(widgetLabels.get(a.id)) - order.indexOf(widgetLabels.get(b.id)));
-  let status = container.querySelector('.widget-order-status');
-  if (!status) {
-    status = document.createElement('small');
-    status.className = 'widget-order-status';
-    status.textContent = 'Arrastra los widgets para cambiar su orden; usa Alt + flechas para moverlos con teclado.';
-    status.setAttribute('aria-live', 'polite');
-  }
-  for (const item of sorted) {
-    item.draggable = true;
-    item.tabIndex = 0;
-    const label = ({ rh: 'Recursos Humanos', assets: 'Activos', tickets: 'Tickets', requisitions: 'Requisiciones' })[widgetLabels.get(item.id)];
-    item.setAttribute('aria-label', `${label}; arrastra para reordenar`);
-    item.classList.add('dashboard-widget');
-    container.append(item);
-  }
-  container.append(status);
-  let dragged = null;
-  const saveOrder = () => {
-    const visibleOrder = [...container.querySelectorAll('.dashboard-widget')].map((widget) => widgetLabels.get(widget.id));
-    const visibleKeys = new Set(visibleOrder);
-    let visibleIndex = 0;
-    const nextOrder = order.map((key) => visibleKeys.has(key) ? visibleOrder[visibleIndex++] : key);
-    void persist(nextOrder).then(() => {
-      status.textContent = 'Orden de widgets guardado.';
-    }).catch((error) => {
-      console.error('No fue posible guardar el orden de widgets.', error);
-      status.textContent = 'No se guardó el orden. Mueve un widget para reintentar.';
-    });
+function orderWidgets(order, visibility, persist, loadWidget) {
+  const section = document.querySelector('.personal-widget-section');
+  const container = document.querySelector('#dashboard-widget-grid');
+  const layout = document.querySelector('#dashboard-editor-layout');
+  const editButton = document.querySelector('#dashboard-edit-button');
+  if (!section || !container || !layout || !editButton) return;
+
+  const items = new Map(widgetOptions.map(({ key, id }) => [key, document.getElementById(id)]));
+  if (widgetOptions.some(({ key }) => !items.get(key))) return;
+
+  const dialog = document.createElement('aside');
+  dialog.id = 'dashboard-editor';
+  dialog.className = 'dashboard-editor-panel';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'false');
+  dialog.setAttribute('aria-labelledby', 'dashboard-editor-title');
+  dialog.hidden = true;
+  dialog.innerHTML = `<header class="dashboard-editor-heading"><div><p class="section-label">Personaliza tu espacio</p><h2 id="dashboard-editor-title">Editar dashboard</h2></div><button class="dashboard-editor-close" type="button" aria-label="Cerrar edición">×</button></header>
+    <p class="dashboard-editor-intro">Agrega o quita widgets y cambia su orden. Tus cambios sólo afectan a tu cuenta.</p>
+    <fieldset class="dashboard-editor-options"><legend>Widgets y orden</legend>${widgetOptions.map(({ key, label }) => `<div class="dashboard-editor-option" data-widget-option="${key}"><label><input type="checkbox" data-widget-toggle="${key}"><span>${label}</span></label><div class="dashboard-editor-move"><button type="button" data-widget-move="${key}" data-direction="up" aria-label="Mover ${label} hacia arriba">↑</button><button type="button" data-widget-move="${key}" data-direction="down" aria-label="Mover ${label} hacia abajo">↓</button></div></div>`).join('')}</fieldset>
+    <p class="dashboard-editor-hint">Usa los botones ↑/↓ o arrastra las tarjetas mientras editas.</p>
+    <p class="dashboard-editor-status" role="status" aria-live="polite"></p>
+    <footer class="dashboard-editor-actions"><button class="secondary-button" type="button" data-editor-cancel>Cancelar</button><button class="primary-button" type="button" data-editor-save>Guardar cambios</button></footer>`;
+  layout.append(dialog);
+
+  const status = dialog.querySelector('.dashboard-editor-status');
+  const saveButton = dialog.querySelector('[data-editor-save]');
+  const cancelButton = dialog.querySelector('[data-editor-cancel]');
+  const visibilityInputs = new Map(
+    widgetOptions.map(({ key }) => [key, dialog.querySelector(`[data-widget-toggle="${key}"]`)])
+  );
+  const updateMoveButtons = () => {
+    const visibleOrder = draft.order.filter((key) => draft.visibility[key]);
+    for (const { key } of widgetOptions) {
+      const index = visibleOrder.indexOf(key);
+      const option = dialog.querySelector(`[data-widget-option="${key}"]`);
+      option.querySelector('[data-direction="up"]').disabled = !editing || index <= 0;
+      option.querySelector('[data-direction="down"]').disabled = !editing || index < 0 || index >= visibleOrder.length - 1;
+    }
   };
-  for (const item of items) {
+  const loadedWidgets = new Set(widgetOptions.filter(({ key }) => visibility[key]).map(({ key }) => key));
+  let savedSettings = { visibility: { ...visibility }, order: [...order] };
+  let draft = { visibility: { ...visibility }, order: [...order] };
+  let editing = false;
+  let saving = false;
+  let dragged = null;
+
+  const sortWidgets = (keys) => {
+    const sorted = [...items.entries()].sort((a, b) => keys.indexOf(a[0]) - keys.indexOf(b[0]));
+    for (const [, item] of sorted) container.append(item);
+  };
+  const applyDraft = () => {
+    sortWidgets(draft.order);
+    for (const { key } of widgetOptions) {
+      const item = items.get(key);
+      item.hidden = !draft.visibility[key];
+      visibilityInputs.get(key).checked = draft.visibility[key];
+      item.draggable = editing && draft.visibility[key];
+      if (editing) {
+        item.tabIndex = 0;
+        const label = widgetOptions.find((option) => option.key === key).label;
+        item.setAttribute('aria-label', `${label}; usa Alt + flechas para cambiar el orden`);
+      } else {
+        item.removeAttribute('tabindex');
+        item.removeAttribute('aria-label');
+      }
+    }
+    updateMoveButtons();
+  };
+  const updateDraftOrder = () => {
+    const visibleOrder = [...container.querySelectorAll('.dashboard-widget:not([hidden])')]
+      .map((item) => widgetLabels.get(item.id));
+    let visibleIndex = 0;
+    draft.order = draft.order.map((key) => draft.visibility[key] ? visibleOrder[visibleIndex++] : key);
+    updateMoveButtons();
+    status.textContent = 'Orden actualizado. Guarda los cambios para conservarlo.';
+  };
+  const setEditing = (value) => {
+    editing = value;
+    section.classList.toggle('is-editing', value);
+    editButton.setAttribute('aria-expanded', String(value));
+    applyDraft();
+  };
+  const closeEditor = () => {
+    if (saving) return;
+    draft = { visibility: { ...savedSettings.visibility }, order: [...savedSettings.order] };
+    applyDraft();
+    setEditing(false);
+    dialog.hidden = true;
+    editButton.focus();
+  };
+
+  for (const item of items.values()) item.classList.add('dashboard-widget');
+  applyDraft();
+
+  editButton.addEventListener('click', () => {
+    if (editing) {
+      closeEditor();
+      return;
+    }
+    draft = { visibility: { ...savedSettings.visibility }, order: [...savedSettings.order] };
+    setEditing(true);
+    status.textContent = '';
+    dialog.hidden = false;
+    dialog.querySelector('.dashboard-editor-close').focus();
+  }, { signal: activeController.signal });
+  dialog.querySelector('.dashboard-editor-close').addEventListener('click', closeEditor, { signal: activeController.signal });
+  cancelButton.addEventListener('click', closeEditor, { signal: activeController.signal });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && editing) closeEditor();
+  }, { signal: activeController.signal });
+
+  for (const { key } of widgetOptions) {
+    visibilityInputs.get(key).addEventListener('change', (event) => {
+      const isVisible = event.target.checked;
+      draft.visibility[key] = isVisible;
+      applyDraft();
+      status.textContent = isVisible ? 'Widget agregado; guarda para conservar el cambio.' : 'Widget quitado; guarda para conservar el cambio.';
+      if (isVisible && !loadedWidgets.has(key)) {
+        loadedWidgets.add(key);
+        loadWidget(key);
+      }
+    }, { signal: activeController.signal });
+  }
+
+  dialog.querySelectorAll('[data-widget-move]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!editing) return;
+      const key = button.dataset.widgetMove;
+      const visibleOrder = draft.order.filter((itemKey) => draft.visibility[itemKey]);
+      const index = visibleOrder.indexOf(key);
+      const target = visibleOrder[index + (button.dataset.direction === 'up' ? -1 : 1)];
+      if (!target) return;
+      const currentOrderIndex = draft.order.indexOf(key);
+      const targetOrderIndex = draft.order.indexOf(target);
+      [draft.order[currentOrderIndex], draft.order[targetOrderIndex]] = [draft.order[targetOrderIndex], draft.order[currentOrderIndex]];
+      applyDraft();
+      status.textContent = 'Orden actualizado. Guarda los cambios para conservarlo.';
+      const option = dialog.querySelector(`[data-widget-option="${key}"]`);
+      (option.querySelector('[data-widget-move]:not(:disabled)') || option.querySelector('input')).focus();
+    }, { signal: activeController.signal });
+  });
+
+  saveButton.addEventListener('click', async () => {
+    if (saving) return;
+    saving = true;
+    saveButton.disabled = true;
+    cancelButton.disabled = true;
+    status.textContent = 'Guardando tus preferencias…';
+    try {
+      const preferences = await persist({
+        widgetVisibility: { ...draft.visibility },
+        widgetOrder: [...draft.order],
+      });
+      savedSettings = {
+        visibility: {
+          rh: preferences.show_rh,
+          assets: preferences.show_assets,
+          tickets: preferences.show_tickets,
+          requisitions: preferences.show_requisitions,
+        },
+        order: [...preferences.widget_order],
+      };
+      draft = { visibility: { ...savedSettings.visibility }, order: [...savedSettings.order] };
+      applyDraft();
+      setEditing(false);
+      dialog.hidden = true;
+      editButton.focus();
+    } catch (error) {
+      console.error('No fue posible guardar la personalización del dashboard.', error);
+      status.textContent = `No se guardaron los cambios. ${error.message}`;
+    } finally {
+      saving = false;
+      saveButton.disabled = false;
+      cancelButton.disabled = false;
+    }
+  }, { signal: activeController.signal });
+
+  for (const item of items.values()) {
     item.addEventListener('dragstart', (event) => {
+      if (!editing) {
+        event.preventDefault();
+        return;
+      }
       dragged = item;
       item.classList.add('is-dragging');
       event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', item.id);
     }, { signal: activeController.signal });
     item.addEventListener('dragend', () => {
       item.classList.remove('is-dragging');
+      if (dragged !== item) return;
       dragged = null;
-      saveOrder();
+      updateDraftOrder();
     }, { signal: activeController.signal });
     item.addEventListener('dragover', (event) => {
+      if (!editing || !dragged || dragged === item || item.hidden) return;
       event.preventDefault();
-      if (!dragged || dragged === item) return;
       const rect = item.getBoundingClientRect();
       container.insertBefore(dragged, event.clientY < rect.top + rect.height / 2 ? item : item.nextSibling);
     }, { signal: activeController.signal });
     item.addEventListener('keydown', (event) => {
-      if (!event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      if (!editing || !event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault();
-      const siblings = [...container.querySelectorAll('.dashboard-widget')];
+      const siblings = [...container.querySelectorAll('.dashboard-widget:not([hidden])')];
       const index = siblings.indexOf(item);
       const target = siblings[index + (event.key === 'ArrowUp' ? -1 : 1)];
       if (!target) return;
       container.insertBefore(item, event.key === 'ArrowUp' ? target : target.nextSibling);
       item.focus();
-      saveOrder();
+      updateDraftOrder();
     }, { signal: activeController.signal });
   }
+  container.addEventListener('dragstart', (event) => {
+    const item = event.target.closest('.dashboard-widget');
+    if (!editing || !item || item.hidden) event.preventDefault();
+  }, { capture: true, signal: activeController.signal });
 }
 
 function refineCards() {
@@ -388,21 +553,21 @@ function refineCards() {
   }
 }
 
-export function bindDashboardRefinements({ profile, api, widgetOrder, persistWidgetOrder, handlers }) {
+export function bindDashboardRefinements({ profile, applications, api, widgetOrder, widgetVisibility, persistDashboardPreferences, handlers }) {
   activeController?.abort();
   dashboardObserver?.disconnect();
   activeController = new AbortController();
   dashboardObserver = null;
   widgetData = new Map();
   notificationCount = 0;
-  addSearch(profile, api, handlers);
+  addSearch(profile, applications, handlers);
   refineCards();
   dashboardObserver = new MutationObserver(() => refineCards());
   for (const id of widgetIds) {
     const widget = document.getElementById(id);
     if (widget) dashboardObserver.observe(widget, { childList: true, subtree: true });
   }
-  orderWidgets(widgetOrder, persistWidgetOrder);
+  orderWidgets(widgetOrder, widgetVisibility, persistDashboardPreferences, handlers.loadWidget);
   document.querySelector('#home-contextual-message')?.setAttribute('aria-live', 'polite');
 
   const heading = document.querySelector('.home-intro h1');
@@ -413,9 +578,6 @@ export function bindDashboardRefinements({ profile, api, widgetOrder, persistWid
     heading.before(row);
     row.append(avatar, heading);
   }
-  const breadcrumb = document.querySelector('.topbar-context');
-  if (breadcrumb) breadcrumb.innerHTML = '<strong>Dashboard <span aria-hidden="true">›</span> Inicio</strong><small>Inicio personal</small>';
-
   const nav = document.querySelector('.primary-nav');
   if (nav && !nav.querySelector('.sidebar-section-label')) {
     const label = document.createElement('small');

@@ -3,8 +3,16 @@ import assert from 'node:assert/strict';
 import { createChallengeService, normalizeReport, normalizePoll, normalizeSettings } from '../src/community/domain.js';
 test('denuncias: valida categoría y longitudes; descarta identidad enviada',()=>{
  const r=normalizeReport({category:'denuncia',subject:'Asunto válido',body:'Descripción suficiente de hechos',user_id:'otro',ip:'1.2.3.4'});
- assert.deepEqual(Object.keys(r),['category','subject','body']);
+ assert.deepEqual(Object.keys(r),['category','subject','body','identity_mode','sender_name','sender_location']);
+ assert.equal(r.identity_mode,'anonymous');assert.equal(r.sender_name,null);assert.equal(r.sender_location,null);
  for(const body of [{...r,category:'otro'},{...r,subject:'x'},{...r,body:'x'},{...r,body:'x'.repeat(5001)}])assert.throws(()=>normalizeReport(body),{status:400});
+});
+test('denuncias: la identidad sólo se guarda cuando la persona la comparte expresamente',()=>{
+ const identified=normalizeReport({category:'queja',subject:'Asunto válido',body:'Descripción suficiente de hechos',identity_mode:'identified',sender_name:'María Pérez',sender_location:'Planta norte'});
+ assert.deepEqual(identified,{category:'queja',subject:'Asunto válido',body:'Descripción suficiente de hechos',identity_mode:'identified',sender_name:'María Pérez',sender_location:'Planta norte'});
+ const anonymous=normalizeReport({category:'queja',subject:'Asunto válido',body:'Descripción suficiente de hechos',sender_name:'No debe guardarse',sender_location:'Tampoco'});
+ assert.equal(anonymous.identity_mode,'anonymous');assert.equal(anonymous.sender_name,null);assert.equal(anonymous.sender_location,null);
+ assert.throws(()=>normalizeReport({...identified,sender_name:''}),{status:400});
 });
 test('encuestas: opciones únicas, fecha futura y límites',()=>{
  const now=Date.now(),body={question:'Pregunta válida',options:['Uno','Dos'],closes_at:new Date(now+100000).toISOString()};
