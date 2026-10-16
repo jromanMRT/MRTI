@@ -4,6 +4,7 @@ import './login-header.css';
 import './header-navigation.css';
 import { renderPublicHome, renderNewsDetail } from './public-home.js';
 import './style.css';
+import './control-center.css';
 import './ticket-self-service.css';
 import './dashboard-refinements.css';
 import { bindDashboardRefinements } from './dashboard-refinements.js';
@@ -80,6 +81,14 @@ const ICONS = {
   newspaper:  `<svg ${SVG_ATTR}><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>`,
   settings:   `<svg ${SVG_ATTR}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`,
   logOut:     `<svg ${SVG_ATTR}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>`,
+  bell:       `<svg ${SVG_ATTR}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+  dashboard:  `<svg ${SVG_ATTR}><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>`,
+  shield:     `<svg ${SVG_ATTR}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`,
+  users:      `<svg ${SVG_ATTR}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  layers:     `<svg ${SVG_ATTR}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m2 12 8.58 3.91a2 2 0 0 0 1.66 0L21 12"/><path d="m2 17 8.58 3.91a2 2 0 0 0 1.66 0L21 17"/></svg>`,
+  activity:   `<svg ${SVG_ATTR}><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>`,
+  clock:      `<svg ${SVG_ATTR}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  grid:       `<svg ${SVG_ATTR}><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>`,
 };
 
 function unlockNotificationAudio() {
@@ -544,9 +553,11 @@ function moduleTabMarkup(module) {
 function moduleSwitcherMarkup(profile, currentModule = 'dashboard') {
   const available = portalApplications.filter((module) => canOpen(profile, module.code));
   const dashboardCurrent = currentModule === 'dashboard';
+  const ccCurrent = currentModule === 'control-center';
   const tabs = [
     `<a class="module-tab${dashboardCurrent ? ' is-current' : ''}" href="/dashboard"${dashboardCurrent ? ' aria-current="page"' : ''}>Dashboard</a>`,
     ...available.map(moduleTabMarkup),
+    ...(isAdministrator(profile) ? [`<a class="module-tab${ccCurrent ? ' is-current' : ''}" href="/admin/"${ccCurrent ? ' aria-current="page"' : ''}>Centro de control</a>`] : []),
   ].join('');
   return `<nav class="portal-header-navigation module-tabs" aria-label="Navegación de la plataforma">${tabs}</nav>`;
 }
@@ -767,7 +778,6 @@ function bindShell(profile) {
   document.querySelector('#brand-button')?.addEventListener('click', () => renderBrandAssets(profile));
   document.querySelector('#news-button')?.addEventListener('click', () => renderCompanyNews(profile));
   document.querySelector('#account-button')?.addEventListener('click', () => renderAccount(profile));
-  document.querySelector('#control-button')?.addEventListener('click', () => renderControlCenter(profile));
   document.querySelector('#logout-button')?.addEventListener('click', async () => {
     try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* cierre local garantizado */ }
     localStorage.removeItem('auth_token');
@@ -834,10 +844,24 @@ function bindShell(profile) {
   }, 60_000);
 }
 
+function controlCenterPath(panel = 'dashboard') {
+  return panel && panel !== 'dashboard'
+    ? `/admin/?panel=${encodeURIComponent(panel)}`
+    : '/admin/';
+}
+
+function requestedCoreView() {
+  // /admin/ es la ruta canónica del Centro de control. La consulta histórica
+  // se conserva mientras existan enlaces de los módulos que la consumen.
+  return /^\/admin\/?$/.test(window.location.pathname)
+    ? 'control-center'
+    : new URLSearchParams(window.location.search).get('view');
+}
+
 // Los módulos enlazan aquí con ?view=account|control-center|notifications
 // para llevar al usuario directo a esa pantalla de Core (ver bindShell) en
 // lugar de dejarlo parado en el dashboard con un clic extra por dar.
-function renderPortal(profile, requestedView = new URLSearchParams(window.location.search).get('view'), requestedPanel = new URLSearchParams(window.location.search).get('panel')) {
+function renderPortal(profile, requestedView = requestedCoreView(), requestedPanel = new URLSearchParams(window.location.search).get('panel')) {
   const deniedCode = new URLSearchParams(window.location.search).get('accessDenied');
   const deniedModule = portalApplications.find((module) => module.code === deniedCode);
   window.history.replaceState({}, '', '/dashboard');
@@ -931,7 +955,7 @@ function renderPortal(profile, requestedView = new URLSearchParams(window.locati
   bindShell(profile);
   bindTicketSelfService(profile);
   if (requestedView === 'account') renderAccount(profile);
-  else if (requestedView === 'control-center' && isAdministrator(profile)) void renderControlCenter(profile, '', requestedPanel || 'users');
+  else if (requestedView === 'control-center' && isAdministrator(profile)) void renderControlCenter(profile, '', requestedPanel || 'dashboard');
   else if (requestedView === 'brand-assets' && isAdministrator(profile)) void renderBrandAssets(profile);
   else if (requestedView === 'company-news') void renderCompanyNews(profile);
   else if (requestedView === 'notifications') document.querySelector('#notifications-button')?.click();
@@ -2264,8 +2288,10 @@ async function loadTicketTeamControlData() {
   }
 }
 
-async function renderControlCenter(profile, flash = '', initialPanel = 'users') {
+async function renderControlCenter(profile, flash = '', initialPanel = 'dashboard') {
   if (!isAdministrator(profile)) return renderPortal(profile);
+  window.history.replaceState({}, '', controlCenterPath(initialPanel));
+  document.title = 'MRTI | Centro de control';
   app.innerHTML = shellMarkup(profile, '<section class="workspace-panel"><p>Cargando centro de control…</p></section>');
   bindShell(profile);
   try {
@@ -2276,6 +2302,8 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       loadTicketTeamControlData(),
     ]);
     const activeAreas = data.areas.filter((area) => area.is_active);
+    const userAreaOptions = `<option value="all">Todas las áreas</option>${activeAreas
+      .map((area) => `<option value="${escapeHtml(area.id)}">${escapeHtml(area.name)}</option>`).join('')}`;
     const areaCards = data.areas.map((area) => `<form class="area-card" data-area-id="${area.id}" data-area-search="${escapeHtml((area.name || '').toLocaleLowerCase('es-MX'))}">
       <div class="area-heading"><input class="area-name" name="name" value="${escapeHtml(area.name)}" required><label class="active-toggle"><input name="is_active" type="checkbox" ${area.is_active ? 'checked' : ''}> Activa</label></div>
       <input name="description" value="${escapeHtml(area.description || '')}" placeholder="Descripción del área">
@@ -2314,15 +2342,29 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     // El cuerpo (formulario + <select> de equipos/áreas) de cada usuario se construye
     // bajo demanda al abrir su <details> — con listas grandes de usuarios/equipos,
     // pre-renderizarlas todas de una vez es O(usuarios × equipos) de DOM inútil.
+    function lastLoginLabel(dateValue) {
+      if (!dateValue) return 'Sin ingresos';
+      const d = new Date(dateValue);
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      const diffDays = Math.floor(diffMs / 86400000);
+      if (diffDays === 0) return `Hoy ${d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+      if (diffDays === 1) return `Ayer ${d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+      if (diffDays < 30) return `Hace ${diffDays} días`;
+      return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
     const userItems = data.users.map((user) => {
       const identifier = userIdentifier(user.user_number);
       const searchValue = `${identifier} ${user.full_name} ${user.email} ${roleName(user.role)} ${user.access_area_name || ''}`.toLocaleLowerCase('es-MX');
       const isSelf = user.id === profile.id;
       const status = isSelf ? 'active' : (user.is_active ? 'active' : 'inactive');
       const accessMeta = isSelf ? 'Acceso total' : escapeHtml(user.access_area_name || 'Sólo Core');
-      return `<details class="user-list-item" data-user-id="${user.id}" data-user-search="${escapeHtml(searchValue)}" data-user-status="${status}"><summary>
+      const loginLabel = lastLoginLabel(user.last_login_at);
+      const loginClass = !user.last_login_at ? 'user-login-never' : '';
+      return `<details class="user-list-item" data-user-id="${user.id}" data-user-search="${escapeHtml(searchValue)}" data-user-status="${status}" data-user-area-id="${escapeHtml(user.access_area_id || '')}"><summary>
         <span class="user-number">${identifier}</span><span class="user-summary-name"><strong>${escapeHtml(user.full_name)}</strong><small>${escapeHtml(user.email)}</small></span>
         <span class="user-summary-meta">${escapeHtml(roleName(user.role))}</span><span class="user-summary-meta">${accessMeta}</span>
+        <span class="user-summary-meta user-last-login ${loginClass}"><small>Último acceso</small>${escapeHtml(loginLabel)}</span>
         <span class="status-badge ${status}">${status === 'active' ? 'Activo' : 'Inactivo'}</span><span class="summary-chevron">${ICONS.chevDown}</span>
       </summary><div class="details-body"></div></details>`;
     }).join('');
@@ -2367,41 +2409,129 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
       const search = `${actor} ${event.action} ${event.entity_type} ${event.entity_id || ''} ${event.module_code || 'core'}`.toLocaleLowerCase('es-MX');
       return `<tr class="audit-row" data-audit-module="${escapeHtml(event.module_code || 'core')}" data-audit-search="${escapeHtml(search)}"><td>${escapeHtml(shortDate(event.created_at))}<small>${escapeHtml(new Date(event.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</small></td><td><span class="audit-module">${escapeHtml(event.module_code || 'core')}</span></td><td><strong>${escapeHtml(actor)}</strong>${event.actor_email && event.actor_name ? `<small>${escapeHtml(event.actor_email)}</small>` : ''}</td><td>${escapeHtml(event.action)}</td><td>${escapeHtml(event.entity_type)}${event.entity_id ? `<small>${escapeHtml(event.entity_id)}</small>` : ''}</td><td>${auditDetails(event)}</td></tr>`;
     }).join('');
-    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel control-center">
-      <button class="back-button" id="back-portal" type="button">← Volver al portal</button><p class="section-label">Administración</p><h1>Centro de control</h1>
-      <p class="panel-copy">Administra usuarios, áreas y permisos desde un solo lugar. Sólo los administradores pueden crear cuentas y conservan acceso total.</p>
-      ${flash ? `<div class="notice success">${escapeHtml(flash)}</div>` : ''}
+    const sessionEvents = auditData.data.filter((event) => String(event.action || '').startsWith('session.'));
+    const sessionActionLabels = { 'session.login_succeeded': 'Acceso correcto', 'session.login_failed': 'Acceso rechazado', 'session.logout': 'Sesión cerrada' };
+    const sessionRows = sessionEvents.map((event) => {
+      const actor = event.actor_name || event.actor_email || 'Sistema';
+      const result = sessionActionLabels[event.action] || event.action;
+      const tone = event.action === 'session.login_succeeded' ? 'active' : event.action === 'session.login_failed' ? 'inactive' : '';
+      return `<tr><td>${escapeHtml(shortDate(event.created_at))}<small>${escapeHtml(new Date(event.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</small></td><td><strong>${escapeHtml(actor)}</strong></td><td>${escapeHtml(event.ip_address || 'No registrada')}</td><td>${escapeHtml(event.module_code || 'core')}</td><td><span class="status-badge ${tone}">${escapeHtml(result)}</span></td></tr>`;
+    }).join('');
+    const securityRows = sessionEvents.filter((event) => event.action === 'session.login_failed').map((event) => `<tr><td>${escapeHtml(shortDate(event.created_at))}<small>${escapeHtml(new Date(event.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</small></td><td>${escapeHtml(event.ip_address || 'No registrada')}</td><td>${escapeHtml(event.actor_email || event.actor_name || 'Credenciales no válidas')}</td><td><span class="status-badge inactive">Requiere revisión</span></td></tr>`).join('');
+    app.innerHTML = shellMarkup(profile, `<section class="workspace-panel control-center cc-layout">
+      ${flash ? `<div class="notice success cc-flash">${escapeHtml(flash)}</div>` : ''}
+      <aside class="cc-sidebar">
+        <div class="cc-sidebar-header"><h2>Centro de control</h2><p>Administración</p></div>
+        <nav class="cc-nav" aria-label="Secciones del Centro de control">
+          <button class="cc-nav-item active" type="button" data-control-target="dashboard"><span class="cc-nav-icon">${ICONS.dashboard}</span><span>Panel general</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="users"><span class="cc-nav-icon">${ICONS.users}</span><span>Usuarios</span><span class="cc-nav-badge">${data.users.length}</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="permissions"><span class="cc-nav-icon">${ICONS.shield}</span><span>Roles y permisos</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="sessions"><span class="cc-nav-icon">${ICONS.clock}</span><span>Accesos y sesiones</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="audit"><span class="cc-nav-icon">${ICONS.activity}</span><span>Historial de movimientos</span><span class="cc-nav-badge">${auditData.data.length}</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="security"><span class="cc-nav-icon">${ICONS.shield}</span><span>Seguridad</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="access"><span class="cc-nav-icon">${ICONS.layers}</span><span>Áreas de acceso</span><span class="cc-nav-badge">${data.areas.length}</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="applications"><span class="cc-nav-icon">${ICONS.grid}</span><span>Módulos</span><span class="cc-nav-badge">${applicationData.data.length}</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="ticket-teams"><span class="cc-nav-icon">${ICONS.tickets}</span><span>Solicitudes</span><span class="cc-nav-badge">${ticketTeamData.areas.length}</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="reports"><span class="cc-nav-icon">${ICONS.newspaper}</span><span>Reportes</span></button>
+          <button class="cc-nav-item" type="button" data-control-target="settings"><span class="cc-nav-icon">${ICONS.settings}</span><span>Configuración</span></button>
+        </nav>
+      </aside>
+      <div class="cc-main">
       ${data.physical_areas.length ? '' : '<div class="notice">Aún no hay ubicaciones físicas. Créalas en <a href="/mrti-obs/sites"><strong>MRTI Monitor → Sitios</strong></a> y asigna un área a cada activo.</div>'}
-      <nav class="control-tabs" aria-label="Secciones del Centro de control"><button class="control-tab active" type="button" data-control-target="users">Usuarios <span>${data.users.length}</span></button><button class="control-tab" type="button" data-control-target="permissions">Roles y permisos</button><button class="control-tab" type="button" data-control-target="access">Áreas y módulos <span>${data.areas.length}</span></button><button class="control-tab" type="button" data-control-target="ticket-teams">Equipos de Tickets <span>${ticketTeamData.areas.length}</span></button><button class="control-tab" type="button" data-control-target="applications">Aplicaciones <span>${applicationData.data.length}</span></button><button class="control-tab" type="button" data-control-target="audit">Historial <span>${auditData.data.length}</span></button><button class="control-tab control-tab-link" type="button" id="control-tab-brand">Recursos de marca ↗</button><button class="control-tab control-tab-link" type="button" id="control-tab-news">Noticias ↗</button></nav>
-      <div class="control-panel" data-control-panel="users"><div class="control-section control-section-first"><div class="users-heading"><div><h2>Usuarios</h2><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-status-filter"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Alta masiva desde RH</strong><p>Crea de una vez todas las cuentas pendientes con correo @mrtcorporativo.mx, rol Consulta y acceso exclusivo a Core.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create" id="create-user-panel"><summary>Crear un usuario</summary><div class="create-user-source"><div class="create-user-modes" role="radiogroup" aria-label="Origen de los datos"><label><input type="radio" name="create-user-mode" value="rh" checked> Desde expediente de RH</label><label><input type="radio" name="create-user-mode" value="manual"> Sin expediente de RH</label></div><div class="rh-candidate-picker" id="rh-candidate-picker"><span class="rh-candidate-title">Empleado registrado en RH</span><div class="rh-candidate-row"><input id="rh-candidate-search" type="search" placeholder="Buscar por nombre, número de empleado, puesto o área…" autocomplete="off" aria-label="Buscar empleado de RH"><select id="rh-candidate-select" aria-label="Empleado de RH"><option value="">Cargando empleados de RH…</option></select></div><p class="field-help" id="rh-candidate-status">Cargando empleados de RH…</p></div></div><form class="create-user-form" id="create-user"><input type="hidden" name="employee_id" value="">
+      <div class="control-panel" data-control-panel="dashboard">
+        <div class="cc-panel-header"><p class="cc-breadcrumb">Centro de control <span>/</span> Panel general</p><h1>Hola, ${escapeHtml(profile.full_name.split(' ')[0] || 'administrador')}</h1><p>Resumen general, accesos y actividad reciente de la plataforma.</p></div>
+        <div class="cc-kpi-grid" id="cc-kpi-grid"><p class="cc-loading">Cargando indicadores…</p></div>
+      </div>
+      <div class="control-panel" data-control-panel="users" hidden><div class="control-section control-section-first"><div class="cc-panel-header cc-users-title"><p class="cc-breadcrumb">Centro de control <span>/</span> Usuarios</p><div><div><h1>Usuarios</h1><p>Administra las cuentas, roles y accesos de la plataforma.</p></div><button class="primary-button" id="open-create-user" type="button">+ Nuevo usuario</button></div></div><div class="users-heading"><div><span id="users-visible-count">${data.users.length} registros</span></div><div class="user-filters"><input id="user-search" type="search" placeholder="Buscar por número, nombre o correo…"><select id="user-area-filter">${userAreaOptions}</select><select id="user-status-filter"><option value="all">Todos los estados</option><option value="active">Activos</option><option value="inactive">Inactivos</option></select></div></div><div class="provisioning-bar"><div><strong>Alta masiva desde RH</strong><p>Crea de una vez las cuentas pendientes con correo corporativo y conserva a RH como dueño de la ficha laboral.</p></div><button class="secondary-button" id="provision-rh-users" type="button">Aprovisionar desde RH</button></div><dialog class="ticket-detail-dialog" id="provision-rh-dialog" aria-labelledby="provision-rh-title"><div id="provision-rh-content" class="ticket-detail-loading">Cargando vista previa…</div></dialog><details class="control-create" id="create-user-panel"><summary>Crear un usuario</summary><div class="create-user-source"><div class="create-user-modes" role="radiogroup" aria-label="Origen de los datos"><label><input type="radio" name="create-user-mode" value="rh" checked> Desde expediente de RH</label><label><input type="radio" name="create-user-mode" value="manual"> Sin expediente de RH</label></div><div class="rh-candidate-picker" id="rh-candidate-picker"><span class="rh-candidate-title">Empleado registrado en RH</span><div class="rh-candidate-row"><input id="rh-candidate-search" type="search" placeholder="Buscar por nombre, número de empleado, puesto o área…" autocomplete="off" aria-label="Buscar empleado de RH"><select id="rh-candidate-select" aria-label="Empleado de RH"><option value="">Cargando empleados de RH…</option></select></div><p class="field-help" id="rh-candidate-status">Cargando empleados de RH…</p></div></div><form class="create-user-form" id="create-user"><input type="hidden" name="employee_id" value="">
         <label>Nombre completo<input name="full_name" required></label><label>Correo electrónico<input name="email" type="email" required></label>
         <label>Contraseña temporal<input name="password" type="password" minlength="6" maxlength="128" required></label><label>Confirmar contraseña<input name="confirmation" type="password" minlength="6" maxlength="128" required></label>
         <label>Rol<select name="role">${roleOptions()}</select></label><label>Área de acceso<select name="access_area_id">${areaOptions()}</select></label>
         <label>Ubicación física<select class="physical-area-select" name="physical_area_id">${physicalAreaOptions()}</select></label><label>Equipo habitual<select class="primary-device-select" name="primary_device_id">${deviceOptions()}</select></label>
         <label class="active-toggle"><input name="is_active" type="checkbox" checked> Crear cuenta activa</label><button class="primary-button" type="submit">Crear usuario</button>
-      </form><p class="field-help" id="create-user-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="users-list">${userItems}</div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
+      </form><p class="field-help" id="create-user-help">El usuario deberá cambiar su contraseña temporal al iniciar sesión.</p></details><div class="cc-user-table" role="region" aria-label="Lista de usuarios" tabindex="0"><div class="cc-user-table-head" aria-hidden="true"><span>Número</span><span>Usuario</span><span>Rol</span><span>Área</span><span>Último acceso</span><span>Estado</span><span></span></div><div class="users-list">${userItems}</div></div><p class="empty-users" id="empty-users" hidden>No se encontraron usuarios.</p></div></div>
       <div class="control-panel" data-control-panel="permissions" hidden><div class="control-section" id="permission-control"></div></div>
+      <div class="control-panel" data-control-panel="sessions" hidden><div class="control-section control-section-first"><div class="cc-panel-header"><p class="cc-breadcrumb">Centro de control <span>/</span> Accesos y sesiones</p><h1>Accesos y sesiones</h1><p>Consulta los eventos recientes de autenticación registrados por Core.</p></div><div class="cc-data-card"><div class="personal-table-scroll"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>IP</th><th>Origen</th><th>Resultado</th></tr></thead><tbody>${sessionRows || '<tr><td colspan="5" class="personal-empty">Aún no hay sesiones registradas.</td></tr>'}</tbody></table></div></div></div></div>
+      <div class="control-panel" data-control-panel="security" hidden><div class="control-section control-section-first"><div class="cc-panel-header"><p class="cc-breadcrumb">Centro de control <span>/</span> Seguridad</p><h1>Seguridad</h1><p>Monitorea accesos rechazados y señales que requieren revisión.</p></div><div id="cc-security-kpis" class="cc-kpi-cards"><p class="cc-loading">Cargando indicadores de seguridad…</p></div><div class="cc-data-card"><h2>Intentos rechazados recientes</h2><div class="personal-table-scroll"><table><thead><tr><th>Fecha y hora</th><th>IP</th><th>Identidad reportada</th><th>Estado</th></tr></thead><tbody>${securityRows || '<tr><td colspan="4" class="personal-empty">No hay intentos rechazados en el historial reciente.</td></tr>'}</tbody></table></div></div></div></div>
       <div class="control-panel" data-control-panel="access" hidden><div class="control-section control-section-first"><p class="field-help">Un área de acceso agrupa a los usuarios que deben entrar a los mismos módulos (por ejemplo, "Sistemas" o "Compras") -- es distinta de la ubicación física de un usuario (sitio/edificio/piso), que se administra desde MRTI Monitor.</p><details class="control-create"><summary>Crear una nueva área</summary><form class="create-area-form" id="create-area"><input name="name" placeholder="Nombre del área" required><input name="description" placeholder="Descripción"><div class="module-options">${moduleChecks(data.modules)}</div><button class="primary-button" type="submit">Crear área</button></form></details><div class="users-heading"><div><h2>Áreas y módulos</h2><span id="areas-visible-count">${data.areas.length} configuradas</span></div><div class="user-filters"><input id="area-search" type="search" placeholder="Buscar por nombre de área…"></div></div><div class="areas-grid">${areaCards || '<p>No hay áreas creadas.</p>'}</div><p class="empty-users" id="empty-areas" hidden>No se encontraron áreas.</p></div></div>
       <div class="control-panel" data-control-panel="ticket-teams" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Equipos de atención de Tickets</h2><span>${activeTicketCandidates.length} usuarios activos disponibles</span></div></div><p class="field-help">Agrega integrantes a cada área. Recibirán en Dashboard las novedades de tickets nuevos y sin responsable que lleguen a su equipo.</p>${ticketTeamData.error ? `<div class="notice error">No fue posible consultar MRTI Tickets: ${escapeHtml(ticketTeamData.error)}</div>` : `<div class="ticket-team-grid">${ticketTeamCards || '<p>No hay áreas de Tickets activas.</p>'}</div><section class="ticket-limits-section"><div class="users-heading"><div><h2>Límites de creación por usuario</h2><span>Control contra uso indebido</span></div></div><p class="field-help">Deja un campo vacío para no limitarlo. “Por 24 horas” usa una ventana móvil desde el momento de cada intento. El bloqueo impide crear tanto desde Dashboard como desde la API de Tickets.</p><div class="ticket-limit-list">${ticketLimitRows || '<p>No hay usuarios activos.</p>'}</div></section>`}</div></div>
       <div class="control-panel" data-control-panel="applications" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Catálogo de aplicaciones</h2><span id="applications-visible-count">${applicationData.data.length} registradas</span></div><div class="user-filters"><input id="application-search" type="search" placeholder="Buscar por nombre, código o categoría…"></div></div><p class="field-help">Las aplicaciones activas se muestran dinámicamente según los permisos del área. Una aplicación nueva queda disponible primero sólo para administradores.</p>
         <form class="create-application-form" id="create-application"><label>Código<input name="code" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="ej. documentos" required></label><label>Nombre<input name="name" placeholder="MRTI Documentos" required></label><label>Ruta interna<input name="url" placeholder="/documentos/" required></label><label>Categoría<input name="category" value="Empresa" required></label><label>Orden<input name="sort_order" type="number" min="0" max="10000" value="100" required></label><label class="application-wide">Descripción<input name="description" minlength="5" required></label><label class="application-wide">Funciones <small>(separadas por coma)</small><input name="features" placeholder="Consulta, Búsqueda, Gestión"></label><button class="primary-button" type="submit">Registrar aplicación</button></form>
         <div class="application-admin-grid">${applicationCards}</div><p class="empty-users" id="empty-applications" hidden>No se encontraron aplicaciones.</p></div></div>
+      <div class="control-panel" data-control-panel="reports" hidden><div class="control-section control-section-first"><div class="cc-panel-header"><p class="cc-breadcrumb">Centro de control <span>/</span> Reportes</p><h1>Reportes</h1><p>Exporta información administrativa disponible para su análisis fuera de la plataforma.</p></div><div class="cc-report-grid"><article class="cc-report-card"><span class="cc-report-icon">${ICONS.users}</span><div><h2>Usuarios y accesos</h2><p>Listado vigente de cuentas, rol, área y estado.</p></div><button class="secondary-button" type="button" data-report="users">Descargar CSV</button></article><article class="cc-report-card"><span class="cc-report-icon">${ICONS.clock}</span><div><h2>Sesiones recientes</h2><p>Eventos de autenticación que conserva el historial cargado.</p></div><button class="secondary-button" type="button" data-report="sessions">Descargar CSV</button></article><article class="cc-report-card"><span class="cc-report-icon">${ICONS.activity}</span><div><h2>Historial de movimientos</h2><p>Auditoría reciente consolidada por Core.</p></div><button class="secondary-button" type="button" data-report="audit">Descargar CSV</button></article></div><p class="field-help">Los reportes sólo incluyen datos a los que este Centro de control ya tiene acceso; no consultan ni copian bases de otros módulos.</p></div></div>
+      <div class="control-panel" data-control-panel="settings" hidden><div class="control-section control-section-first"><div class="cc-panel-header"><p class="cc-breadcrumb">Centro de control <span>/</span> Configuración</p><h1>Configuración</h1><p>Accesos a los ajustes administrativos ya disponibles en Core.</p></div><div class="cc-settings-grid"><article class="cc-setting-card"><span class="cc-report-icon">${ICONS.layers}</span><div><h2>Áreas de acceso</h2><p>Define los grupos que reciben los mismos módulos.</p></div><button class="secondary-button" type="button" data-control-jump="access">Abrir áreas</button></article><article class="cc-setting-card"><span class="cc-report-icon">${ICONS.grid}</span><div><h2>Catálogo de módulos</h2><p>Administra nombre, estado, orden y ruta de cada aplicación.</p></div><button class="secondary-button" type="button" data-control-jump="applications">Abrir módulos</button></article><article class="cc-setting-card"><span class="cc-report-icon">${ICONS.diamond}</span><div><h2>Recursos de marca</h2><p>Gestiona logotipos y apariencia institucional.</p></div><button class="secondary-button" type="button" data-core-destination="brand-assets">Abrir recursos</button></article><article class="cc-setting-card"><span class="cc-report-icon">${ICONS.newspaper}</span><div><h2>Noticias corporativas</h2><p>Publica y organiza comunicados desde Core.</p></div><button class="secondary-button" type="button" data-core-destination="company-news">Abrir noticias</button></article></div></div></div>
       <div class="control-panel" data-control-panel="audit" hidden><div class="control-section control-section-first"><div class="users-heading"><div><h2>Historial de actividad de la plataforma</h2><span id="audit-visible-count">${auditData.data.length} eventos</span></div><div class="audit-filters"><input id="audit-search" type="search" placeholder="Usuario, acción o registro…"><select id="audit-module-filter"><option value="all">Todos los módulos</option>${auditModules.map((moduleCode) => `<option value="${escapeHtml(moduleCode)}">${escapeHtml(moduleCode)}</option>`).join('')}</select></div></div>${auditSourceFailures.length ? `<div class="notice">Historial parcial: no respondieron ${auditSourceFailures.map((source) => escapeHtml(source.source)).join(', ')}.</div>` : ''}<p class="field-help">Los datos sensibles se redactan automáticamente. Cada módulo conserva su historial y Core reúne aquí una vista de consulta.</p><div class="personal-table-scroll"><table><thead><tr><th>Fecha</th><th>Módulo</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Cambios</th></tr></thead><tbody id="audit-table-body">${auditRows || '<tr><td colspan="6" class="personal-empty">Aún no hay eventos registrados.</td></tr>'}</tbody></table></div><p class="personal-empty" id="audit-empty" hidden>No hay eventos que coincidan con los filtros.</p></div></div>
-    </section>`);
+    </div></section>`);
     bindShell(profile);
     void mountPermissionControl(document.querySelector('#permission-control'), { api, users: data.users });
-    document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
+    document.querySelector('#home-button')?.classList.remove('active');
     // Cada pestaña actualiza la URL (sin recargar) para que se pueda
-    // compartir o recargar sin volver siempre a Usuarios -- ver
-    // renderPortal, que lee ?panel= al entrar por ?view=control-center.
-    document.querySelectorAll('.control-tab[data-control-target]').forEach((tab) => tab.addEventListener('click', () => {
-      document.querySelectorAll('.control-tab[data-control-target]').forEach((item) => item.classList.toggle('active', item === tab));
+    // compartir o recargar sin volver siempre a Panel general. Las consultas
+    // heredadas de /dashboard?view=control-center siguen siendo compatibles.
+    document.querySelectorAll('.cc-nav-item[data-control-target]').forEach((tab) => tab.addEventListener('click', () => {
+      document.querySelectorAll('.cc-nav-item[data-control-target]').forEach((item) => item.classList.toggle('active', item === tab));
       document.querySelectorAll('[data-control-panel]').forEach((panel) => { panel.hidden = panel.dataset.controlPanel !== tab.dataset.controlTarget; });
-      window.history.replaceState({}, '', `/dashboard?view=control-center&panel=${encodeURIComponent(tab.dataset.controlTarget)}`);
+      window.history.replaceState({}, '', controlCenterPath(tab.dataset.controlTarget));
     }));
-    document.querySelector(`[data-control-target="${initialPanel}"]`)?.click();
-    document.querySelector('#control-tab-brand').addEventListener('click', () => void renderBrandAssets(profile, '', 'control-center'));
-    document.querySelector('#control-tab-news').addEventListener('click', () => void renderCompanyNews(profile, '', 'control-center'));
+    document.querySelector(`.cc-nav-item[data-control-target="${initialPanel}"]`)?.click();
+    document.querySelectorAll('[data-control-jump]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelector(`.cc-nav-item[data-control-target="${button.dataset.controlJump}"]`)?.click();
+    }));
+    document.querySelectorAll('[data-core-destination]').forEach((button) => button.addEventListener('click', () => {
+      if (button.dataset.coreDestination === 'brand-assets') renderBrandAssets(profile, '', 'control-center');
+      if (button.dataset.coreDestination === 'company-news') renderCompanyNews(profile);
+    }));
+    async function loadDashboardKpis() {
+      const grid = document.querySelector('#cc-kpi-grid');
+      if (!grid) return;
+      try {
+        const kpi = await api('/api/portal/v1/admin/dashboard-kpis');
+        const dayLabels = [];
+        const dayValues = [];
+        const byDayMap = new Map(kpi.logins_by_day.map((r) => [r.day?.slice?.(0, 10) || String(r.day), r.logins]));
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(); d.setDate(d.getDate() - i);
+          const key = d.toISOString().slice(0, 10);
+          dayLabels.push(d.toLocaleDateString('es-MX', { weekday: 'short' }));
+          dayValues.push(byDayMap.get(key) || 0);
+        }
+        const maxVal = Math.max(...dayValues, 1);
+        const bars = dayValues.map((v, i) => {
+          const pct = Math.round((v / maxVal) * 100);
+          return `<div class="cc-bar-col"><div class="cc-bar" style="height:${pct}%"><span class="cc-bar-val">${v}</span></div><span class="cc-bar-label">${dayLabels[i]}</span></div>`;
+        }).join('');
+        const loginRows = kpi.recent_logins.map((r) => {
+          const d = new Date(r.created_at);
+          return `<tr><td>${escapeHtml(r.full_name || r.email || '—')}</td><td>${escapeHtml(d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }))} ${escapeHtml(d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</td><td>${escapeHtml(r.ip_address || '')}</td></tr>`;
+        }).join('');
+        const activityRows = kpi.recent_activity.map((r) => {
+          const d = new Date(r.created_at);
+          const label = ACTION_LABELS[r.action] || r.action;
+          return `<tr><td>${escapeHtml(r.full_name || r.email || 'Sistema')}</td><td>${escapeHtml(label)}</td><td>${escapeHtml(r.module_code || 'core')}</td><td>${escapeHtml(d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }))} ${escapeHtml(d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</td></tr>`;
+        }).join('');
+        grid.innerHTML = `
+          <div class="cc-kpi-cards">
+            <div class="cc-kpi-card"><div class="cc-kpi-icon">${ICONS.users}</div><div class="cc-kpi-body"><span class="cc-kpi-value">${kpi.total_users}</span><span class="cc-kpi-label">Usuarios totales</span></div></div>
+            <div class="cc-kpi-card"><div class="cc-kpi-icon cc-kpi-good">${ICONS.user}</div><div class="cc-kpi-body"><span class="cc-kpi-value">${kpi.active_users}</span><span class="cc-kpi-label">Activos</span></div></div>
+            <div class="cc-kpi-card"><div class="cc-kpi-icon cc-kpi-warn">${ICONS.clock}</div><div class="cc-kpi-body"><span class="cc-kpi-value">${kpi.logins_today}</span><span class="cc-kpi-label">Ingresos hoy</span></div></div>
+            <div class="cc-kpi-card"><div class="cc-kpi-icon cc-kpi-bad">${ICONS.shield}</div><div class="cc-kpi-body"><span class="cc-kpi-value">${kpi.failed_today}</span><span class="cc-kpi-label">Intentos fallidos hoy</span></div></div>
+          </div>
+          <div class="cc-dashboard-grid">
+            <div class="cc-card"><h3>Ingresos últimos 7 días</h3><div class="cc-bar-chart">${bars}</div></div>
+            <div class="cc-card"><h3>Últimos ingresos</h3><div class="personal-table-scroll"><table><thead><tr><th>Usuario</th><th>Fecha</th><th>IP</th></tr></thead><tbody>${loginRows || '<tr><td colspan="3" class="personal-empty">Sin ingresos</td></tr>'}</tbody></table></div></div>
+            <div class="cc-card cc-card-wide"><h3>Actividad reciente</h3><div class="personal-table-scroll"><table><thead><tr><th>Usuario</th><th>Acción</th><th>Módulo</th><th>Fecha</th></tr></thead><tbody>${activityRows || '<tr><td colspan="4" class="personal-empty">Sin actividad</td></tr>'}</tbody></table></div></div>
+          </div>`;
+        const securityGrid = document.querySelector('#cc-security-kpis');
+        if (securityGrid) securityGrid.innerHTML = `
+          <div class="cc-kpi-card"><div class="cc-kpi-icon cc-kpi-good">${ICONS.shield}</div><div class="cc-kpi-body"><span class="cc-kpi-value">${kpi.active_users}</span><span class="cc-kpi-label">Cuentas activas</span></div></div>
+          <div class="cc-kpi-card"><div class="cc-kpi-icon cc-kpi-warn">${ICONS.clock}</div><div class="cc-kpi-body"><span class="cc-kpi-value">${kpi.logins_today}</span><span class="cc-kpi-label">Accesos hoy</span></div></div>
+          <div class="cc-kpi-card"><div class="cc-kpi-icon cc-kpi-bad">${ICONS.shield}</div><div class="cc-kpi-body"><span class="cc-kpi-value">${kpi.failed_today}</span><span class="cc-kpi-label">Intentos rechazados hoy</span></div></div>`;
+      } catch (err) {
+        grid.innerHTML = `<div class="notice error">${escapeHtml(err.message)}</div>`;
+        const securityGrid = document.querySelector('#cc-security-kpis');
+        if (securityGrid) securityGrid.innerHTML = `<div class="notice error">${escapeHtml(err.message)}</div>`;
+      }
+    }
+    void loadDashboardKpis();
     document.querySelectorAll('.ticket-team-add').forEach((form) => form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const userId = String(new FormData(form).get('user_id') || '');
@@ -2478,11 +2608,13 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     const filterUsers = () => {
       const term = document.querySelector('#user-search').value.trim().toLocaleLowerCase('es-MX');
       const status = document.querySelector('#user-status-filter').value;
+      const areaId = document.querySelector('#user-area-filter').value;
       let visible = 0;
       document.querySelectorAll('.user-list-item').forEach((item) => {
         const matchesText = !term || item.dataset.userSearch.includes(term);
         const matchesStatus = status === 'all' || item.dataset.userStatus === status;
-        item.hidden = !(matchesText && matchesStatus);
+        const matchesArea = areaId === 'all' || item.dataset.userAreaId === areaId;
+        item.hidden = !(matchesText && matchesStatus && matchesArea);
         if (!item.hidden) visible += 1;
       });
       document.querySelector('#users-visible-count').textContent = `${visible} ${visible === 1 ? 'registro' : 'registros'}`;
@@ -2490,6 +2622,12 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     };
     document.querySelector('#user-search').addEventListener('input', filterUsers);
     document.querySelector('#user-status-filter').addEventListener('change', filterUsers);
+    document.querySelector('#user-area-filter').addEventListener('change', filterUsers);
+    document.querySelector('#open-create-user')?.addEventListener('click', () => {
+      const panel = document.querySelector('#create-user-panel');
+      panel.open = true;
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     const filterAreas = () => {
       const term = document.querySelector('#area-search').value.trim().toLocaleLowerCase('es-MX');
       let visible = 0;
@@ -2529,6 +2667,25 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
     };
     document.querySelector('#audit-search').addEventListener('input', filterAudit);
     document.querySelector('#audit-module-filter').addEventListener('change', filterAudit);
+    const downloadReport = (name, columns, rows) => {
+      const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+      const csv = [columns, ...rows].map((row) => row.map(quote).join(',')).join('\r\n');
+      const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    };
+    document.querySelectorAll('[data-report]').forEach((button) => button.addEventListener('click', () => {
+      if (button.dataset.report === 'users') {
+        downloadReport('usuarios-mrti', ['Número', 'Nombre', 'Correo', 'Rol', 'Área de acceso', 'Estado', 'Último acceso'], data.users.map((user) => [userIdentifier(user.user_number), user.full_name, user.email, roleName(user.role), user.access_area_name || 'Sólo Core', user.is_active ? 'Activo' : 'Inactivo', user.last_login_at || '']));
+      } else if (button.dataset.report === 'sessions') {
+        downloadReport('sesiones-mrti', ['Fecha y hora', 'Usuario', 'IP', 'Origen', 'Resultado'], sessionEvents.map((event) => [event.created_at, event.actor_name || event.actor_email || 'Sistema', event.ip_address || '', event.module_code || 'core', sessionActionLabels[event.action] || event.action]));
+      } else {
+        downloadReport('historial-mrti', ['Fecha y hora', 'Módulo', 'Usuario', 'Acción', 'Entidad', 'Identificador'], auditData.data.map((event) => [event.created_at, event.module_code || 'core', event.actor_name || event.actor_email || 'Sistema', event.action, event.entity_type || '', event.entity_id || '']));
+      }
+    }));
     const syncDeviceOptions = (container) => {
       const areaSelect = container.querySelector('.physical-area-select');
       const deviceSelect = container.querySelector('.primary-device-select');
@@ -2583,6 +2740,20 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         await renderControlCenter(result.profile, 'Usuario actualizado correctamente.');
       } catch (error) { window.alert(error.message); }
     }
+    const ACTION_LABELS = {
+      'session.login_succeeded': 'Inicio de sesión',
+      'session.login_failed': 'Intento fallido',
+      'session.logout': 'Cierre de sesión',
+      'session.registered': 'Registro de cuenta',
+      'user.created': 'Usuario creado',
+      'user.updated': 'Usuario actualizado',
+      'user.provisioned': 'Aprovisionado desde RH',
+      'area.created': 'Área creada',
+      'area.updated': 'Área actualizada',
+      'application.created': 'Aplicación creada',
+      'application.updated': 'Aplicación actualizada',
+      'application.deleted': 'Aplicación eliminada',
+    };
     document.querySelectorAll('.user-list-item').forEach((details) => {
       details.addEventListener('toggle', () => {
         if (!details.open || details.dataset.built) return;
@@ -2591,10 +2762,46 @@ async function renderControlCenter(profile, flash = '', initialPanel = 'users') 
         if (!user) return;
         const isSelf = user.id === profile.id;
         const body = details.querySelector('.details-body');
-        body.innerHTML = isSelf ? ownUserFormMarkup(user) : otherUserFormMarkup(user);
+        const activitySection = `<div class="user-activity-section">
+          <div class="user-activity-header"><strong>Actividad reciente</strong><button class="secondary-button user-activity-toggle" type="button" data-activity-user="${user.id}">Cargar actividad</button></div>
+          <div class="user-activity-content" id="user-activity-${user.id.replace(/[^a-z0-9]/gi, '')}"></div>
+        </div>`;
+        body.innerHTML = (isSelf ? ownUserFormMarkup(user) : otherUserFormMarkup(user)) + activitySection;
         syncDeviceOptions(body);
         body.querySelector('.physical-area-select')?.addEventListener('change', () => syncDeviceOptions(body));
         body.querySelector('form').addEventListener('submit', isSelf ? handleOwnLocationSubmit : handleUserEditorSubmit);
+        body.querySelector('.user-activity-toggle')?.addEventListener('click', async (event) => {
+          const button = event.currentTarget;
+          const userId = button.dataset.activityUser;
+          const container = body.querySelector(`#user-activity-${userId.replace(/[^a-z0-9]/gi, '')}`);
+          button.disabled = true;
+          button.textContent = 'Cargando…';
+          try {
+            const result = await api(`/api/portal/v1/admin/users/${userId}/activity`);
+            const statsHtml = `<div class="user-activity-stats">
+              <div><small>Total de ingresos</small><strong>${result.stats.login_count}</strong></div>
+              <div><small>Primer ingreso</small><strong>${result.stats.first_login ? new Date(result.stats.first_login).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div>
+              <div><small>Último ingreso</small><strong>${result.stats.last_login ? new Date(result.stats.last_login).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</strong></div>
+            </div>`;
+            if (!result.data.length) {
+              container.innerHTML = statsHtml + '<p class="notification-empty">Sin actividad registrada.</p>';
+              button.hidden = true;
+              return;
+            }
+            const rows = result.data.map((event) => {
+              const date = new Date(event.created_at);
+              const label = ACTION_LABELS[event.action] || event.action;
+              const moduleLabel = event.module_code === 'core' ? '' : `<span class="audit-module">${escapeHtml(event.module_code || '')}</span>`;
+              return `<tr><td>${escapeHtml(date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }))}<small>${escapeHtml(date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</small></td><td>${moduleLabel}${escapeHtml(label)}</td><td>${escapeHtml(event.entity_type || '')}${event.entity_id ? `<small>${escapeHtml(event.entity_id)}</small>` : ''}</td><td>${escapeHtml(event.ip_address || '')}</td></tr>`;
+            }).join('');
+            container.innerHTML = statsHtml + `<div class="user-activity-table-wrap"><table class="user-activity-table"><thead><tr><th>Fecha</th><th>Acción</th><th>Recurso</th><th>IP</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+            button.hidden = true;
+          } catch {
+            container.innerHTML = '<p class="notification-empty">No fue posible cargar la actividad.</p>';
+            button.disabled = false;
+            button.textContent = 'Reintentar';
+          }
+        });
       });
     });
     // Alta individual: "Desde expediente de RH" toma nombre y correo de la
@@ -2891,9 +3098,6 @@ async function initialize() {
       const destinationModule = portalApplications.find((module) => destination.startsWith(module.href));
       if (!destinationModule || canOpen(profile, destinationModule.code)) return window.location.replace(destination);
     }
-    // Botón "Crear ticket" del popup de un activo en MRTI-Activos:
-    // ?openTicket=1&asset_uid=...&asset_label=... -- se lee aquí, antes de
-    // que renderPortal limpie la URL con history.replaceState.
     const openTicketParams = new URLSearchParams(window.location.search);
     if (openTicketParams.get('openTicket') === '1' && openTicketParams.get('asset_uid')) {
       return openCoreTicketCreation(profile, {

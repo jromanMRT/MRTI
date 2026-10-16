@@ -64,7 +64,8 @@ accessControlRouter.get('/access-control', authRequired, administratorOnly, asyn
     );
     const [users] = await pool.query(
       `SELECT p.id, p.user_number, p.email, p.full_name, p.role, p.access_area_id,
-              p.physical_area_id, p.password_change_required, p.is_active, a.name AS access_area_name
+              p.physical_area_id, p.password_change_required, p.is_active, p.last_login_at,
+              a.name AS access_area_name
          FROM user_profiles p
          LEFT JOIN access_areas a ON a.id = p.access_area_id
         ORDER BY p.user_number`

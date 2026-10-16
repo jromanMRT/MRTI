@@ -181,3 +181,102 @@ applicationRouter.get('/admin/audit', authRequired, administratorOnly, async (re
     next(error);
   }
 });
+
+applicationRouter.get('/admin/users/:userId/activity', authRequired, administratorOnly, async (req, res, next) => {
+  try {
+    const userId = req.params.userId;
+    const [rows] = await pool.query(
+      `SELECT id, action, entity_type, entity_id, ip_address, metadata_json, created_at
+         FROM audit_events
+        WHERE actor_user_id = ?
+        ORDER BY id DESC LIMIT 100`,
+      [userId]
+    );
+    const local = rows.map((row) => ({
+      module_code: 'core',
+      action: row.action,
+      entity_type: row.entity_type,
+      entity_id: row.entity_id,
+      ip_address: row.ip_address,
+      metadata_json: row.metadata_json,
+      created_at: row.created_at,
+    }));
+    const remote = await fetchRemoteAuditEvents(req.headers.authorization, 200);
+    const userEvents = remote.data.filter((e) => e.actor_user_id === userId);
+    const all = [...local, ...userEvents]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 100);
+    const [[loginStats]] = await pool.query(
+      `SELECT COUNT(*) AS login_count,
+              MIN(created_at) AS first_login,
+              MAX(created_at) AS last_login
+         FROM audit_events
+        WHERE actor_user_id = ? AND action = 'session.login_succeeded'`,
+      [userId]
+    );
+    res.json({
+      data: all,
+      stats: {
+        login_count: loginStats?.login_count || 0,
+        first_login: loginStats?.first_login || null,
+        last_login: loginStats?.last_login || null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+applicationRouter.get('/admin/dashboard-kpis', authRequired, administratorOnly, async (req, res, next) => {
+  try {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todayISO = today.toISOString().slice(0, 10);
+    const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoISO = weekAgo.toISOString().slice(0, 10);
+
+    const [
+      [totalUsers], [activeUsers], [inactiveUsers],
+      [loginsToday], [failedToday],
+      loginsByDay, recentLogins, recentActivity,
+    ] = await Promise.all([
+      pool.query('SELECT COUNT(*) AS c FROM user_profiles'),
+      pool.query('SELECT COUNT(*) AS c FROM user_profiles WHERE is_active = 1'),
+      pool.query('SELECT COUNT(*) AS c FROM user_profiles WHERE is_active = 0'),
+      pool.query("SELECT COUNT(*) AS c FROM audit_events WHERE action = 'session.login_succeeded' AND created_at >= ?", [todayISO]),
+      pool.query("SELECT COUNT(*) AS c FROM audit_events WHERE action = 'session.login_failed' AND created_at >= ?", [todayISO]),
+      pool.query(
+        `SELECT DATE(created_at) AS day, COUNT(*) AS logins
+           FROM audit_events
+          WHERE action = 'session.login_succeeded' AND created_at >= ?
+          GROUP BY DATE(created_at) ORDER BY day`,
+        [weekAgoISO]
+      ),
+      pool.query(
+        `SELECT a.actor_user_id, p.full_name, p.email, a.created_at, a.ip_address
+           FROM audit_events a
+           LEFT JOIN user_profiles p ON p.id = a.actor_user_id
+          WHERE a.action = 'session.login_succeeded'
+          ORDER BY a.created_at DESC LIMIT 10`
+      ),
+      pool.query(
+        `SELECT a.action, a.actor_user_id, p.full_name, p.email, a.entity_type, a.created_at, a.module_code
+           FROM audit_events a
+           LEFT JOIN user_profiles p ON p.id = a.actor_user_id
+          ORDER BY a.created_at DESC LIMIT 15`
+      ),
+    ]);
+
+    res.json({
+      total_users: totalUsers[0].c,
+      active_users: activeUsers[0].c,
+      inactive_users: inactiveUsers[0].c,
+      logins_today: loginsToday[0].c,
+      failed_today: failedToday[0].c,
+      logins_by_day: loginsByDay[0],
+      recent_logins: recentLogins[0],
+      recent_activity: recentActivity[0],
+    });
+  } catch (error) {
+    next(error);
+  }
+});

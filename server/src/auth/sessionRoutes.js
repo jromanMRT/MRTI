@@ -110,7 +110,10 @@ sessionRouter.post('/login', loginLimiter, async (req, res, next) => {
     }
 
     const token = signToken(user.id);
-    await recordAudit({ req, actor: user, action: 'session.login_succeeded', entityType: 'session', entityId: user.id });
+    await Promise.all([
+      recordAudit({ req, actor: user, action: 'session.login_succeeded', entityType: 'session', entityId: user.id }),
+      pool.query('UPDATE user_profiles SET last_login_at = NOW() WHERE id = ?', [user.id]).catch(() => {}),
+    ]);
     const profile = await findProfile(user.id, `Bearer ${token}`);
     profile.password_change_required = Boolean(user.password_change_required);
     res.json({ token, profile });
