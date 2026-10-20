@@ -552,7 +552,11 @@ function moduleTabMarkup(module) {
 
 // Pestañas visibles directamente en el encabezado, sin nada que abrir.
 function moduleSwitcherMarkup(profile, currentModule = 'dashboard') {
-  const available = portalApplications.filter((module) => canOpen(profile, module.code) && module.code !== 'control-center');
+  const available = portalApplications.filter((module) => {
+    const normalizedHref = String(module.href || '').replace(/\/+$/, '') || '/';
+    const isControlCenter = module.code === 'control-center' || normalizedHref === '/admin';
+    return canOpen(profile, module.code) && !isControlCenter;
+  });
   const dashboardCurrent = currentModule === 'dashboard';
   const ccCurrent = currentModule === 'control-center';
   const tabs = [
