@@ -561,8 +561,8 @@ function moduleSwitcherMarkup(profile, currentModule = 'dashboard') {
   const ccCurrent = currentModule === 'control-center';
   const tabs = [
     `<a class="module-tab${dashboardCurrent ? ' is-current' : ''}" href="/dashboard"${dashboardCurrent ? ' aria-current="page"' : ''}>Dashboard</a>`,
-    ...available.map(moduleTabMarkup),
     ...(isAdministrator(profile) ? [`<a class="module-tab${ccCurrent ? ' is-current' : ''}" href="/admin/"${ccCurrent ? ' aria-current="page"' : ''}>Centro de control</a>`] : []),
+    ...available.map(moduleTabMarkup),
   ].join('');
   return `<nav class="portal-header-navigation module-tabs" aria-label="Navegación de la plataforma">${tabs}</nav>`;
 }
