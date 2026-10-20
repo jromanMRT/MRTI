@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// GENERADO desde MRTI-Platform@363afc8 (src/release.mjs).
+// GENERADO desde MRTI-Platform@8ce8362 (src/release.mjs).
 // No editar aquí: cambiar en MRTI-Platform y ejecutar bin/sync.mjs.
 // Publicación de frontends MRTI por releases inmutables.
 //
@@ -25,6 +25,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { validateReleaseManifest } from './release-contract.mjs';
 
 const ID_PATTERN = /^\d{8}-\d{6}(-[a-z0-9]+)*$/;
 
@@ -96,9 +97,43 @@ function git(root, args) {
   return result.status === 0 ? result.stdout.trim() : '';
 }
 
+export function preflightRelease({ root = process.cwd(), config = {}, now = new Date(), allowDirtyEmergency = false } = {}) {
+  const problems = [];
+  const commit = git(root, ['rev-parse', '--short', 'HEAD']);
+  const dirty = git(root, ['status', '--porcelain']) !== '';
+  const lockfile = ['package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock']
+    .find((file) => existsSync(path.join(root, file)));
+  const publicPath = config.publicPath ?? '/';
+
+  if (!commit) problems.push('no se encontró un commit Git para el artefacto');
+  if (dirty && !allowDirtyEmergency) problems.push('el árbol Git tiene cambios sin commit');
+  if (!lockfile) problems.push('no existe lockfile de dependencias');
+  if (!publicPath.startsWith('/') || !publicPath.endsWith('/')) {
+    problems.push('mrtiRelease.publicPath debe iniciar y terminar con /');
+  }
+
+  let emergency = null;
+  if (dirty && allowDirtyEmergency) {
+    const expiresAt = process.env.MRTI_RELEASE_EMERGENCY_EXPIRES_AT;
+    const reason = process.env.MRTI_RELEASE_EMERGENCY_REASON;
+    const expiresAtMs = Date.parse(expiresAt);
+    if (!reason?.trim()) problems.push('la excepción de emergencia requiere MRTI_RELEASE_EMERGENCY_REASON');
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now.getTime()) {
+      problems.push('la excepción de emergencia requiere MRTI_RELEASE_EMERGENCY_EXPIRES_AT futura');
+    } else if (expiresAtMs - now.getTime() > 24 * 60 * 60 * 1000) {
+      problems.push('la excepción de emergencia no puede durar más de 24 horas');
+    }
+    if (!problems.length) {
+      emergency = { reason: reason.trim(), expires_at: new Date(expiresAtMs).toISOString() };
+    }
+  }
+
+  return { ok: problems.length === 0, problems, commit, dirty, lockfile: lockfile ?? null, emergency };
+}
+
 export function createReleaser({ root = process.cwd(), log = console.log, fetchImpl = (...a) => fetch(...a), smokeOrigin = process.env.MRTI_RELEASE_SMOKE_ORIGIN || 'http://127.0.0.1' } = {}) {
   const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const config = { publicPath: '/', keep: 3, ...(pkg.mrtiRelease || {}) };
+  const config = { publicPath: '/', keep: 3, module: pkg.name, ...(pkg.mrtiRelease || {}) };
   const releasesDir = path.join(root, 'releases');
   const distPath = path.join(root, 'dist');
   const statePath = path.join(releasesDir, 'state.json');
@@ -138,9 +173,14 @@ export function createReleaser({ root = process.cwd(), log = console.log, fetchI
     renameSync(tmp, distPath); // rename(2) sobre un symlink es atómico
   }
 
-  function build() {
-    const commit = git(root, ['rev-parse', '--short', 'HEAD']) || 'nogit';
-    const dirty = git(root, ['status', '--porcelain']) !== '';
+  function preflight(options) {
+    return preflightRelease({ root, config, ...options });
+  }
+
+  function build({ allowDirtyEmergency = false } = {}) {
+    const check = preflight({ allowDirtyEmergency });
+    if (!check.ok) throw new Error(`Preflight falló:\n  - ${check.problems.join('\n  - ')}`);
+    const { commit, dirty, emergency } = check;
     const id = releaseId(new Date(), commit, dirty);
     const outDir = releaseDir(id);
     mkdirSync(releasesDir, { recursive: true });
@@ -158,7 +198,25 @@ export function createReleaser({ root = process.cwd(), log = console.log, fetchI
     const ownAssets = listAssets(outDir);
     const published = lstatSync(distPath, { throwIfNoEntry: false }) ? distPath : null;
     const carried = published ? carryOverAssets(published, outDir) : 0;
-    writeFileSync(path.join(outDir, 'release.json'), `${JSON.stringify({ id, commit, dirty, builtAt: new Date().toISOString(), node: process.version, ownAssets, carriedAssets: carried }, null, 2)}\n`);
+    const manifest = {
+      schema_version: 1,
+      module: config.module,
+      release_id: id,
+      commit,
+      source_clean: !dirty,
+      built_at: new Date().toISOString(),
+      builder: process.env.CI ? 'ci' : 'manual',
+      artifact: { kind: 'static', reference: `releases/${id}` },
+      tests: [{ name: 'static-release-verification', status: 'passed' }],
+      public_path: config.publicPath,
+      ownAssets,
+      carriedAssets: carried,
+      ...(emergency ? { emergency } : {}),
+    };
+    // El contrato estricto no admite fuentes sucias: la excepción es visible,
+    // limitada por preflight y conserva compatibilidad temporal con health.
+    if (!dirty) validateReleaseManifest(manifest);
+    writeFileSync(path.join(outDir, 'release.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     log(`Release ${id} listo y verificado${carried ? ` (${carried} assets del publicado se conservan para sesiones abiertas)` : ''}. Aún NO está publicado.`);
     return id;
   }
@@ -267,24 +325,31 @@ export function createReleaser({ root = process.cwd(), log = console.log, fetchI
     spawnSync('npx', ['--no-install', 'vite', 'preview', '--outDir', releaseDir(target), ...process.argv.slice(4)], { cwd: root, stdio: 'inherit' });
   }
 
-  return { config, adopt, build, promote, rollback, status, preview, listReleases };
+  return { config, adopt, preflight, build, promote, rollback, status, preview, listReleases };
 }
 
 async function main() {
   const [command, arg] = process.argv.slice(2);
   const skipSmoke = process.argv.includes('--no-smoke');
+  const allowDirtyEmergency = process.argv.includes('--allow-dirty-emergency');
   const releaser = createReleaser();
   switch (command) {
     case 'adopt': await releaser.adopt({ skipSmoke }); break;
-    case 'build': releaser.build(); break;
+    case 'preflight': {
+      const result = releaser.preflight({ allowDirtyEmergency });
+      if (!result.ok) throw new Error(`Preflight falló:\n  - ${result.problems.join('\n  - ')}`);
+      console.log(`Preflight OK: ${result.commit} (${result.lockfile})`);
+      break;
+    }
+    case 'build': releaser.build({ allowDirtyEmergency }); break;
     case 'promote': await releaser.promote(arg && !arg.startsWith('--') ? arg : undefined, { skipSmoke }); break;
-    case 'publish': await releaser.promote(releaser.build(), { skipSmoke }); break;
+    case 'publish': await releaser.promote(releaser.build({ allowDirtyEmergency }), { skipSmoke }); break;
     case 'rollback': await releaser.rollback({ skipSmoke }); break;
     case 'preview': releaser.preview(arg && !arg.startsWith('--') ? arg : undefined); break;
     case 'list':
     case 'status': console.log(releaser.status()); break;
     default:
-      console.log('Uso: release.mjs adopt | build | promote [id] | publish | rollback | preview [id] | status  [--no-smoke]');
+      console.log('Uso: release.mjs preflight | adopt | build | promote [id] | publish | rollback | preview [id] | status  [--no-smoke] [--allow-dirty-emergency]');
       process.exitCode = command ? 1 : 0;
   }
 }

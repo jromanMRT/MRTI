@@ -1,0 +1,32 @@
+{
+  "$schema": "https://mrti.local/schemas/platform-map/v1",
+  "version": 1,
+  "title": "Mapa de plataforma MRTI",
+  "updated_at": "2026-10-15",
+  "nodes": [
+    { "id": "people", "label": "Usuarios MRTI", "kind": "actor", "owner": "Corporativo", "status": "active" },
+    { "id": "core", "label": "MRTI Core", "kind": "module", "owner": "Core", "status": "active", "responsibilities": ["identidad", "sesiones", "permisos", "portal personal", "dashboard"] },
+    { "id": "rh", "label": "MRTI RH", "kind": "module", "owner": "RH", "status": "active", "responsibilities": ["ficha laboral", "organización", "ausencias", "requisiciones"] },
+    { "id": "tickets", "label": "MRTI Tickets", "kind": "module", "owner": "TI", "status": "active", "responsibilities": ["tickets", "SLA", "seguimiento"] },
+    { "id": "assets", "label": "MRTI Activos", "kind": "module", "owner": "TI", "status": "active", "responsibilities": ["inventario", "asignaciones", "garantías"] },
+    { "id": "obs", "label": "MRTI Observabilidad", "kind": "module", "owner": "TI", "status": "active", "responsibilities": ["sitios", "topología", "monitoreo", "alertas"] },
+    { "id": "maintenance", "label": "MRTI Mantenimiento", "kind": "module", "owner": "Operación", "status": "active", "responsibilities": ["flota", "planes", "órdenes de trabajo"] },
+    { "id": "legal", "label": "MRTI Legal", "kind": "module", "owner": "Legal", "status": "active", "responsibilities": ["expedientes", "contratos", "retención"] },
+    { "id": "sap", "label": "MRTI SAP", "kind": "integration", "owner": "Finanzas", "status": "active", "responsibilities": ["consulta de SAP Business One"] },
+    { "id": "agent", "label": "MRTI Agent", "kind": "agent", "owner": "TI", "status": "active", "responsibilities": ["telemetría", "acciones autorizadas en equipos"] },
+    { "id": "public-web", "label": "Sitio público", "kind": "module", "owner": "Comunicación", "status": "active", "responsibilities": ["contenido público"] }
+  ],
+  "edges": [
+    { "from": "people", "to": "core", "type": "uses", "label": "sesión y portal" },
+    { "from": "core", "to": "rh", "type": "self_service", "label": "dashboard y autoservicio RH" },
+    { "from": "core", "to": "tickets", "type": "self_service", "label": "resumen personal" },
+    { "from": "core", "to": "assets", "type": "self_service", "label": "equipo asignado" },
+    { "from": "core", "to": "obs", "type": "api", "label": "áreas físicas y dispositivos" },
+    { "from": "core", "to": "legal", "type": "self_service", "label": "notificaciones legales" },
+    { "from": "rh", "to": "core", "type": "reference", "label": "portal_user_id estable" },
+    { "from": "tickets", "to": "core", "type": "auth", "label": "validación de sesión" },
+    { "from": "assets", "to": "core", "type": "auth", "label": "validación de sesión" },
+    { "from": "obs", "to": "agent", "type": "telemetry", "label": "eventos de equipos" },
+    { "from": "maintenance", "to": "sap", "type": "api", "label": "centros de costo" }
+  ]
+}

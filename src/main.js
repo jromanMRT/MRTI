@@ -8,6 +8,7 @@ import './control-center.css';
 import './ticket-self-service.css';
 import './dashboard-refinements.css';
 import { bindDashboardRefinements } from './dashboard-refinements.js';
+import { renderArchitectureStudio } from './architecture-studio.js';
 
 const app = document.querySelector('#app');
 const FALLBACK_MODULES = [
@@ -551,7 +552,7 @@ function moduleTabMarkup(module) {
 
 // Pestañas visibles directamente en el encabezado, sin nada que abrir.
 function moduleSwitcherMarkup(profile, currentModule = 'dashboard') {
-  const available = portalApplications.filter((module) => canOpen(profile, module.code));
+  const available = portalApplications.filter((module) => canOpen(profile, module.code) && module.code !== 'control-center');
   const dashboardCurrent = currentModule === 'dashboard';
   const ccCurrent = currentModule === 'control-center';
   const tabs = [
@@ -610,6 +611,7 @@ function shellMarkup(profile, content) {
       <div class="sidebar-search-slot" id="sidebar-search-slot"></div>
       <nav class="primary-nav" aria-label="Navegación principal">
         <button class="primary-nav-link active" id="home-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.home}</span><span class="nav-label">Inicio</span></button>
+        <button class="primary-nav-link" id="core-notifications-history-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.bell}</span><span class="nav-label">Notificaciones</span></button>
         <button class="primary-nav-link" id="core-new-ticket-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.plus}</span><span class="nav-label">Nuevo ticket</span></button><button class="primary-nav-link" id="core-my-tickets-button" type="button"><span class="nav-icon" aria-hidden="true">${ICONS.tickets}</span><span class="nav-label">Mis tickets</span></button>
       </nav>
       <div class="sidebar-footer">
@@ -636,7 +638,6 @@ function shellMarkup(profile, content) {
               <button type="button" id="account-button" role="menuitem"><span aria-hidden="true">${ICONS.user}</span>Perfil</button>
               <button type="button" id="brand-button" role="menuitem"><span aria-hidden="true">${ICONS.diamond}</span>Recursos de marca</button>
               <button type="button" id="news-button" role="menuitem"><span aria-hidden="true">${ICONS.newspaper}</span>Noticias</button>
-              ${isAdministrator(profile) ? `<button type="button" id="control-button" role="menuitem"><span aria-hidden="true">${ICONS.settings}</span>Centro de control</button>` : ''}
               <button type="button" class="account-menu-logout" id="logout-button" role="menuitem"><span aria-hidden="true">${ICONS.logOut}</span>Cerrar sesión</button>
             </div>
           </div>
@@ -693,6 +694,7 @@ function bindShell(profile) {
     button.setAttribute('title', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
   });
   document.querySelector('#home-button')?.addEventListener('click', () => renderPortal(profile, null));
+  document.querySelector('#core-notifications-history-button')?.addEventListener('click', () => renderNotificationHistory(profile));
   document.querySelector('#core-new-ticket-button')?.addEventListener('click', () => openCoreTicketCreation(profile));
   document.querySelector('#core-my-tickets-button')?.addEventListener('click', () => openCoreTicketHistory(profile));
   notificationPanelController?.abort();
@@ -721,7 +723,7 @@ function bindShell(profile) {
     const dismissButton = event.target.closest('.notification-dismiss');
     if (!dismissButton) return;
     const id = dismissButton.dataset.dismissId;
-    const kind = dismissButton.dataset.dismissKind || undefined;
+    const fullItem = lastNotificationItems.find((n) => n.id === id);
     dismissButton.closest('.notification-item')?.remove();
     lastNotificationItems = lastNotificationItems.filter((item) => item.id !== id);
     const notificationCount = document.querySelector('#notification-count');
@@ -736,7 +738,37 @@ function bindShell(profile) {
       const dismissAllButton = document.querySelector('#notifications-dismiss-all');
       if (dismissAllButton) dismissAllButton.hidden = true;
     }
-    void dismissNotifications([{ id, kind }]);
+    void dismissNotifications([fullItem || { id }]);
+  }, { signal: notificationPanelController.signal });
+  notificationPanel?.addEventListener('click', (event) => {
+    if (event.target.closest('.notification-dismiss')) return;
+    const item = event.target.closest('.notification-clickable');
+    if (!item) return;
+    const notifId = item.dataset.notificationId;
+    const fullNotif = lastNotificationItems.find((n) => n.id === notifId);
+    item.remove();
+    lastNotificationItems = lastNotificationItems.filter((n) => n.id !== notifId);
+    const notificationCount = document.querySelector('#notification-count');
+    if (notificationCount) {
+      notificationCount.textContent = lastNotificationItems.length > 9 ? '9+' : String(lastNotificationItems.length);
+      notificationCount.hidden = lastNotificationItems.length === 0;
+    }
+    window.dispatchEvent(new CustomEvent('mrti:dashboard-notifications', { detail: { count: lastNotificationItems.length } }));
+    if (!lastNotificationItems.length) {
+      const dashboard = document.querySelector('#notifications-dashboard');
+      if (dashboard) dashboard.innerHTML = '<p class="notification-empty">Sin novedades por ahora.</p>';
+      const dismissAllBtn = document.querySelector('#notifications-dismiss-all');
+      if (dismissAllBtn) dismissAllBtn.hidden = true;
+    }
+    if (notifId) void dismissNotifications([fullNotif || { id: notifId }]);
+    const reqId = item.dataset.requisitionId;
+    if (reqId) {
+      setNotificationPanelOpen(false);
+      openRequisitionDetail(reqId, profile);
+      return;
+    }
+    const href = item.dataset.href;
+    if (href) { setNotificationPanelOpen(false); location.href = href; }
   }, { signal: notificationPanelController.signal });
   document.querySelector('#notifications-dismiss-all')?.addEventListener('click', () => {
     const items = lastNotificationItems;
@@ -957,6 +989,7 @@ function renderPortal(profile, requestedView = requestedCoreView(), requestedPan
   if (requestedView === 'account') renderAccount(profile);
   else if (requestedView === 'control-center' && isAdministrator(profile)) void renderControlCenter(profile, '', requestedPanel || 'dashboard');
   else if (requestedView === 'brand-assets' && isAdministrator(profile)) void renderBrandAssets(profile);
+  else if (requestedView === 'architecture' && isAdministrator(profile)) void renderArchitectureStudio({ app, profile, api, shellMarkup, escapeHtml, renderPortal });
   else if (requestedView === 'company-news') void renderCompanyNews(profile);
   else if (requestedView === 'notifications') document.querySelector('#notifications-button')?.click();
   // Cada widget corre por separado: si Activos o Tickets no responden, el
@@ -1157,25 +1190,27 @@ async function loadRequisitionApprovals(profile) {
 
 async function openRequisitionDetail(id, profile) {
   let dialog = document.querySelector('#requisition-detail-dialog');
-  if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'requisition-detail-dialog'; dialog.className = 'requisition-detail-dialog'; document.body.append(dialog); }
+  if (!dialog) { dialog = document.createElement('dialog'); dialog.id = 'requisition-detail-dialog'; dialog.className = 'requisition-detail-dialog'; document.body.append(dialog); dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); }); }
   dialog.innerHTML = '<div class="requisition-detail-loading">Cargando requisición…</div>';
   dialog.showModal();
   try {
     const { data: r } = await api(`/rh-api/api/rh-self/me/requisitions/${id}`);
-    const field = (label, value) => `<div><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`;
+    const field = (label, value) => value && value !== '—' ? `<div><small>${label}</small><strong>${escapeHtml(value)}</strong></div>` : '';
     const typeLabels = { nueva_creacion: 'Nueva creación', sustitucion_reemplazo: 'Sustitución / Reemplazo', incapacidad_maternidad_temporal: 'Incapacidad / Maternidad / Temporal' };
     const priorityLabels = { baja: 'Baja', media: 'Media', alta: 'Alta' };
     const visibilityLabels = { publica: 'Pública', interna: 'Interna / Convocatoria cerrada', confidencial: 'Confidencial' };
+    const statusLabels = { pending: 'Pendiente', in_approval: 'En aprobación', approved: 'Aprobada', published: 'Publicada', recruiting: 'En reclutamiento', rejected: 'Rechazada', cancelled: 'Cancelada' };
     const decisionActions = r.can_decide ? `<div class="requisition-detail-decisions"><button class="personal-submit req-modal-approve" type="button">Aprobar requisición</button><button class="req-reject-button req-modal-reject" type="button">Rechazar requisición</button></div>` : '';
     const recoveryAction = isAdministrator(profile) && r.status === 'rejected' ? `<div class="requisition-detail-decisions"><button class="secondary-button req-modal-recover" type="button">Recuperar requisición</button></div>` : '';
     const decisionLabel = { pending: 'Pendiente', current: 'En firma', queued: 'En espera', stopped: 'Detenida por rechazo', cancelled: 'Cancelada', approved: 'Aprobada', rejected: 'Rechazada' };
     const approvalProgress = r.can_view_tracking === true && r.approvals?.length ? `<section class="requisition-detail-section"><h3>Ruta de firmas</h3><ol class="requisition-approval-timeline">${r.approvals.map((approval) => {
       const state = approval.timeline_state || approval.decision;
       const duration = approval.elapsed_hours == null ? '' : `${approval.decision === 'pending' ? 'Lleva' : 'Duró'} ${requisitionElapsedLabel(approval.elapsed_hours)}`;
-      const sla = approval.days_to_approve == null ? 'Sin SLA' : `SLA ${approval.days_to_approve} días${approval.is_overdue || approval.is_sla_breached ? ' · vencido' : ''}`;
-      return `<li class="${escapeHtml(state)}"><span></span><div><strong>${escapeHtml(approval.role_label)}</strong><small>${escapeHtml(approval.approver_name || 'Sin asignar')} · ${escapeHtml(decisionLabel[state] || state)}${approval.started_at ? ` · inicio ${escapeHtml(requisitionDateTime(approval.started_at))}` : ''}${approval.decided_at ? ` · firma ${escapeHtml(requisitionDateTime(approval.decided_at))}` : ''}</small><small>${escapeHtml([duration, sla].filter(Boolean).join(' · '))}</small>${approval.notes ? `<em>${escapeHtml(approval.notes)}</em>` : ''}</div></li>`;
+      const sla = approval.days_to_approve == null ? '' : `SLA ${approval.days_to_approve} d${approval.is_overdue || approval.is_sla_breached ? ' · vencido' : ''}`;
+      return `<li class="${escapeHtml(state)}"><span></span><div><strong>${escapeHtml(approval.role_label)}</strong><small>${escapeHtml(approval.approver_name || 'Sin asignar')} · ${escapeHtml(decisionLabel[state] || state)}${approval.started_at ? ` · ${escapeHtml(requisitionDateTime(approval.started_at))}` : ''}${approval.decided_at ? ` → ${escapeHtml(requisitionDateTime(approval.decided_at))}` : ''}</small>${duration || sla ? `<small>${escapeHtml([duration, sla].filter(Boolean).join(' · '))}</small>` : ''}${approval.notes ? `<em>${escapeHtml(approval.notes)}</em>` : ''}</div></li>`;
     }).join('')}</ol></section>` : '';
-    dialog.innerHTML = `<article class="requisition-detail-content"><header><div><p>Requisición de personal · ${escapeHtml(r.folio)}</p><h2>${escapeHtml(r.position_name)}</h2><small>${r.can_decide ? 'Revisa la información antes de emitir tu autorización.' : 'Consulta la información completa de esta requisición.'}</small></div><button class="dialog-close" type="button" aria-label="Cerrar">×</button></header><div class="requisition-detail-body"><section class="requisition-detail-summary"><h3>Definición de la plaza</h3><div class="detail-grid">${field('Tipo', typeLabels[r.type] || r.type)}${field('Prioridad', priorityLabels[r.priority] || r.priority)}${field('Solicitante', r.requester_name)}${field('Departamento', r.department_name)}${field('Reporta al puesto', r.reports_to_position_name)}${field('Ubicación', r.location)}${field('Visibilidad', visibilityLabels[r.visibility] || r.visibility)}${field('Centro de costos / proyecto', r.cost_center_project)}</div></section>${approvalProgress}${r.replacement_reason ? `<section class="requisition-detail-section"><h3>Motivo de sustitución</h3><p>${escapeHtml(r.replacement_reason)}</p></section>` : ''}${r.estimated_end_date ? `<section class="requisition-detail-section"><h3>Fecha estimada de término</h3><p>${escapeHtml(shortDate(r.estimated_end_date))}</p></section>` : ''}${r.justification ? `<section class="requisition-detail-section"><h3>Justificación</h3><p>${escapeHtml(r.justification)}</p></section>` : ''}${r.profile_description ? `<section class="requisition-detail-section"><h3>Perfil requerido</h3><p>${escapeHtml(r.profile_description)}</p></section>` : ''}</div><footer>${decisionActions}${recoveryAction}<button class="secondary-button dialog-close" type="button">Cerrar detalle</button></footer></article>`;
+    const statusBadge = `<span class="req-status-badge status-${escapeHtml(r.status)}">${escapeHtml(statusLabels[r.status] || r.status)}</span>`;
+    dialog.innerHTML = `<article class="requisition-detail-content"><header><div><p>Requisición de personal<span class="req-folio">${escapeHtml(r.folio)}</span></p><h2>${escapeHtml(r.position_name)}</h2><small>${r.can_decide ? 'Revisa la información antes de emitir tu autorización.' : 'Consulta la información completa de esta requisición.'}</small>${statusBadge}</div><button class="dialog-close" type="button" aria-label="Cerrar">×</button></header><div class="requisition-detail-body"><section class="requisition-detail-summary"><h3>Definición de la plaza</h3><div class="detail-grid">${field('Tipo', typeLabels[r.type] || r.type)}${field('Prioridad', priorityLabels[r.priority] || r.priority)}${field('Solicitante', r.requester_name)}${field('Departamento', r.department_name)}${field('Reporta al puesto', r.reports_to_position_name)}${field('Ubicación', r.location)}${field('Visibilidad', visibilityLabels[r.visibility] || r.visibility)}${field('Centro de costos', r.cost_center_project)}</div></section>${approvalProgress}${r.replacement_reason ? `<section class="requisition-detail-section"><h3>Motivo de sustitución</h3><p>${escapeHtml(r.replacement_reason)}</p></section>` : ''}${r.estimated_end_date ? `<section class="requisition-detail-section"><h3>Fecha estimada de término</h3><p>${escapeHtml(shortDate(r.estimated_end_date))}</p></section>` : ''}${r.justification ? `<section class="requisition-detail-section"><h3>Justificación</h3><p>${escapeHtml(r.justification)}</p></section>` : ''}${r.profile_description ? `<section class="requisition-detail-section"><h3>Perfil requerido</h3><p>${escapeHtml(r.profile_description)}</p></section>` : ''}</div><footer>${decisionActions}${recoveryAction}<button class="secondary-button dialog-close" type="button">Cerrar</button></footer></article>`;
     dialog.querySelectorAll('.dialog-close').forEach((button) => button.addEventListener('click', () => dialog.close()));
     const decide = async (action) => {
       const message = action === 'reject' ? `¿Confirmas el rechazo de ${r.folio}? La requisición se detendrá hasta que un administrador la recupere.` : `¿Confirmas que apruebas la requisición ${r.folio}? Tu firma quedará registrada.`;
@@ -1196,7 +1231,7 @@ async function openRequisitionDetail(id, profile) {
       try { await api(`/rh-api/api/rh-self/me/requisitions/${id}/recover-rejected`, { method: 'PATCH', body: JSON.stringify({ reason }) }); dialog.close(); await loadRequisitionApprovals(profile); await loadRequisitionsDashboard(profile); }
       catch (error) { alert(error.message); button.disabled = false; }
     });
-  } catch (error) { dialog.innerHTML = `<div class="ticket-detail-content"><button class="dialog-close" type="button">×</button><p class="notice error">${escapeHtml(error.message)}</p></div>`; dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close()); }
+  } catch (error) { dialog.innerHTML = `<div class="requisition-detail-content"><header><div><p>Error</p><h2>No se pudo cargar</h2></div><button class="dialog-close" type="button" aria-label="Cerrar">×</button></header><div class="requisition-detail-body"><p class="notice error">${escapeHtml(error.message)}</p></div><footer><button class="secondary-button dialog-close" type="button">Cerrar</button></footer></div>`; dialog.querySelectorAll('.dialog-close').forEach((btn) => btn.addEventListener('click', () => dialog.close())); }
 }
 
 async function loadRequisitionsDashboard(profile, { forceFresh = false } = {}) {
@@ -1278,9 +1313,16 @@ async function bindRequisitionSelfService(profile) {
     const { data: { allowed } } = await api('/rh-api/api/rh-self/me/can-create-requisition');
     if (!allowed) return;
   } catch { return; }
-  section.hidden = false;
+  // El formulario canónico vive en RH. Core conserva el acceso y el
+  // seguimiento, pero no duplica campos, validaciones ni lógica de envío.
+  section.hidden = true;
   const quickBtn = document.querySelector('#quick-action-requisition');
   if (quickBtn) quickBtn.hidden = false;
+  quickBtn?.addEventListener('click', () => { window.location.assign('/rh/solicitar-personal?source=core'); });
+  return;
+
+  // Compatibilidad temporal: se conserva abajo hasta confirmar el corte
+  // publicado. No es alcanzable después del return anterior.
   const panel = document.querySelector('#requisition-create-panel');
   const form = document.querySelector('#requisition-self-form');
   const message = document.querySelector('#requisition-form-message');
@@ -1961,7 +2003,8 @@ async function loadNotifications(profile) {
     return;
   }
   const MODULE_ICON = { 'mrti-legal': 'LG', rh: 'RH', activos: 'AT' };
-  const rows = items.map((item) => `<li class="notification-item" data-notification-id="${escapeHtml(item.id)}"><span class="personal-icon">${MODULE_ICON[item.module_code] || 'TK'}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span>${item.href ? `<a class="personal-link" href="${item.href}">Abrir →</a>` : ''}<button type="button" class="notification-dismiss" data-dismiss-id="${escapeHtml(item.id)}" data-dismiss-kind="${escapeHtml(item.kind || '')}" aria-label="Descartar esta notificación">×</button></li>`).join('');
+  const requisitionId = (item) => { const m = String(item.id || '').match(/^rh-requisition-(?:pending|decision)-(\d+)/); return m ? m[1] : ''; };
+  const rows = items.map((item) => `<li class="notification-item notification-clickable" data-notification-id="${escapeHtml(item.id)}"${requisitionId(item) ? ` data-requisition-id="${requisitionId(item)}"` : ''}${item.href ? ` data-href="${escapeHtml(item.href)}"` : ''} tabindex="0" role="button"><span class="personal-icon">${MODULE_ICON[item.module_code] || 'TK'}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message)}</small></span><button type="button" class="notification-dismiss" data-dismiss-id="${escapeHtml(item.id)}" data-dismiss-kind="${escapeHtml(item.kind || '')}" aria-label="Descartar esta notificación">×</button></li>`).join('');
   container.innerHTML = `<ul class="notification-list">${rows}</ul>`;
 }
 
@@ -1974,7 +2017,7 @@ async function dismissNotifications(items) {
   try {
     await api('/api/portal/v1/notifications/dismiss', {
       method: 'POST',
-      body: JSON.stringify({ items: items.map(({ id, kind }) => ({ id, kind })) }),
+      body: JSON.stringify({ items: items.map(({ id, kind, title, message, module_code, href, requisition_id }) => ({ id, kind, title, message, module_code, href, requisition_id })) }),
     });
   } catch { /* si falla, el siguiente refresco de 60s la vuelve a mostrar */ }
 }
@@ -1997,6 +2040,55 @@ async function resizeAvatar(file) {
     if (value.length <= 60000) return value;
   }
   throw new Error('No fue posible optimizar la foto. Prueba con una imagen más sencilla.');
+}
+
+function renderNotificationHistory(profile) {
+  const MODULE_ICON = { 'mrti-legal': 'LG', rh: 'RH', activos: 'AT' };
+  app.innerHTML = shellMarkup(profile, `<section class="workspace-panel notification-history-workspace">
+    <button class="back-button" id="back-portal" type="button">← Volver a mi dashboard</button>
+    <div class="account-heading"><div><span class="nav-icon notification-history-icon" aria-hidden="true">${ICONS.bell}</span></div><div><p class="section-label">Historial</p><h1>Notificaciones</h1><p class="panel-copy">Consulta el historial de notificaciones que has recibido.</p></div></div>
+    <div id="notification-history-list" class="notification-history-list"><p class="notification-empty">Cargando historial…</p></div>
+    <div id="notification-history-actions" class="notification-history-actions" hidden><button class="secondary-button" id="notification-history-more" type="button">Cargar más</button></div>
+  </section>`);
+  bindShell(profile);
+  document.querySelector('#back-portal').addEventListener('click', () => renderPortal(profile));
+  document.querySelector('#core-notifications-history-button')?.classList.add('active');
+  document.querySelector('#home-button')?.classList.remove('active');
+  let cursor = null;
+  const container = document.querySelector('#notification-history-list');
+  const actionsWrap = document.querySelector('#notification-history-actions');
+  const loadPage = async () => {
+    try {
+      const url = cursor ? `/api/portal/v1/notifications/history?before=${cursor}&limit=30` : '/api/portal/v1/notifications/history?limit=30';
+      const result = await api(url);
+      if (!result.items.length && !cursor) {
+        container.innerHTML = '<p class="notification-empty">No hay notificaciones en el historial todavía.</p>';
+        return;
+      }
+      const html = result.items.map((item) => {
+        const icon = MODULE_ICON[item.module_code] || 'TK';
+        const reqId = (String(item.id || '').match(/^rh-requisition-(?:pending|decision)-(\d+)/) || [])[1] || (item.metadata?.requisition_id) || '';
+        const dateStr = item.archived_at ? new Date(item.archived_at).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        return `<div class="notification-item notification-history-item${reqId ? ' notification-clickable' : ''}"${reqId ? ` data-requisition-id="${escapeHtml(reqId)}" tabindex="0" role="button"` : ''}><span class="personal-icon">${icon}</span><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.message || '')}</small></span><time class="notification-history-date">${escapeHtml(dateStr)}</time></div>`;
+      }).join('');
+      if (cursor) container.insertAdjacentHTML('beforeend', html);
+      else container.innerHTML = html;
+      if (result.has_more) {
+        cursor = result.items.at(-1).cursor;
+        actionsWrap.hidden = false;
+      } else {
+        actionsWrap.hidden = true;
+      }
+    } catch {
+      if (!cursor) container.innerHTML = '<p class="notification-empty">No fue posible cargar el historial.</p>';
+    }
+  };
+  container.addEventListener('click', (event) => {
+    const item = event.target.closest('[data-requisition-id]');
+    if (item) openRequisitionDetail(item.dataset.requisitionId, profile);
+  });
+  document.querySelector('#notification-history-more')?.addEventListener('click', loadPage);
+  void loadPage();
 }
 
 function renderAccount(profile, { required = false } = {}) {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authRequired } from '../auth/shared.js';
 import { fetchAssetNotifications, fetchTicketNotifications, fetchLegalNotifications, fetchRhNotifications } from './notificationSources.js';
 import { dismissKeyFor, dismissNotifications, fetchDismissedKeys } from './notificationDismissals.js';
+import { archiveNotifications, listNotificationHistory } from './notificationHistory.js';
 
 export const notificationRouter = Router();
 
@@ -54,8 +55,23 @@ notificationRouter.post('/notifications/dismiss', authRequired, async (req, res,
     if (!items.length) {
       return res.status(400).json({ error: 'Indica al menos una notificación a descartar' });
     }
-    const dismissedCount = await dismissNotifications(req.user.id, items);
+    const [dismissedCount] = await Promise.all([
+      dismissNotifications(req.user.id, items),
+      archiveNotifications(req.user.id, items),
+    ]);
     return res.json({ dismissed: dismissedCount });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+notificationRouter.get('/notifications/history', authRequired, async (req, res, next) => {
+  try {
+    const result = await listNotificationHistory(req.user.id, {
+      before: req.query.before,
+      limit: req.query.limit,
+    });
+    return res.json(result);
   } catch (error) {
     return next(error);
   }

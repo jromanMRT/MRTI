@@ -370,7 +370,7 @@ empresa y poder diagnosticarlo con rapidez.
 - [ ] Estandarizar `GET /api/health` para que declare versión/commit y estado
   de dependencias propias, sin incluir secretos.
 - [ ] Añadir endpoint o archivo de versión para cada frontend publicado.
-- [-] 2026-10-14 — Configurar Nginx con `X-Request-Id` y comprobar que Core, módulos y
+- [-] 2026-10-14 — Propagar `X-Request-Id` en Tickets y comprobar que Nginx, Core y módulos lo registren en logs JSON.
   Tickets lo propagan a sus logs JSON.
 - [ ] Centralizar o retener de forma controlada logs de Nginx, PM2, Docker y
   systemd; definir rotación para evitar llenar el disco.
@@ -402,13 +402,13 @@ manuales opacos ni de secretos impresos por herramientas.
 
 ### Tareas
 
-- [ ] Inventariar cada variable por módulo: nombre, dueño, entorno, si es
+- [x] 2026-10-14 — Inventariar cada variable por módulo: nombre, dueño, entorno, si es
   secreto, consumidor y procedimiento de cambio. No registrar su valor.
 - [ ] Elegir un almacén de secretos con control de acceso y auditoría; empezar
   con un módulo piloto.
 - [ ] Sustituir `.env` copiados manualmente por inyección en runtime; las
   plantillas versionadas sólo contienen nombres y valores ficticios seguros.
-- [ ] Añadir preflight que falle si falta una variable obligatoria, sin mostrar
+- [x] 2026-10-14 — Añadir preflight reutilizable que falle si falta una variable obligatoria, sin mostrar
   el valor.
 - [ ] Definir backups: base, adjuntos, volúmenes Docker, configuración de
   Nginx, unidades systemd, definiciones PM2 e imágenes/digests necesarios
