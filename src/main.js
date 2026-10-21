@@ -624,12 +624,8 @@ function shellMarkup(profile, content) {
       </div>
     </aside>
     <div class="portal-workspace">
-      <header class="topbar">
+      <header class="topbar mrti-global-header">
         <button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-label="Abrir navegación" aria-expanded="false" aria-controls="portal-sidebar">${ICONS.menu}</button>
-        <a href="/" class="portal-topbar-brand" aria-label="Ir al home">
-          <span class="portal-topbar-brand-mark"><img src="${escapeHtml(brandAppearance.portal_logo.content_url || '/company-logo.svg')}" alt=""></span>
-          <span class="portal-topbar-brand-copy"><strong><span>MRTI</span><span class="brand-module">Core</span></strong><small>Minera Río Tinto</small></span>
-        </a>
         ${moduleSwitcherMarkup(profile)}
         <div class="topbar-actions">
           <div class="notification-center">
