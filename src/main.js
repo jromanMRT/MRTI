@@ -606,7 +606,7 @@ function setHomeStat(id, value, detail, state = '') {
 }
 
 function shellMarkup(profile, content) {
-  const collapsed = localStorage.getItem('mrti_core_sidebar_collapsed') === '1';
+  const collapsed = localStorage.getItem('mrti_sidebar_collapsed') === '1';
   return `<div class="page-shell${collapsed ? ' sidebar-collapsed' : ''}">
     <div class="ambient-layer" aria-hidden="true"><div class="ambient ambient-one"></div><div class="ambient ambient-two"></div></div>
     <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Cerrar navegación" tabindex="-1"></button>
@@ -690,7 +690,7 @@ function bindShell(profile) {
   });
   document.querySelector('#sidebar-collapse')?.addEventListener('click', () => {
     const collapsed = shell?.classList.toggle('sidebar-collapsed') || false;
-    localStorage.setItem('mrti_core_sidebar_collapsed', collapsed ? '1' : '0');
+    localStorage.setItem('mrti_sidebar_collapsed', collapsed ? '1' : '0');
     const button = document.querySelector('#sidebar-collapse');
     button.innerHTML = collapsed ? ICONS.chevRight : ICONS.chevLeft;
     button.setAttribute('aria-label', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
