@@ -504,6 +504,19 @@ function applyTheme(theme) {
   document.querySelector('#theme-toggle')?.setAttribute('aria-pressed', String(theme === 'dark'));
 }
 
+// Una página restaurada o ya abierta debe recuperar la preferencia más reciente.
+function syncSidebarPreference() {
+  const collapsed = localStorage.getItem('mrti_sidebar_collapsed') === '1';
+  document.querySelector('.page-shell')?.classList.toggle('sidebar-collapsed', collapsed);
+  const button = document.querySelector('#sidebar-collapse');
+  if (!button) return;
+  button.innerHTML = collapsed ? ICONS.chevRight : ICONS.chevLeft;
+  button.setAttribute('aria-label', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
+  button.setAttribute('title', collapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral');
+}
+for (const event of ['storage', 'focus', 'pageshow']) window.addEventListener(event, syncSidebarPreference);
+document.addEventListener('visibilitychange', syncSidebarPreference);
+
 window.addEventListener('storage', (event) => {
   if (event.key !== THEME_KEY) return;
   applyTheme(event.newValue === 'light' || event.newValue === 'dark' ? event.newValue : preferredTheme());
