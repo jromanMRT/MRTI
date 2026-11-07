@@ -64,4 +64,4 @@ export const GOOGLE_SSO_ENABLED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECR
 export const GOOGLE_ALLOWED_DOMAIN = process.env.GOOGLE_ALLOWED_DOMAIN || '';
 export const GOOGLE_JIT_ENABLED = String(process.env.GOOGLE_JIT_PROVISIONING || 'false').toLowerCase() === 'true';
 export const PUBLIC_REGISTRATION_ENABLED =
-  String(process.env.ALLOW_PUBLIC_REGISTRATION || 'true').toLowerCase() === 'true';
+  String(process.env.ALLOW_PUBLIC_REGISTRATION || 'false').toLowerCase() === 'true';

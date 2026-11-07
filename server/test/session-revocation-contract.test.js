@@ -11,6 +11,7 @@ import { tokenHash } from '../src/auth/sessionSecurity.js';
 const base = process.env.CONTRACT_TEST_URL || `http://127.0.0.1:${process.env.PORT || 3005}`;
 test('published auth revokes logout, password reset and deactivated sessions without reviving them', async () => {
   const id = randomUUID();
+  const adminId = randomUUID();
   const email = `security-${id}@contract.test`;
   const originalPassword = `Original-${randomUUID()}`;
   const replacement = `Replacement-${randomUUID()}`;
@@ -27,7 +28,10 @@ test('published auth revokes logout, password reset and deactivated sessions wit
   }
   try {
     await pool.query('INSERT INTO user_profiles (id,email,password_hash,full_name,role,is_active) VALUES (?,?,?,?,?,1)',
-      [id, email, await bcrypt.hash(originalPassword, 10), 'Security disposable fixture', 'administrator']);
+      [id, email, await bcrypt.hash(originalPassword, 10), 'Security disposable fixture', 'viewer']);
+    await pool.query('INSERT INTO user_profiles (id,email,full_name,role,is_active) VALUES (?,?,?,?,1)',
+      [adminId, `security-admin-${adminId}@contract.test`, 'Security disposable administrator', 'administrator']);
+    const adminToken = jwt.sign({ sub: adminId }, JWT_SECRET, { expiresIn: '10m' });
     const legacy = jwt.sign({ sub: id }, JWT_SECRET, { expiresIn: '10m' }); tokens.push(legacy);
     assert.equal((await request('/identity', legacy)).status, 200);
     const first = await login(originalPassword);
@@ -42,17 +46,17 @@ test('published auth revokes logout, password reset and deactivated sessions wit
     for (const old of [first, second, legacy]) assert.equal((await request('/identity', old)).status, 401);
     assert.equal((await request('/identity', renewed)).status, 200);
     const reset = `Reset-${randomUUID()}`;
-    assert.equal((await request(`/users/${id}`, renewed, 'PATCH', { password: reset })).status, 200);
+    assert.equal((await request(`/users/${id}`, adminToken, 'PATCH', { password: reset })).status, 200);
     assert.equal((await request('/identity', renewed)).status, 401);
     const afterReset = await login(reset);
-    assert.equal((await request(`/users/${id}`, afterReset, 'PATCH', { is_active: false })).status, 200);
+    assert.equal((await request(`/users/${id}`, adminToken, 'PATCH', { is_active: false })).status, 200);
     assert.equal((await request('/identity', afterReset)).status, 401);
     await pool.query('UPDATE user_profiles SET is_active = 1 WHERE id = ?', [id]);
     assert.equal((await request('/identity', afterReset)).status, 401);
   } finally {
     for (const token of tokens) await pool.query('DELETE FROM revoked_session_tokens WHERE token_hash = ?', [tokenHash(token)]);
-    await pool.query('DELETE FROM audit_events WHERE actor_user_id = ? OR actor_email = ? OR entity_id = ?', [id, email, id]);
-    await pool.query('DELETE FROM user_profiles WHERE id = ?', [id]);
+    await pool.query('DELETE FROM audit_events WHERE actor_user_id IN (?, ?) OR actor_email = ? OR entity_id = ?', [id, adminId, email, id]);
+    await pool.query('DELETE FROM user_profiles WHERE id IN (?, ?)', [id, adminId]);
     await pool.end();
   }
 });
