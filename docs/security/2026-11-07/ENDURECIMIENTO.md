@@ -17,7 +17,7 @@ Se corrigieron las vías de acceso anónimo de Agent, la correlación/vinculaci�
 | Comprobación | Resultado |
 |---|---|
 | npm audit, 20 árboles revisados | 0 avisos conocidos; ver audit-final-summary.json |
-| Tickets dentro del contenedor publicado, npm audit --omit=dev | 0 avisos |
+| Tickets dentro del contenedor publicado y snapshot backend de RH, npm audit --omit=dev | 0 avisos |
 | Core | 106 pruebas aprobadas, 2 omitidas, 0 fallos |
 | Revocación por Nginx con cuentas desechables | logout, cambio propio, reset administrativo y desactivar/reactivar correctos; fixtures eliminados |
 | Agent Node | 12/12 aprobadas |
@@ -37,7 +37,7 @@ Los logs completos, auditorías JSON y respaldos están en `/var/www/mrt/MRTI/ru
 
 - Core: frontend `20261107-155210-a64fc57`, backend PM2 con commits a64fc57 y b2ed146.
 - Obs: frontend `20261107-155610-ce8ea80`.
-- RH: frontend `20261107-155646-8953419`, construido desde el código que estaba publicado (e95d75a) más las dependencias corregidas. El backend de RH conserva su checkout en run/rh-publication-20261105/source/server. El repositorio principal registra la actualización equivalente en b9dfad4.
+- RH: frontend `20261107-155646-8953419`, construido desde el código que estaba publicado (e95d75a) más las dependencias corregidas. El backend de RH conserva su checkout en run/rh-publication-20261105/source/server. Se sincronizó su manifiesto/lockfile con las bibliotecas corregidas que ya utilizaba mediante node_modules compartido (commit bb79920): el registro anterior producía 8 avisos obsoletos, el final produce 0 y npm ls valida el árbol instalado. No cambió el código funcional ni las bibliotecas en disco; sus fechas preceden al arranque del proceso. Pruebas de autorización de ese snapshot y salud publicada aprobadas. El repositorio principal registra la actualización equivalente en b9dfad4.
 - Agent: monitor reemplazado atómicamente y reiniciado mediante SIGTERM al proceso de la propia cuenta, con reinicio normal por systemd. SHA256 en monitor-final-sha256.txt. Node reiniciado en PM2.
 - Tickets y Web-Page: imágenes reconstruidas y contenedores recreados sin tocar bases ni volúmenes.
 - Admin, Activos, Legal, SAP y Mantenimiento: herramientas de construcción actualizadas, compiladas y registradas en sus repositorios; no se necesitó publicar sus frontends por estos cambios de herramientas.
@@ -58,7 +58,7 @@ Se preservaron los cambios de trabajo ajenos. En Core se incorporaron los prerre
 Preferir una corrección hacia adelante: volver al código antiguo reabre las vulnerabilidades y puede dejar de aplicar las revocaciones.
 
 - **Core backend:** restaurar sólo los archivos afectados desde `run/security-hardening-20261107/before/MRTI`, reiniciar mrti-core-api. Conservar session_version/revoked_session_tokens y datos de Google; no borrar tablas. **Frontend:** `node scripts/mrti-platform/release.mjs promote 20261025-000247-30a62cd` desde MRTI.
-- **Obs frontend:** promover `20261025-000247-72fa2cb`. **RH frontend:** promover `20261105-153104-e95d75a`. Se conservaron los assets anteriores para pestañas abiertas.
+- **Obs frontend:** promover `20261025-000247-72fa2cb`. **RH frontend:** promover `20261105-153104-e95d75a`. Se conservaron los assets anteriores para pestañas abiertas. Los manifiestos anteriores del backend RH están respaldados en `run/security-hardening-20261107/rh-runtime-before`; restaurarlos sólo revierte metadata y no instala librerías antiguas.
 - **Agent:** copiar mrti-monitor.before a un archivo nuevo junto al binario, modo 755 y renombrar atómicamente a `/var/www/mrt/MRTI/bin/mrti-monitor`; enviar SIGTERM al MainPID propio para que systemd reinicie. Node: restaurar app.js del respaldo y reiniciar mrti-agent-core-api. No cambiar llaves.
 - **Tickets:** retag de `mrti-tickets-backend-1:security-before-20261107` a `mrti-tickets-backend:latest` y de `mrti-tickets-frontend-1:security-before-20261107` a `mrti-tickets-frontend:latest`, seguido de `docker compose up -d --no-build --no-deps backend frontend` desde MRTI-Tickets. Mantener .env y volúmenes.
 - **Web-Page:** retag `mrti-web-page:security-before-20261107` a `mrti-web-page:local`, ejecutar `docker compose up -d --no-build --no-deps web` desde Web-Page. Conservar la tabla login_attempt_limits (aditiva, compatible).

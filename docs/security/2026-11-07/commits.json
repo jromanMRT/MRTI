@@ -10,5 +10,7 @@
   "MRTI-Agent": "30b25e921be9504ba33a452cc4c00de077505bca",
   "MRTI-Tickets": "6f63a4e0ef6261b0d8d8a1870b8b63d64b776df1",
   "MRTI-Platform": "a62994e7b678557044998a361b0fc11755997918",
-  "Web-Page": "bf78e15db34ad3a666a885682f0d72d2c99c92cc"
+  "Web-Page": "bf78e15db34ad3a666a885682f0d72d2c99c92cc",
+  "RH published frontend snapshot": "8953419",
+  "RH published backend snapshot": "bb79920"
 }

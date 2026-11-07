@@ -1,0 +1,22 @@
+TAP version 13
+# [mrti-rh-api] MRTI_CORE_URL no está definida; validando sesiones contra MRTI_INFRA_URL (ruta obsoleta).
+# {"ts":"2026-11-07T22:05:27.390Z","svc":"mrti-rh-api","evt":"legacy_auth_fallback","rid":null,"target":"http://127.0.0.1:3002","route":"/api/auth/module-access/activos","count":1}
+# Subtest: valida el módulo solicitado y conserva 403 de Core
+ok 1 - valida el módulo solicitado y conserva 403 de Core
+  ---
+  duration_ms: 2.321597
+  ...
+# Subtest: una autoridad no disponible se presenta como 503
+ok 2 - una autoridad no disponible se presenta como 503
+  ---
+  duration_ms: 0.344904
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 104.309103

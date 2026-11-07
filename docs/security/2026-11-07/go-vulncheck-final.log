@@ -1,0 +1,72 @@
+Fetching vulnerabilities from the database...
+
+Checking the code against the vulnerabilities...
+
+The package pattern matched the following 32 root packages:
+  github.com/jromanMRT/mrti-agent/internal/config
+  github.com/jromanMRT/mrti-agent/internal/model
+  github.com/jromanMRT/mrti-agent/internal/alerts
+  github.com/jromanMRT/mrti-agent/internal/auth
+  github.com/jromanMRT/mrti-agent/internal/cache
+  github.com/jromanMRT/mrti-agent/proto/collectorpb
+  github.com/jromanMRT/mrti-agent/internal/pluginhost/shared
+  github.com/jromanMRT/mrti-agent/modules
+  github.com/jromanMRT/mrti-agent/internal/pluginhost
+  github.com/jromanMRT/mrti-agent/internal/scripts
+  github.com/jromanMRT/mrti-agent/internal/transport
+  github.com/jromanMRT/mrti-agent/internal/updater
+  github.com/jromanMRT/mrti-agent/modules/cpu
+  github.com/jromanMRT/mrti-agent/modules/disk
+  github.com/jromanMRT/mrti-agent/modules/docker
+  github.com/jromanMRT/mrti-agent/modules/eventlogs
+  github.com/jromanMRT/mrti-agent/modules/inventory
+  github.com/jromanMRT/mrti-agent/modules/network
+  github.com/jromanMRT/mrti-agent/modules/processes
+  github.com/jromanMRT/mrti-agent/modules/ram
+  github.com/jromanMRT/mrti-agent/modules/services
+  github.com/jromanMRT/mrti-agent/modules/snmp
+  github.com/jromanMRT/mrti-agent/modules/software
+  github.com/jromanMRT/mrti-agent/modules/system
+  github.com/jromanMRT/mrti-agent/modules/temperature
+  github.com/jromanMRT/mrti-agent/modules/ups
+  github.com/jromanMRT/mrti-agent/modules/virtualization
+  github.com/jromanMRT/mrti-agent/internal/agent
+  github.com/jromanMRT/mrti-agent/internal/logging
+  github.com/jromanMRT/mrti-agent/cmd/mrti-agent
+  github.com/jromanMRT/mrti-agent/cmd/mrti-monitor
+  github.com/jromanMRT/mrti-agent/plugins/example-ping
+Govulncheck scanned the following 32 modules and the go1.26.10 standard library:
+  github.com/jromanMRT/mrti-agent
+  github.com/coder/websocket@v1.8.15
+  github.com/dustin/go-humanize@v1.0.1
+  github.com/eclipse/paho.mqtt.golang@v1.5.1
+  github.com/fatih/color@v1.13.0
+  github.com/golang/protobuf@v1.5.4
+  github.com/google/uuid@v1.6.0
+  github.com/gorilla/websocket@v1.5.3
+  github.com/gosnmp/gosnmp@v1.43.2
+  github.com/hashicorp/go-hclog@v1.6.3
+  github.com/hashicorp/go-plugin@v1.8.0
+  github.com/hashicorp/yamux@v0.1.2
+  github.com/kardianos/service@v1.3.0
+  github.com/mattn/go-colorable@v0.1.12
+  github.com/mattn/go-isatty@v0.0.20
+  github.com/oklog/run@v1.1.0
+  github.com/remyoudompheng/bigfft@v0.0.0-20230129092748-24d4a6f8daec
+  github.com/shirou/gopsutil/v4@v4.26.6
+  github.com/tklauser/go-sysconf@v0.3.16
+  github.com/tklauser/numcpus@v0.11.0
+  golang.org/x/net@v0.62.0
+  golang.org/x/sync@v0.24.0
+  golang.org/x/sys@v0.49.0
+  golang.org/x/text@v0.43.0
+  google.golang.org/genproto/googleapis/rpc@v0.0.0-20260526163538-3dc84a4a5aaa
+  google.golang.org/grpc@v1.83.2
+  google.golang.org/protobuf@v1.36.11
+  gopkg.in/yaml.v3@v3.0.1
+  modernc.org/libc@v1.73.4
+  modernc.org/mathutil@v1.7.1
+  modernc.org/memory@v1.11.0
+  modernc.org/sqlite@v1.53.0
+
+No vulnerabilities found.
