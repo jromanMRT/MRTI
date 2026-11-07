@@ -166,8 +166,10 @@ userAdminRouter.patch('/users/:id', authRequired, async (req, res, next) => {
     }
 
     const columns = Object.keys(updates);
+    const revokeSessions = Boolean(updates.password_hash) || updates.is_active === false || (updates.email && updates.email !== target.email);
+    const sessionUpdate = revokeSessions ? ', session_version = session_version + 1' : '';
     await pool.query(
-      `UPDATE user_profiles SET ${columns.map((column) => `\`${column}\` = ?`).join(', ')} WHERE id = ?`,
+      `UPDATE user_profiles SET ${columns.map((column) => `\`${column}\` = ?`).join(', ')}${sessionUpdate} WHERE id = ?`,
       [...columns.map((column) => updates[column]), target.id]
     );
     await recordAudit({ req, action: 'user.updated', entityType: 'user', entityId: target.id, metadata: { fields: columns } });

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { authRouter, authRequired } from './auth.js';
 import { pool } from './db.js';
 import { validateCorsOrigin } from './config/security.js';
@@ -22,7 +23,7 @@ app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
 app.use(requestContext({ service: 'mrti-core-api' }));
 app.use(helmet({
-  strictTransportSecurity: false,
+  strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true },
   crossOriginResourcePolicy: { policy: 'same-site' },
   contentSecurityPolicy: {
     directives: {
@@ -36,13 +37,20 @@ app.use(helmet({
 }));
 app.use(cors({ origin: validateCorsOrigin }));
 app.use(express.json({ limit: '1mb' }));
+app.use('/api/', rateLimit({
+  windowMs: 60_000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.ip === '127.0.0.1' || req.ip === '::1',
+}));
 
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, database: 'mysql' });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: 'Sin conexión a MySQL' });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false });
   }
 });
 
@@ -66,9 +74,16 @@ app.get('/api/auth/_whoami', authRequired, (req, res) => {
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: err.message || 'Error interno del servidor' });
+  const message = status >= 500 ? 'Error interno del servidor' : (err.message || 'Error interno del servidor');
+  res.status(status).json({ error: message });
 });
 
-app.listen(PORT, () => {
-  console.log(`MRTI Core (auth) escuchando en http://localhost:${PORT}`);
+const DOCKER_BRIDGES = ['172.17.0.1', '172.22.0.1'];
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`MRTI Core (auth) escuchando en http://127.0.0.1:${PORT}`);
 });
+for (const ip of DOCKER_BRIDGES) {
+  app.listen(PORT, ip, () => {
+    console.log(`MRTI Core (auth) escuchando en http://${ip}:${PORT}`);
+  });
+}

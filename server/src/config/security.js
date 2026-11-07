@@ -55,6 +55,13 @@ export function validateCorsOrigin(origin, callback) {
   callback(error);
 }
 
-export const PASSWORD_MIN_LENGTH = 6;
+export const PASSWORD_MIN_LENGTH = 10;
+
+export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+export const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3005/api/auth/google/callback';
+export const GOOGLE_SSO_ENABLED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
+export const GOOGLE_ALLOWED_DOMAIN = process.env.GOOGLE_ALLOWED_DOMAIN || '';
+export const GOOGLE_JIT_ENABLED = String(process.env.GOOGLE_JIT_PROVISIONING || 'false').toLowerCase() === 'true';
 export const PUBLIC_REGISTRATION_ENABLED =
   String(process.env.ALLOW_PUBLIC_REGISTRATION || 'true').toLowerCase() === 'true';

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
-import { authRequired, findProfile } from './shared.js';
+import { authRequired, findProfile, signToken } from './shared.js';
 import { PASSWORD_MIN_LENGTH } from '../config/security.js';
 import { recordAudit } from '../audit.js';
 
@@ -68,10 +68,11 @@ profileRouter.patch('/profile/password', authRequired, async (req, res, next) =>
       [req.user.id]
     );
     if (!rows[0]) return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
-    // En el primer inicio con contraseña temporal la persona acaba de
-    // escribirla para entrar: no se vuelve a pedir. Fuera de ese caso sigue
-    // siendo obligatoria para que una sesión abierta no baste para cambiarla.
-    if (rows[0].password_change_required) {
+    // Usuarios SSO-only que nunca han tenido contraseña: se permite establecerla
+    // sin exigir la contraseña actual (no tienen una).
+    if (!rows[0].password_hash) {
+      // noop — skip current password check, just set the new one below
+    } else if (rows[0].password_change_required) {
       if (await bcrypt.compare(newPassword, rows[0].password_hash)) {
         return res.status(400).json({ error: 'La nueva contraseña debe ser distinta de la temporal' });
       }
@@ -83,12 +84,13 @@ profileRouter.patch('/profile/password', authRequired, async (req, res, next) =>
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await pool.query(
-      'UPDATE user_profiles SET password_hash = ?, password_change_required = 0 WHERE id = ?',
-      [passwordHash, req.user.id]
+    const [updated] = await pool.query(
+      'UPDATE user_profiles SET password_hash = ?, password_change_required = 0, session_version = session_version + 1 WHERE id = ? AND session_version = ?',
+      [passwordHash, req.user.id, req.user.session_version]
     );
+    if (!updated.affectedRows) return res.status(409).json({ error: 'La sesión cambió; inicia sesión nuevamente' });
     await recordAudit({ req, action: 'profile.password_changed', entityType: 'user', entityId: req.user.id });
-    res.json({ ok: true });
+    res.set('Cache-Control', 'no-store').json({ ok: true, token: signToken(req.user.id, Number(req.user.session_version) + 1) });
   } catch (err) {
     next(err);
   }

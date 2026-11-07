@@ -1,6 +1,7 @@
 import { permissionFor, levelAllows } from '../vendor/mrti-platform/permissions.js';
 import { createHash, randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
+import { sessionIsCurrent } from '../auth/sessionSecurity.js';
 import express, { Router } from 'express';
 import { pool } from '../db.js';
 import { authRequired, findProfileIdentity } from '../auth/shared.js';
@@ -108,15 +109,15 @@ async function canManageNews(req) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return false;
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     const profile = await findProfileIdentity(payload.sub);
-    return Boolean(profile?.is_active) && levelAllows(permissionFor(profile, 'rh', 'news'), 'GET');
+    return await sessionIsCurrent(token, payload, profile) && levelAllows(permissionFor(profile, 'rh', 'news'), 'GET');
   } catch {
     return false;
   }
 }
 
-// Público a propósito: la portada muestra noticias antes de iniciar sesión.
+// Público: noticias corporativas visibles sin sesión (no contiene datos sensibles).
 companyNewsRouter.get('/company-news', async (req, res, next) => {
   try {
     const includeManagementInfo = await canManageNews(req);
@@ -141,7 +142,6 @@ companyNewsRouter.get('/company-news', async (req, res, next) => {
   }
 });
 
-// Público a propósito: la página de detalle de un aviso no requiere sesión.
 companyNewsRouter.get('/company-news/:id', async (req, res, next) => {
   try {
     const includeManagementInfo = await canManageNews(req);

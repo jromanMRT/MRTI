@@ -1,4 +1,6 @@
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
+import { sessionIsCurrent } from './sessionSecurity.js';
 import { attachAccessPolicy } from './accessPolicy.js';
 import { pool } from '../db.js';
 import { JWT_SECRET } from '../config/security.js';
@@ -42,7 +44,7 @@ export function normalizeProfile(profile) {
 export async function findProfileIdentity(userId) {
   const [rows] = await pool.query(
     `SELECT p.id, p.user_number, p.email, p.full_name, p.role, p.access_area_id,
-            p.physical_area_id, p.avatar_url, p.is_active, p.created_at, p.updated_at,
+            p.physical_area_id, p.avatar_url, p.is_active, p.created_at, p.updated_at, p.session_version,
             a.name AS access_area_name
        FROM user_profiles p
        LEFT JOIN access_areas a ON a.id = p.access_area_id AND a.is_active = 1
@@ -87,8 +89,8 @@ export async function findProfile(userId, authorizationHeader) {
   return profile;
 }
 
-export function signToken(userId) {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: TOKEN_TTL });
+export function signToken(userId, sessionVersion = 0) {
+  return jwt.sign({ sub: userId, sv: Number(sessionVersion), jti: randomUUID() }, JWT_SECRET, { algorithm: 'HS256', expiresIn: TOKEN_TTL });
 }
 
 // Requiere JWT válido y una cuenta activa; adjunta el perfil a req.user.
@@ -98,17 +100,24 @@ export async function authRequired(req, res, next) {
   if (!token) return res.status(401).json({ error: 'No autenticado' });
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     const profile = await findProfileIdentity(payload.sub);
-    if (!profile || !profile.is_active) {
+    if (!await sessionIsCurrent(token, payload, profile)) {
       return res.status(401).json({ error: 'Usuario inválido o inactivo' });
     }
     req.user = profile;
+    req.sessionToken = token;
+    req.sessionClaims = payload;
     next();
   } catch (error) {
     if (!['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) return res.status(503).json({ error: 'No se pudo validar la identidad y los permisos' });
     return res.status(401).json({ error: 'Sesión inválida o expirada' });
   }
+}
+
+export function administratorOnly(req, res, next) {
+  if (req.user?.role === 'administrator') return next();
+  return res.status(403).json({ error: 'Solo un administrador puede realizar esta acción' });
 }
 
 export function moduleAccessRequired(moduleCode) {

@@ -6,6 +6,7 @@ import { accessControlRouter } from './auth/accessControlRoutes.js';
 import { ticketContextRouter } from './auth/ticketContextRoutes.js';
 import { provisioningRouter } from './auth/provisioningRoutes.js';
 import { personalizationRouter } from './auth/personalizationRoutes.js';
+import { googleRouter } from './auth/googleRoutes.js';
 
 // Composición del módulo de identidad:
 // sesiones públicas, cuenta personal y administración de usuarios.
@@ -13,6 +14,7 @@ import { accessPolicyRouter } from './auth/accessPolicyRoutes.js';
 
 export const authRouter = Router();
 authRouter.use(accessPolicyRouter);
+authRouter.use(googleRouter);
 authRouter.use(sessionRouter);
 authRouter.use(profileRouter);
 authRouter.use(userAdminRouter);

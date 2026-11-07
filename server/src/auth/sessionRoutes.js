@@ -7,6 +7,7 @@ import { findProfile, signToken } from './shared.js';
 import { PASSWORD_MIN_LENGTH } from '../config/security.js';
 import { authRequired } from './shared.js';
 import { recordAudit } from '../audit.js';
+import { revokeToken } from './sessionSecurity.js';
 
 export const sessionRouter = Router();
 
@@ -99,7 +100,7 @@ sessionRouter.post('/login', loginLimiter, async (req, res, next) => {
       [normalizedEmail]
     );
     const user = rows[0];
-    const valid = user && (await bcrypt.compare(String(password), user.password_hash));
+    const valid = user && user.password_hash && (await bcrypt.compare(String(password), user.password_hash));
     if (!valid) {
       await recordAudit({ req, actor: { email: normalizedEmail }, action: 'session.login_failed', entityType: 'session', metadata: { reason: 'invalid_credentials' } });
       return res.status(401).json({ error: 'Credenciales incorrectas' });
@@ -109,7 +110,7 @@ sessionRouter.post('/login', loginLimiter, async (req, res, next) => {
       return res.status(403).json({ error: 'La cuenta está desactivada' });
     }
 
-    const token = signToken(user.id);
+    const token = signToken(user.id, user.session_version);
     await Promise.all([
       recordAudit({ req, actor: user, action: 'session.login_succeeded', entityType: 'session', entityId: user.id }),
       pool.query('UPDATE user_profiles SET last_login_at = NOW() WHERE id = ?', [user.id]).catch(() => {}),
@@ -122,7 +123,10 @@ sessionRouter.post('/login', loginLimiter, async (req, res, next) => {
   }
 });
 
-sessionRouter.post('/logout', authRequired, async (req, res) => {
-  await recordAudit({ req, action: 'session.logout', entityType: 'session', entityId: req.user.id });
-  res.status(204).end();
+sessionRouter.post('/logout', authRequired, async (req, res, next) => {
+  try {
+    await revokeToken(req.sessionToken, req.sessionClaims);
+    await recordAudit({ req, action: 'session.logout', entityType: 'session', entityId: req.user.id });
+    res.status(204).end();
+  } catch (error) { next(error); }
 });
