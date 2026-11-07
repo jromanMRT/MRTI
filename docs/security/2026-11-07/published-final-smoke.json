@@ -1,0 +1,50 @@
+[
+  {
+    "path": "/",
+    "status": 200
+  },
+  {
+    "path": "/mrti-obs/",
+    "status": 200
+  },
+  {
+    "path": "/rh/",
+    "status": 200
+  },
+  {
+    "path": "/activos/",
+    "status": 200
+  },
+  {
+    "path": "/compras/",
+    "status": 200
+  },
+  {
+    "path": "/mantenimiento/",
+    "status": 200
+  },
+  {
+    "path": "/mrti-legal/",
+    "status": 200
+  },
+  {
+    "path": "/tickets/",
+    "status": 200
+  },
+  {
+    "path": "/admin/",
+    "status": 200
+  },
+  {
+    "path": "/api/auth/identity",
+    "status": 401
+  },
+  {
+    "path": "/agent-core/metrics",
+    "status": 401
+  },
+  {
+    "path": "/tickets-api/api/health",
+    "status": 200
+  }
+]

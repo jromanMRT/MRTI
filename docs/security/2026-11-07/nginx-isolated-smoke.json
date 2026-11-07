@@ -1,0 +1,50 @@
+[
+  {
+    "path": "/",
+    "status": 200,
+    "nosniff": "nosniff",
+    "csp": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+  },
+  {
+    "path": "/mrti-obs/",
+    "status": 200,
+    "nosniff": "nosniff",
+    "csp": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+  },
+  {
+    "path": "/rh/",
+    "status": 200,
+    "nosniff": "nosniff",
+    "csp": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+  },
+  {
+    "path": "/tickets/",
+    "status": 200,
+    "nosniff": "nosniff",
+    "csp": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+  },
+  {
+    "path": "/.env",
+    "status": 404,
+    "nosniff": "nosniff",
+    "csp": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+  },
+  {
+    "path": "/activos/.env",
+    "status": 404,
+    "nosniff": "nosniff",
+    "csp": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+  },
+  {
+    "path": "/api/auth/identity",
+    "status": 401,
+    "nosniff": "nosniff",
+    "csp": "default-src 'self';base-uri 'self';font-src 'self' https://fonts.gstatic.com;form-action 'self';frame-ancestors 'self';img-src 'self' data: blob:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;upgrade-insecure-requests;connect-src 'self'"
+  },
+  {
+    "path": "/agent-core/metrics",
+    "status": 401,
+    "nosniff": "nosniff",
+    "csp": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+  }
+]

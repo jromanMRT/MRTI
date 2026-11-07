@@ -1,0 +1,26 @@
+[
+  {
+    "url": "http://127.0.0.1:8477/api/v1/agents/security-smoke-nonexistent/commands",
+    "status": 401
+  },
+  {
+    "url": "http://127.0.0.1:8477/metrics",
+    "status": 401
+  },
+  {
+    "url": "http://127.0.0.1:3007/api/v1/agents/security-smoke-nonexistent/commands",
+    "status": 503
+  },
+  {
+    "url": "http://127.0.0.1:3007/metrics",
+    "status": 401
+  },
+  {
+    "url": "http://127.0.0.1/agent-core/api/v1/agents/security-smoke-nonexistent/commands",
+    "status": 401
+  },
+  {
+    "url": "http://127.0.0.1/agent-core/metrics",
+    "status": 401
+  }
+]

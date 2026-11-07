@@ -1,0 +1,12 @@
+{
+  "ssoStart": 302,
+  "provider": "accounts.google.com",
+  "stateLength": 43,
+  "pkce": "S256",
+  "nonceLength": 43,
+  "httpOnly": true,
+  "secure": true,
+  "callbackWithoutBrowser": 302,
+  "noJwtInCallbackRedirect": true,
+  "publicMetrics": 401
+}
