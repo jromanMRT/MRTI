@@ -1860,7 +1860,10 @@ async function openSelfTicketDetail(profile, ticketId) {
   content.textContent = 'Cargando ticket…';
   if (!dialog.open) dialog.showModal();
   try {
-    const { data: ticket } = await api(`/tickets-api/api/tickets-self/me/${encodeURIComponent(ticketId)}`);
+    const [{ data: ticket }, { data: comments }] = await Promise.all([
+      api(`/tickets-api/api/tickets-self/me/${encodeURIComponent(ticketId)}`),
+      api(`/tickets-api/api/tickets-self/me/${encodeURIComponent(ticketId)}/comments`),
+    ]);
     const editMessage = ticket.editable
       ? `Puedes corregir el título y la descripción hasta ${ticketDateTime(ticket.editable_until)}.`
       : ticket.is_requester
@@ -1869,8 +1872,11 @@ async function openSelfTicketDetail(profile, ticketId) {
     const editableContent = ticket.editable
       ? `<form class="personal-form ticket-detail-form" id="ticket-detail-form"><label>Título<input name="title" maxlength="255" value="${escapeHtml(ticket.title)}" required></label><label>Descripción<textarea name="description" maxlength="10000" rows="7" placeholder="Sin descripción">${escapeHtml(ticket.description || '')}</textarea></label><div class="personal-form-message" id="ticket-detail-message" hidden></div><button class="personal-submit" type="submit">Guardar cambios</button></form>`
       : `<section class="ticket-description"><small>Descripción</small><p>${escapeHtml(ticket.description || 'Sin descripción capturada.')}</p></section>`;
+    const commentRows = comments.length ? comments.map((comment) => `<article class="ticket-public-comment"><header><strong>${escapeHtml(comment.author_name || 'Soporte')}</strong><time>${escapeHtml(ticketDateTime(comment.created_at))}</time></header><p>${escapeHtml(comment.content)}</p></article>`).join('') : '<p class="ticket-conversation-empty">Aún no hay respuestas públicas.</p>';
+    const canReply = !['CLOSED', 'CANCELLED'].includes(ticket.status_code);
+    const replyForm = canReply ? `<form class="ticket-reply-form" id="ticket-reply-form"><label for="ticket-reply-content">Responder en el ticket</label><textarea id="ticket-reply-content" name="content" rows="4" maxlength="5000" placeholder="Escribe información adicional o responde al equipo de atención…" required></textarea><div class="personal-form-message" id="ticket-reply-message" hidden></div><button class="personal-submit" type="submit">Enviar respuesta</button></form>` : '<p class="ticket-conversation-closed">La conversación está cerrada para este ticket.</p>';
     content.className = 'ticket-detail-content';
-    content.innerHTML = `<header><div><small>Detalle del ticket</small><h2 id="ticket-detail-title">${escapeHtml(ticket.folio)}</h2></div><button type="button" data-close-ticket-detail aria-label="Cerrar detalle">×</button></header><div class="ticket-detail-body"><h3>${escapeHtml(ticket.title)}</h3><dl class="ticket-detail-meta"><div><dt>Estatus</dt><dd><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></dd></div><div><dt>Área</dt><dd>${escapeHtml(ticket.business_area_name || 'Sin área')}</dd></div><div><dt>Categoría</dt><dd>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</dd></div><div><dt>Prioridad</dt><dd>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</dd></div><div><dt>Equipo afectado</dt><dd>${escapeHtml([ticket.affected_device_internal_id || ticket.asset_number, ticket.affected_device_name].filter(Boolean).join(' · ') || 'Sin equipo específico')}</dd></div><div><dt>Creado</dt><dd>${escapeHtml(ticketDateTime(ticket.created_at))}</dd></div><div><dt>Actualizado</dt><dd>${escapeHtml(ticketDateTime(ticket.updated_at))}</dd></div></dl><p class="ticket-edit-rule ${ticket.editable ? 'editable' : ''}">${escapeHtml(editMessage)}</p>${editableContent}</div>`;
+    content.innerHTML = `<header><div><small>Detalle del ticket</small><h2 id="ticket-detail-title">${escapeHtml(ticket.folio)}</h2></div><button type="button" data-close-ticket-detail aria-label="Cerrar detalle">×</button></header><div class="ticket-detail-body"><h3>${escapeHtml(ticket.title)}</h3><dl class="ticket-detail-meta"><div><dt>Estatus</dt><dd><span class="request-status ${TICKET_STATUS_CLASS[ticket.status_code] || 'pending'}">${escapeHtml(ticket.status_name || ticket.status_code)}</span></dd></div><div><dt>Área</dt><dd>${escapeHtml(ticket.business_area_name || 'Sin área')}</dd></div><div><dt>Categoría</dt><dd>${escapeHtml([ticket.category_name, ticket.subcategory_name].filter(Boolean).join(' · ') || 'Sin categoría')}</dd></div><div><dt>Prioridad</dt><dd>${escapeHtml(ticket.priority_name || ticket.priority_code || '—')}</dd></div><div><dt>Equipo afectado</dt><dd>${escapeHtml([ticket.affected_device_internal_id || ticket.asset_number, ticket.affected_device_name].filter(Boolean).join(' · ') || 'Sin equipo específico')}</dd></div><div><dt>Creado</dt><dd>${escapeHtml(ticketDateTime(ticket.created_at))}</dd></div><div><dt>Actualizado</dt><dd>${escapeHtml(ticketDateTime(ticket.updated_at))}</dd></div></dl><p class="ticket-edit-rule ${ticket.editable ? 'editable' : ''}">${escapeHtml(editMessage)}</p>${editableContent}<section class="ticket-conversation"><div class="ticket-conversation-title"><small>Conversación</small><strong>${comments.length} ${comments.length === 1 ? 'respuesta' : 'respuestas'}</strong></div><div class="ticket-comment-list">${commentRows}</div>${replyForm}</section></div>`;
     content.querySelector('[data-close-ticket-detail]').addEventListener('click', () => dialog.close());
     const form = content.querySelector('#ticket-detail-form');
     form?.addEventListener('submit', async (event) => {
@@ -1884,6 +1890,23 @@ async function openSelfTicketDetail(profile, ticketId) {
         await api(`/tickets-api/api/tickets-self/me/${encodeURIComponent(ticketId)}`, { method: 'PATCH', body: JSON.stringify({ title: values.get('title'), description: values.get('description') }) });
         dialog.close();
         await loadTicketsDashboard(profile, `${ticket.folio} se actualizó correctamente.`);
+      } catch (error) {
+        message.textContent = error.message;
+        message.hidden = false;
+        button.disabled = false;
+      }
+    });
+    const reply = content.querySelector('#ticket-reply-form');
+    reply?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const values = new FormData(reply);
+      const message = content.querySelector('#ticket-reply-message');
+      const button = reply.querySelector('button[type="submit"]');
+      button.disabled = true;
+      message.hidden = true;
+      try {
+        await api(`/tickets-api/api/tickets-self/me/${encodeURIComponent(ticketId)}/comments`, { method: 'POST', body: JSON.stringify({ content: values.get('content') }) });
+        await openSelfTicketDetail(profile, ticketId);
       } catch (error) {
         message.textContent = error.message;
         message.hidden = false;

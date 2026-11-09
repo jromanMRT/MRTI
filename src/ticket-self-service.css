@@ -54,6 +54,21 @@
 .ticket-description small { color: var(--gold-deep); font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .ticket-description p { margin: 9px 0 0; color: var(--ink); line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }
 .ticket-detail-form { margin-top: 0; }
+.ticket-conversation { display: grid; gap: 14px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.ticket-conversation-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ticket-conversation-title small { color: var(--gold-deep); font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ticket-conversation-title strong { color: var(--ink-faint); font-size: .7rem; }
+.ticket-comment-list { display: grid; gap: 9px; }
+.ticket-public-comment { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.ticket-public-comment header { display: flex; justify-content: space-between; gap: 12px; }
+.ticket-public-comment strong { color: var(--ink); font-size: .76rem; }
+.ticket-public-comment time { color: var(--ink-faint); font-size: .66rem; }
+.ticket-public-comment p { margin: 8px 0 0; color: var(--ink-soft); font-size: .78rem; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ticket-conversation-empty,
+.ticket-conversation-closed { margin: 0; padding: 12px; border-radius: 9px; color: var(--ink-faint); background: var(--surface-soft); font-size: .74rem; }
+.ticket-reply-form { display: grid; justify-items: end; gap: 9px; }
+.ticket-reply-form label { width: 100%; color: var(--ink-soft); font-size: .7rem; font-weight: 700; }
+.ticket-reply-form textarea { width: 100%; box-sizing: border-box; resize: vertical; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
 @media (max-width: 520px) {
