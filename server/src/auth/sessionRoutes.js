@@ -8,6 +8,7 @@ import { PASSWORD_MIN_LENGTH } from '../config/security.js';
 import { authRequired } from './shared.js';
 import { recordAudit } from '../audit.js';
 import { revokeToken } from './sessionSecurity.js';
+import { refreshLayerSnapshotQuietly } from './layerSnapshot.js';
 
 export const sessionRouter = Router();
 
@@ -114,6 +115,9 @@ sessionRouter.post('/login', loginLimiter, async (req, res, next) => {
     await Promise.all([
       recordAudit({ req, actor: user, action: 'session.login_succeeded', entityType: 'session', entityId: user.id }),
       pool.query('UPDATE user_profiles SET last_login_at = NOW() WHERE id = ?', [user.id]).catch(() => {}),
+      // Antes de componer el perfil, para que los módulos derivados de la capa
+      // organizacional ya estén aplicados en esta misma respuesta.
+      refreshLayerSnapshotQuietly(user.id, `Bearer ${token}`, { force: true }),
     ]);
     const profile = await findProfile(user.id, `Bearer ${token}`);
     profile.password_change_required = Boolean(user.password_change_required);

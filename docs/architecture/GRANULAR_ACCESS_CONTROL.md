@@ -85,3 +85,36 @@ Tickets usa las imágenes `mrti-tickets-backend:permissions-20261008` y `mrti-ti
 No borrar tablas/endpoints antiguos ni hacer push como parte de este rollback. Preservar los cambios ajenos en Core y Tickets.
 
 Para revertir sólo la ampliación de roles, primero reasignar cualquier cuenta que use `area_manager`, `data_entry`, `approver` o `auditor` a uno de los cuatro valores históricos; después promover `20261009-130302-f031500-dirty`, revertir `af4595f` y reiniciar Core. No reducir el `ENUM` mientras existan filas con un rol nuevo. La migración 025 puede conservarse aplicada durante un rollback de código porque es aditiva.
+
+## Permisos por capa organizacional — 2026-11-10 (Fase 2 del roadmap de permisos)
+
+### Qué agrega
+
+- Un tercer sujeto de política: `subject_type = 'layer'` con `subject_id` en `C-1`…`C-6`, en `access_policies` y `access_policy_events` (migración aditiva e idempotente **032**). Mismo editor, mismo motivo obligatorio, misma auditoría y control de revisión que roles y usuarios; `PUT /api/auth/permissions/admin/layer/C-3` ya es válido y `GET /api/auth/permissions/admin` devuelve `layers` y `layer_labels`.
+- La tabla `access_layer_snapshot` (`user_id`, `layer`, `position_id`, `position_name`, `synced_at`): **referencia, no maestro**, sin FK. RH es el único propietario de la capa del puesto (decisión 2026-11-09); Core nunca la calcula ni la edita.
+- RH publica `GET /api/rh-self/me/organizational-layer` (sólo datos propios, sesión válida) con `position_id`, `position_name`, `position_level` y `position_level_source`. Sin ficha vinculada responde el 404 `EMPLOYEE_NOT_LINKED` ya existente; sin puesto vigente responde capa `null`.
+
+### Orden de precedencia
+
+`nivel inicial del rol → política de la capa → política del rol → excepción de la cuenta`. La capa es un valor por defecto amplio: lo que un administrador configuró para un rol o para una cuenta concreta siempre prevalece, campo por campo y sección por sección (`combinePolicies`). El administrador global ignora todas las políticas, incluida la de capa. Una cuenta sin instantánea o con capa inválida se evalúa exactamente como antes de esta fase.
+
+### Cómo llega la capa a Core sin ciclos
+
+`authRequired` (`findProfileIdentity`) sigue leyendo sólo MySQL local: lee la instantánea y las políticas de rol, usuario y capa en una consulta. RH valida sesiones contra `/api/auth/me` y `/module-access`; por eso la instantánea **sólo** se refresca desde rutas que invoca el navegador: al iniciar sesión (contraseña y Google, con el token recién emitido y antes de componer el perfil, para que la respuesta del login ya traiga los módulos derivados) y en `GET /api/auth/identity` en segundo plano cuando la instantánea tiene más de `ACCESS_LAYER_REFRESH_MS` (10 min por defecto). No existe credencial de servicio nueva: Core usa el token del propio usuario contra el autoservicio de RH. Si RH no responde, se conserva la instantánea anterior y se registra `[access-layer]`; nunca falla el login ni `/identity`.
+
+Consecuencia aceptada: un cambio de puesto en RH se refleja en Core en el siguiente login o, con sesión activa en el portal, en ≤10 minutos.
+
+### Estado al publicar
+
+No se sembró ninguna política de capa: con cero filas `layer`, el acceso efectivo de todas las cuentas es idéntico al anterior (prueba «sin política de capa el resultado es idéntico al anterior»). Definir los defaults por capa es la Fase 3/4 del roadmap (matriz editable + dry-run por módulo), no esta publicación.
+
+### Evidencia
+
+- Core: `node --test test/` 116 aprobadas, 2 opt-in omitidas (incluye `access-layer-policy.test.js`, 7 casos de precedencia, concesión, retiro, administrador e identidad sin capa). Sintaxis y `git diff --check` limpios.
+- RH: suite completa 304 aprobadas, 0 fallos, 5 omitidas (incluye `organizationalLayer.test.js`, 3 casos; se alineó `toolsHubFrontend.test.js` con el movimiento de Requisiciones a la barra lateral).
+- Migración 032 aplicada por el runner, repetida por el runner («Migraciones al día») y reejecutada directamente como SQL sin error; `subject_type` quedó `enum('role','user','layer')` en ambas tablas, 1 política existente intacta, `access_layer_snapshot` creada vacía. Respaldo previo `0600`: `run/access-layers-20261110/before.json`.
+
+### Rollback
+
+1. Para desactivar el efecto sin tocar código: borrar las filas `subject_type='layer'` desde el editor (restablecer herencia con motivo). Sin filas `layer` el comportamiento es el previo.
+2. Para revertir el código: revertir el commit de Core y reiniciar `mrti-core-api`; revertir el commit de RH, copiar `selfService.js`/`positionLayers.js` al directorio de despliegue y reiniciar `mrti-rh-api`. Conservar la migración 032: es aditiva y el `ENUM` no debe reducirse mientras existan filas `layer`. `access_layer_snapshot` puede quedarse; el código anterior la ignora.

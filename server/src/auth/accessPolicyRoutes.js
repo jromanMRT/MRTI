@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { authRequired, findProfileIdentity, USER_ROLES, USER_ROLE_LABELS } from './shared.js';
-import { parsePolicy, validatePolicy } from './accessPolicy.js';
+import { parsePolicy, validatePolicy, ORGANIZATIONAL_LAYERS, ORGANIZATIONAL_LAYER_LABELS } from './accessPolicy.js';
 import { PERMISSION_CATALOG, LEVEL_LABELS, permissionFor } from '../vendor/mrti-platform/permissions.js';
 
 export const accessPolicyRouter = Router();
@@ -15,7 +15,7 @@ accessPolicyRouter.get('/permissions/admin', async (req, res, next) => {
   try {
     const [policies] = await pool.query('SELECT subject_type, subject_id, policy_json, revision, updated_at FROM access_policies');
     const [events] = await pool.query('SELECT id, subject_type, subject_id, actor_id, reason, created_at FROM access_policy_events ORDER BY id DESC LIMIT 50');
-    res.set('Cache-Control', 'no-store').json({ catalog: PERMISSION_CATALOG, levels: LEVEL_LABELS, roles: USER_ROLES, role_labels: USER_ROLE_LABELS, policies: policies.map((row) => ({ ...row, policy: parsePolicy(row.policy_json), policy_json: undefined })), events });
+    res.set('Cache-Control', 'no-store').json({ catalog: PERMISSION_CATALOG, levels: LEVEL_LABELS, roles: USER_ROLES, role_labels: USER_ROLE_LABELS, layers: ORGANIZATIONAL_LAYERS, layer_labels: ORGANIZATIONAL_LAYER_LABELS, policies: policies.map((row) => ({ ...row, policy: parsePolicy(row.policy_json), policy_json: undefined })), events });
   } catch (error) { next(error); }
 });
 accessPolicyRouter.get('/permissions/admin/users/:id', async (req, res, next) => {
@@ -27,7 +27,7 @@ accessPolicyRouter.get('/permissions/admin/users/:id', async (req, res, next) =>
 });
 accessPolicyRouter.put('/permissions/admin/:type/:id', async (req, res, next) => {
   const { type, id } = req.params;
-  if (!['role','user'].includes(type) || (type === 'role' && !USER_ROLES.includes(id))) return res.status(400).json({ error: 'Rol o usuario no válido' });
+  if (!['role','user','layer'].includes(type) || (type === 'role' && !USER_ROLES.includes(id)) || (type === 'layer' && !ORGANIZATIONAL_LAYERS.includes(id))) return res.status(400).json({ error: 'Rol, capa o usuario no válido' });
   const reason = String(req.body?.reason || '').trim();
   const revision = req.body?.revision;
   if (reason.length < 5 || reason.length > 500 || !Number.isInteger(revision) || revision < 0) return res.status(400).json({ error: 'Indica un motivo (5–500 caracteres) y la revisión actual' });
@@ -37,7 +37,9 @@ accessPolicyRouter.put('/permissions/admin/:type/:id', async (req, res, next) =>
   try {
     await connection.beginTransaction();
     // La fila de identidad serializa también la primera escritura (sin política todavía).
-    const [users] = await connection.query(type === 'user' ? 'SELECT id, role FROM user_profiles WHERE id = ? FOR UPDATE' : 'SELECT id, role FROM user_profiles WHERE role = ? ORDER BY id FOR UPDATE', [id]);
+    // Una capa no corresponde a filas de user_profiles: su concurrencia la
+    // serializa la propia fila de access_policies (o ER_DUP_ENTRY al crearla).
+    const [users] = type === 'layer' ? [[]] : await connection.query(type === 'user' ? 'SELECT id, role FROM user_profiles WHERE id = ? FOR UPDATE' : 'SELECT id, role FROM user_profiles WHERE role = ? ORDER BY id FOR UPDATE', [id]);
     if (type === 'user' && !users.length) { await connection.rollback(); return res.status(404).json({ error: 'Usuario no encontrado' }); }
     if (id === 'administrator' || (type === 'user' && users[0].role === 'administrator')) { await connection.rollback(); return res.status(409).json({ error: 'El administrador global conserva acceso total. Asigna otro rol para limitar una cuenta.' }); }
     const [[before]] = await connection.query('SELECT policy_json, revision FROM access_policies WHERE subject_type = ? AND subject_id = ? FOR UPDATE', [type, id]);

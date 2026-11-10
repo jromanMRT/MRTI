@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
 import { authRequired, findProfile, signToken } from './shared.js';
+import { refreshLayerSnapshotQuietly } from './layerSnapshot.js';
 import { PASSWORD_MIN_LENGTH } from '../config/security.js';
 import { recordAudit } from '../audit.js';
 
@@ -21,6 +22,10 @@ profileRouter.get('/me', authRequired, async (req, res, next) => {
 // disparar una llamada cruzada a Obs en cada request — ver la nota en
 // findProfileIdentity (shared.js) sobre el ciclo Core↔Obs que esto evita.
 profileRouter.get('/identity', authRequired, (req, res) => {
+  // Sólo el navegador llama /identity (RH y los demás usan /me y
+  // /module-access), por eso aquí sí es seguro refrescar la capa en segundo
+  // plano sin cerrar el ciclo Core→RH→Core. No bloquea la respuesta.
+  void refreshLayerSnapshotQuietly(req.user.id, req.headers.authorization, { syncedAt: req.user.organizational_layer?.synced_at });
   res.json({ profile: req.user });
 });
 

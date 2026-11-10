@@ -4,6 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { rateLimit } from 'express-rate-limit';
 import { pool } from '../db.js';
 import { signToken, normalizeProfile } from './shared.js';
+import { refreshLayerSnapshotQuietly } from './layerSnapshot.js';
 import {
   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, GOOGLE_SSO_ENABLED,
   GOOGLE_ALLOWED_DOMAIN, GOOGLE_JIT_ENABLED,
@@ -103,6 +104,8 @@ googleRouter.post('/google/exchange', async (req, res, next) => {
   try {
     const [[user]] = await pool.query('SELECT is_active, session_version FROM user_profiles WHERE id = ?', [completion.userId]);
     if (!user?.is_active || user.session_version !== completion.version) return res.sendStatus(401);
-    res.json({ token: signToken(completion.userId, completion.version), returnTo: completion.returnTo });
+    const token = signToken(completion.userId, completion.version);
+    await refreshLayerSnapshotQuietly(completion.userId, `Bearer ${token}`, { force: true });
+    res.json({ token, returnTo: completion.returnTo });
   } catch (error) { next(error); }
 });
