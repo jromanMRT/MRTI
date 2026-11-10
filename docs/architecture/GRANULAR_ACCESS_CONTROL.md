@@ -117,4 +117,4 @@ No se sembró ninguna política de capa: con cero filas `layer`, el acceso efect
 ### Rollback
 
 1. Para desactivar el efecto sin tocar código: borrar las filas `subject_type='layer'` desde el editor (restablecer herencia con motivo). Sin filas `layer` el comportamiento es el previo.
-2. Para revertir el código: revertir el commit de Core y reiniciar `mrti-core-api`; revertir el commit de RH, copiar `selfService.js`/`positionLayers.js` al directorio de despliegue y reiniciar `mrti-rh-api`. Conservar la migración 032: es aditiva y el `ENUM` no debe reducirse mientras existan filas `layer`. `access_layer_snapshot` puede quedarse; el código anterior la ignora.
+2. Para revertir el código: revertir `MRTI@3675fcc` y reiniciar `mrti-core-api`; revertir `MRTI-RH@7d6ebe7`, copiar `selfService.js`/`positionLayers.js` al directorio de despliegue y reiniciar `mrti-rh-api`. Conservar la migración 032: es aditiva y el `ENUM` no debe reducirse mientras existan filas `layer`. `access_layer_snapshot` puede quedarse; el código anterior la ignora.
