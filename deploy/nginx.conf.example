@@ -46,6 +46,24 @@ server {
         proxy_set_header X-Request-Id $request_id;
     }
 
+    # High-confidence web decoys are logged by Core; bodies and query strings are discarded.
+    location ~* ^/(?:wp-admin(?:/|$)|wp-login\.php$|phpmyadmin(?:/|$)|adminer(?:\.php)?$|server-status$|actuator(?:/|$)|cgi-bin(?:/|$)) {
+        client_max_body_size 1k;
+        client_body_timeout 5s;
+        rewrite ^ /__internal/security/honeypot? break;
+        proxy_pass http://127.0.0.1:3005;
+        proxy_pass_request_body off;
+        proxy_pass_request_headers off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Host 127.0.0.1;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Honeypot-Path $uri;
+        proxy_set_header X-Request-Id $request_id;
+        proxy_connect_timeout 2s;
+        proxy_read_timeout 3s;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:3002;
         proxy_set_header Host $host;

@@ -15,9 +15,17 @@ import { portalSearchRouter } from './portal/searchRoutes.js';
 import { platformArchitectureRouter } from './portal/platformArchitectureRoutes.js';
 import { communityRouter } from './community/index.js';
 import { requestContext } from './vendor/mrti-platform/request-context.js';
+import { createHoneypotHandler } from './security/honeypot.js';
 
 const app = express();
 const PORT = Number(process.env.PORT || 3005);
+const honeypotLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: false,
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(404).end(),
+});
 
 app.disable('x-powered-by');
 app.set('trust proxy', 'loopback');
@@ -35,6 +43,7 @@ app.use(helmet({
     },
   },
 }));
+app.all('/__internal/security/honeypot', honeypotLimiter, createHoneypotHandler());
 app.use(cors({ origin: validateCorsOrigin }));
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/', rateLimit({

@@ -97,6 +97,7 @@ function sendAssetContent(res, asset, { disposition = 'inline', cacheControl = '
   res.send(asset.content);
 }
 
+// Público: logos y branding visibles sin sesión (no contiene datos sensibles).
 brandAssetRouter.get('/brand-appearance', async (_req, res, next) => {
   try {
     const [rows] = await pool.query(

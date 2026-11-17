@@ -181,16 +181,17 @@ async function fetchRhSource(path, authorization) {
 // empleado autenticado); aquí solo se combinan documentos laborales y salas
 // de juntas (mismo patrón de dos fuentes que fetchTicketNotifications).
 export async function fetchRhNotifications({ authorization, canOpenRh }) {
-  const [documents, rooms, lifecycleTasks, requisitions] = await Promise.all([
+  const [documents, rooms, lifecycleTasks, requisitions, positionRequests] = await Promise.all([
     fetchRhSource('/api/rh-self/me/documents/notifications', authorization),
     fetchRhSource('/api/rh-self/me/meeting-room-bookings/notifications', authorization),
     fetchRhSource('/api/rh-self/me/lifecycle-tasks/notifications', authorization),
     fetchRhSource('/api/rh-self/me/requisitions/notifications', authorization),
+    fetchRhSource('/api/rh-self/me/position-requests/notifications', authorization),
   ]);
-  const items = [...documents.data, ...rooms.data, ...lifecycleTasks.data, ...requisitions.data]
+  const items = [...documents.data, ...rooms.data, ...lifecycleTasks.data, ...requisitions.data, ...positionRequests.data]
     // Una firma de requisición se atiende desde Core, incluso cuando el
     // directivo no tiene habilitado el módulo administrativo de RH.
-    .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh || String(item.kind || '').startsWith('requisition_') ? item.href : null }))
+    .map((item) => ({ ...item, module_code: 'rh', href: canOpenRh || String(item.kind || '').startsWith('requisition_') || String(item.kind || '').startsWith('position_request_') ? item.href : null }))
     .sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
   return {
     items,
@@ -199,6 +200,7 @@ export async function fetchRhNotifications({ authorization, canOpenRh }) {
       { source: 'rh-meeting-rooms', ok: rooms.ok, error: rooms.error },
       { source: 'rh-lifecycle-tasks', ok: lifecycleTasks.ok, error: lifecycleTasks.error },
       { source: 'rh-requisitions', ok: requisitions.ok, error: requisitions.error },
+      { source: 'rh-position-requests', ok: positionRequests.ok, error: positionRequests.error },
     ],
   };
 }

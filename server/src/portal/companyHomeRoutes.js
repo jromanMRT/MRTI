@@ -68,7 +68,7 @@ function validateFacts(value) {
   }));
 }
 
-// Público a propósito: define el contenido fijo de la portada, visible sin sesión.
+// Público: contenido de la portada visible sin sesión (no contiene datos sensibles).
 companyHomeRouter.get('/company-home', async (_req, res, next) => {
   try {
     const [[row]] = await pool.query('SELECT * FROM company_home_settings WHERE id = 1');

@@ -3,8 +3,9 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { pool } from '../db.js';
 import { confirmRhWorkEmail, linkRhPortalAccounts, listRhEmployeesForAccounts, listRhPortalCandidates } from '../rhProvisioningClient.js';
 
-export function generateTemporaryPassword() {
-  return `${randomBytes(18).toString('base64url')}!7a`;
+export function generateTemporaryPassword(employeeNumber) {
+  const randomSuffix = `${randomBytes(18).toString('base64url')}!7a`;
+  return employeeNumber ? `MRT-${employeeNumber}-${randomSuffix}` : randomSuffix;
 }
 
 // dryRun sólo lee -- ni escribe user_profiles ni llama a RH para vincular
@@ -147,7 +148,7 @@ export async function provisionRhUsers(authorization, { dryRun = false, employee
       }
       if (!user) {
         const id = randomUUID();
-        const temporaryPassword = settings.password || generateTemporaryPassword();
+        const temporaryPassword = settings.password || generateTemporaryPassword(candidate.employee_number);
         await connection.query(
           `INSERT INTO user_profiles
             (id,email,password_hash,password_change_required,full_name,role,access_area_id,physical_area_id,is_active)
